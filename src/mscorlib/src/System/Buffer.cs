@@ -11,6 +11,7 @@ namespace System
     //Only contains static methods.  Does not require serialization
 
     using System;
+    using System.Numerics;
     using System.Runtime.CompilerServices;
     using System.Runtime.ConstrainedExecution;
     using System.Runtime.InteropServices;
@@ -26,7 +27,6 @@ namespace System
 #else // BIT64
     using nint = System.Int32;
     using nuint = System.UInt32;
-    using System.Numerics;
 #endif // BIT64
 
     public static class Buffer
@@ -687,7 +687,7 @@ PInvoke:
         [DllImport(JitHelpers.QCall, CharSet = CharSet.Unicode)]
         extern private unsafe static void __Memmove(byte* dest, byte* src, nuint len);
 
-        internal static void FillPrimitive<T>(T value, ByReference<T> dest, nuint elemCount) where T : struct
+        internal unsafe static void FillPrimitive<T>(T value, ByReference<T> dest, nuint elemCount) where T : struct
         {
             Debug.Assert(typeof(T) == typeof(ushort) || typeof(T) == typeof(uint) || typeof(T) == typeof(ulong));
 
@@ -695,7 +695,7 @@ PInvoke:
             // vectorized code path. We perform the length check because otherwise the overhead of
             // spinning up the vectorized code path is too high.
 
-            if (Vector.IsHardwareAccelerated && elemCount >= (nuint)2 * Vector<T>.Count)
+            if (Vector.IsHardwareAccelerated && elemCount >= (nuint)2 * (nuint)Vector<T>.Count)
             {
                 ref T newStartingPoint = ref FillPrimitiveVectorized(value,
                     new ByReference<Vector<T>>(ref Unsafe.As<T, Vector<T>>(ref dest.Value)),
@@ -705,7 +705,52 @@ PInvoke:
                 dest = new ByReference<T>(ref newStartingPoint);
             }
 
+            // TODO: make sure we're not going to overrun here
 
+#if BIT64
+            if (typeof(T) == typeof(uint))
+            {
+                dest.Value = value;
+                Unsafe.Add(ref dest.Value, (IntPtr)(nint)(elemCount - 1)) = value;
+
+                ulong fillPattern = Unsafe.As<T, uint>(ref value);
+                fillPattern += (fillPattern << 32);
+
+                nuint shift = (nuint)Unsafe.AsPointer(ref dest.Value) % 8;
+                FillNaturalWord(
+                    (IntPtr)(long)fillPattern,
+                    ref Unsafe.AddByteOffset(ref Unsafe.As<T, IntPtr>(ref dest.Value), (IntPtr)(nint)shift),
+                    elemCount / 2);
+            }
+#endif
+        }
+
+        private static void FillNaturalWord(IntPtr value, ref IntPtr r, nuint length)
+        {
+            nuint i = 0;
+            for (; i < (length & ~(nuint)7); i += 8)
+            {
+                Unsafe.Add(ref r, (IntPtr)(nint)(i + 0)) = value;
+                Unsafe.Add(ref r, (IntPtr)(nint)(i + 1)) = value;
+                Unsafe.Add(ref r, (IntPtr)(nint)(i + 2)) = value;
+                Unsafe.Add(ref r, (IntPtr)(nint)(i + 3)) = value;
+                Unsafe.Add(ref r, (IntPtr)(nint)(i + 4)) = value;
+                Unsafe.Add(ref r, (IntPtr)(nint)(i + 5)) = value;
+                Unsafe.Add(ref r, (IntPtr)(nint)(i + 6)) = value;
+                Unsafe.Add(ref r, (IntPtr)(nint)(i + 7)) = value;
+            }
+            if (i < (length & ~(nuint)3))
+            {
+                Unsafe.Add(ref r, (IntPtr)(nint)(i + 0)) = value;
+                Unsafe.Add(ref r, (IntPtr)(nint)(i + 1)) = value;
+                Unsafe.Add(ref r, (IntPtr)(nint)(i + 2)) = value;
+                Unsafe.Add(ref r, (IntPtr)(nint)(i + 3)) = value;
+                i += 4;
+            }
+            for (; i < length; i++)
+            {
+                Unsafe.Add(ref r, (IntPtr)(nint)i) = value;
+            }
         }
 
         private static ref T FillPrimitiveVectorized<T>(T value, ByReference<Vector<T>> start, ByReference<Vector<T>> end) where T : struct
@@ -731,7 +776,7 @@ PInvoke:
 
             // Handle 4 vectors at a time
 
-            while ((nuint)bytesRemaining >= 4 * Unsafe.SizeOf<Vector<T>>())
+            while ((nuint)bytesRemaining >= 4 * (nuint)Unsafe.SizeOf<Vector<T>>())
             {
                 start.Value = vectorizedValue;
                 Unsafe.Add(ref start.Value, 1) = vectorizedValue;
@@ -743,21 +788,21 @@ PInvoke:
 
             // Handle 2 vectors at a time if possible
 
-            Debug.Assert((nuint)bytesRemaining < 4 * Unsafe.SizeOf<Vector<T>>());
+            Debug.Assert((nuint)bytesRemaining < 4 * (nuint)Unsafe.SizeOf<Vector<T>>());
 
-            if ((nuint)bytesRemaining >= 2 * Unsafe.SizeOf<Vector<T>>())
+            if ((nuint)bytesRemaining >= 2 * (nuint)Unsafe.SizeOf<Vector<T>>())
             {
                 start.Value = vectorizedValue;
                 Unsafe.Add(ref start.Value, 1) = vectorizedValue;
 
-                if ((nuint)bytesRemaining >= 3 * Unsafe.SizeOf<Vector<T>>())
+                if ((nuint)bytesRemaining >= 3 * (nuint)Unsafe.SizeOf<Vector<T>>())
                 {
                     Unsafe.Add(ref start.Value, 2) = vectorizedValue;
                     return ref Unsafe.As<Vector<T>, T>(ref Unsafe.Add(ref start.Value, 3));
                 }
                 return ref Unsafe.As<Vector<T>, T>(ref Unsafe.Add(ref start.Value, 2));
             }
-            else if ((nuint)bytesRemaining >= Unsafe.SizeOf<Vector<T>>())
+            else if ((nuint)bytesRemaining >= (nuint)Unsafe.SizeOf<Vector<T>>())
             {
                 start.Value = vectorizedValue;
                 return ref Unsafe.As<Vector<T>, T>(ref Unsafe.Add(ref start.Value, 1));
@@ -799,7 +844,7 @@ PInvoke:
 #endif // BIT64
         }
         
-#if HAS_CUSTOM_BLOCKS        
+#if HAS_CUSTOM_BLOCKS
         [StructLayout(LayoutKind.Sequential, Size = 16)]
         private struct Block16 { }
 
