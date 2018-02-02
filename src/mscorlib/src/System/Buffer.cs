@@ -26,6 +26,7 @@ namespace System
 #else // BIT64
     using nint = System.Int32;
     using nuint = System.UInt32;
+    using System.Numerics;
 #endif // BIT64
 
     public static class Buffer
@@ -685,6 +686,87 @@ PInvoke:
 
         [DllImport(JitHelpers.QCall, CharSet = CharSet.Unicode)]
         extern private unsafe static void __Memmove(byte* dest, byte* src, nuint len);
+
+        internal static void FillPrimitive<T>(T value, ByReference<T> dest, nuint elemCount) where T : struct
+        {
+            Debug.Assert(typeof(T) == typeof(ushort) || typeof(T) == typeof(uint) || typeof(T) == typeof(ulong));
+
+            // If the full byte count of the data to be written is at least two vectors, go down the
+            // vectorized code path. We perform the length check because otherwise the overhead of
+            // spinning up the vectorized code path is too high.
+
+            if (Vector.IsHardwareAccelerated && elemCount >= (nuint)2 * Vector<T>.Count)
+            {
+                ref T newStartingPoint = ref FillPrimitiveVectorized(value,
+                    new ByReference<Vector<T>>(ref Unsafe.As<T, Vector<T>>(ref dest.Value)),
+                    new ByReference<Vector<T>>(ref Unsafe.As<T, Vector<T>>(ref Unsafe.Add(ref dest.Value, (IntPtr)(nint)elemCount))));
+
+                elemCount -= (nuint)Unsafe.ByteOffset(ref dest.Value, ref newStartingPoint) / (nuint)Unsafe.SizeOf<T>();
+                dest = new ByReference<T>(ref newStartingPoint);
+            }
+
+
+        }
+
+        private static ref T FillPrimitiveVectorized<T>(T value, ByReference<Vector<T>> start, ByReference<Vector<T>> end) where T : struct
+        {
+            // n.b. We're relying on the infrastructure to handle unaligned writes correctly.
+
+            // Precondition checking
+
+            Debug.Assert(Vector.IsHardwareAccelerated);
+            Debug.Assert((nuint)Unsafe.ByteOffset(ref start.Value, ref end.Value) >= (nuint)(2 * Unsafe.SizeOf<Vector<T>>()));
+            Debug.Assert(!RuntimeHelpers.IsReferenceOrContainsReferences<T>());
+
+            // First, write two vectors
+
+            var vectorizedValue = new Vector<T>(value);
+            start.Value = vectorizedValue;
+            Unsafe.Add(ref start.Value, 1) = vectorizedValue;
+
+            // Calculate new bounds
+
+            start = new ByReference<Vector<T>>(ref Unsafe.Add(ref start.Value, 2));
+            nint bytesRemaining = (nint)Unsafe.ByteOffset(ref start.Value, ref end.Value);
+
+            // Handle 4 vectors at a time
+
+            while ((nuint)bytesRemaining >= 4 * Unsafe.SizeOf<Vector<T>>())
+            {
+                start.Value = vectorizedValue;
+                Unsafe.Add(ref start.Value, 1) = vectorizedValue;
+                Unsafe.Add(ref start.Value, 2) = vectorizedValue;
+                Unsafe.Add(ref start.Value, 3) = vectorizedValue;
+                start = new ByReference<Vector<T>>(ref Unsafe.Add(ref start.Value, 4));
+                bytesRemaining = (nint)Unsafe.ByteOffset(ref start.Value, ref end.Value);
+            }
+
+            // Handle 2 vectors at a time if possible
+
+            Debug.Assert((nuint)bytesRemaining < 4 * Unsafe.SizeOf<Vector<T>>());
+
+            if ((nuint)bytesRemaining >= 2 * Unsafe.SizeOf<Vector<T>>())
+            {
+                start.Value = vectorizedValue;
+                Unsafe.Add(ref start.Value, 1) = vectorizedValue;
+
+                if ((nuint)bytesRemaining >= 3 * Unsafe.SizeOf<Vector<T>>())
+                {
+                    Unsafe.Add(ref start.Value, 2) = vectorizedValue;
+                    return ref Unsafe.As<Vector<T>, T>(ref Unsafe.Add(ref start.Value, 3));
+                }
+                return ref Unsafe.As<Vector<T>, T>(ref Unsafe.Add(ref start.Value, 2));
+            }
+            else if ((nuint)bytesRemaining >= Unsafe.SizeOf<Vector<T>>())
+            {
+                start.Value = vectorizedValue;
+                return ref Unsafe.As<Vector<T>, T>(ref Unsafe.Add(ref start.Value, 1));
+            }
+            else
+            {
+                return ref Unsafe.As<Vector<T>, T>(ref start.Value);
+            }
+        }
 
         // The attributes on this method are chosen for best JIT performance. 
         // Please do not edit unless intentional.
