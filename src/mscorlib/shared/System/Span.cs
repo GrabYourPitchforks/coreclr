@@ -212,7 +212,9 @@ namespace System
                 }
                 if (Unsafe.SizeOf<T>() == sizeof(ushort))
                 {
-                    Buffer.FillPrimitive<ushort, uint>(JitHelpers.ChangeType<T, ushort>(value), new ByReference<ushort>(ref Unsafe.As<T, ushort>(ref _pointer.Value)), (nuint)_length);
+                    uint extendedValue = JitHelpers.ChangeType<T, ushort>(value);
+                    extendedValue += (extendedValue << 16);
+                    Buffer.FillPrimitiveUInt16(extendedValue, new ByReference<ushort>(ref Unsafe.As<T, ushort>(ref _pointer.Value)), (nuint)_length);
                     return;
                 }
                 else if (Unsafe.SizeOf<T>() == sizeof(uint))
