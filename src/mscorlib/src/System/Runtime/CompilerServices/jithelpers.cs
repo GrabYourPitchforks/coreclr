@@ -169,6 +169,13 @@ namespace System.Runtime.CompilerServices
         }
 #endif // DEBUG
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        static internal TTo ChangeType<TFrom, TTo>(TFrom value)
+        {
+            Debug.Assert(Unsafe.SizeOf<TFrom>() == Unsafe.SizeOf<TTo>());
+            return Unsafe.As<TFrom, TTo>(ref value);
+        }
+
         // Set the given element in the array without any type or range checks
         [MethodImplAttribute(MethodImplOptions.InternalCall)]
         extern static internal void UnsafeSetArrayElement(Object[] target, int index, Object element);

@@ -194,37 +194,36 @@ namespace System
         public void Fill(T value)
         {
             // No-op for empty spans
+
             if (_length == 0)
             {
                 return;
             }
 
-            // First, run single-byte fills through initblk.
-
-            if (Unsafe.SizeOf<T>() == 1)
-            {
-                Unsafe.InitBlockUnaligned(ref Unsafe.As<T, byte>(ref _pointer.Value), Unsafe.As<T, byte>(ref value), (uint)_length);
-                return;
-            }
-
-            // Next, run 16-bit, 32-bit, or 64-bit fills through our custom fill logic.
+            // Run 8-bit fills through initblk.
+            // Run 16-bit, 32-bit, or 64-bit fills through our custom fill logic.
 
             if (!RuntimeHelpers.IsReferenceOrContainsReferences<T>())
             {
+                if (Unsafe.SizeOf<T>() == sizeof(byte))
+                {
+                    Unsafe.InitBlockUnaligned(ref Unsafe.As<T, byte>(ref _pointer.Value), JitHelpers.ChangeType<T, byte>(value), (uint)_length);
+                    return;
+                }
                 if (Unsafe.SizeOf<T>() == sizeof(ushort))
                 {
-                    Buffer.FillPrimitive<ushort>(Unsafe.As<T, ushort>(ref value), new ByReference<ushort>(ref Unsafe.As<T, ushort>(ref _pointer.Value)), (nuint)_length);
+                    Buffer.FillPrimitive<ushort>(JitHelpers.ChangeType<T, ushort>(value), new ByReference<ushort>(ref Unsafe.As<T, ushort>(ref _pointer.Value)), (nuint)_length);
                     return;
                 }
                 else if (Unsafe.SizeOf<T>() == sizeof(uint))
                 {
-                    Buffer.FillPrimitive<uint>(Unsafe.As<T, uint>(ref value), new ByReference<uint>(ref Unsafe.As<T, uint>(ref _pointer.Value)), (nuint)_length);
+                    Buffer.FillPrimitive<uint>(JitHelpers.ChangeType<T, uint>(value), new ByReference<uint>(ref Unsafe.As<T, uint>(ref _pointer.Value)), (nuint)_length);
                     return;
                 }
 #if BIT64
                 else if (Unsafe.SizeOf<T>() == sizeof(ulong))
                 {
-                    Buffer.FillPrimitive<ulong>(Unsafe.As<T, ulong>(ref value), new ByReference<ulong>(ref Unsafe.As<T, ulong>(ref _pointer.Value)), (nuint)_length);
+                    Buffer.FillPrimitive<ulong>(JitHelpers.ChangeType<T, ulong>(value), new ByReference<ulong>(ref Unsafe.As<T, ulong>(ref _pointer.Value)), (nuint)_length);
                     return;
                 }
 #endif
