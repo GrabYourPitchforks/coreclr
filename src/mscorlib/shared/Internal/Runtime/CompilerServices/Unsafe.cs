@@ -152,6 +152,19 @@ namespace Internal.Runtime.CompilerServices
             return ref AddByteOffset(ref source, (IntPtr)(void*)byteOffset);
         }
 
+        [Intrinsic]
+        [NonVersionable]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static ref T And<T>(ref T source, nuint mask)
+        {
+            throw new PlatformNotSupportedException();
+
+            // ldarg.0
+            // ldarg.1
+            // and
+            // ret
+        }
+
         /// <summary>
         /// Determines whether the specified references point to the same location.
         /// </summary>

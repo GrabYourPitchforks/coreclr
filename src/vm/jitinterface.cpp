@@ -7111,6 +7111,17 @@ bool getILIntrinsicImplementationForUnsafe(MethodDesc * ftn,
         methInfo->options = (CorInfoOptions)0;
         return true;
     }
+    else if (tk == MscorlibBinder::GetMethod(METHOD__UNSAFE__BYREF_AND)->GetMemberDef())
+    {
+        // Bitwise 'and' the two arguments
+        static const BYTE ilcode[] = { CEE_LDARG_0, CEE_LDARG_1, CEE_AND, CEE_RET };
+        methInfo->ILCode = const_cast<BYTE*>(ilcode);
+        methInfo->ILCodeSize = sizeof(ilcode);
+        methInfo->maxStack = 2;
+        methInfo->EHcount = 0;
+        methInfo->options = (CorInfoOptions)0;
+        return true;
+    }
     else if (tk == MscorlibBinder::GetMethod(METHOD__UNSAFE__BYREF_ARE_SAME)->GetMemberDef())
     {
         // Compare the two arguments
