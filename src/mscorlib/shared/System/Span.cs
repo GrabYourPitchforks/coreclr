@@ -192,6 +192,8 @@ namespace System
         /// </summary>
         public void Fill(T value)
         {
+            // First, run single-byte fills through initblk.
+
             if (Unsafe.SizeOf<T>() == 1)
             {
                 uint length = (uint)_length;
@@ -200,8 +202,35 @@ namespace System
 
                 T tmp = value; // Avoid taking address of the "value" argument. It would regress performance of the loop below.
                 Unsafe.InitBlockUnaligned(ref Unsafe.As<T, byte>(ref _pointer.Value), Unsafe.As<T, byte>(ref tmp), length);
+                return;
             }
-            else
+
+            // Next, run 16-bit, 32-bit, or 64-bit fills through our custom fill logic.
+
+            if (!RuntimeHelpers.IsReferenceOrContainsReferences<T>())
+            {
+                T tmp = value;
+                if (Unsafe.SizeOf<T>() == sizeof(ushort))
+                {
+                    Buffer.FillPrimitive<ushort>(Unsafe.As<T, ushort>(ref tmp), new ByReference<ushort>(ref Unsafe.As<T, ushort>(ref _pointer.Value)), (nuint)_length);
+                    return;
+                }
+                else if (Unsafe.SizeOf<T>() == sizeof(uint))
+                {
+                    Buffer.FillPrimitive<uint>(Unsafe.As<T, uint>(ref tmp), new ByReference<uint>(ref Unsafe.As<T, uint>(ref _pointer.Value)), (nuint)_length);
+                    return;
+                }
+#if BIT64
+                else if (Unsafe.SizeOf<T>() == sizeof(ulong))
+                {
+                    Buffer.FillPrimitive<ulong>(Unsafe.As<T, ulong>(ref tmp), new ByReference<ulong>(ref Unsafe.As<T, ulong>(ref _pointer.Value)), (nuint)_length);
+                    return;
+                }
+#endif
+            }
+
+            // The logic below is for reference / contains-references / greater-than-IntPtr size types
+
             {
                 // Do all math as nuint to avoid unnecessary 64->32->64 bit integer truncations
                 nuint length = (uint)_length;
