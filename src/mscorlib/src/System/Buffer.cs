@@ -714,7 +714,10 @@ PInvoke:
                 return;
             }
 
-            // TODO: make sure we're not going to overrun here
+            if (elemCount < (nuint)(2 * (Unsafe.SizeOf<IntPtr>() / Unsafe.SizeOf<T>() - 1)))
+            {
+                goto SmallFill;
+            }
 
             nuint fillPattern;
 
@@ -769,12 +772,19 @@ PInvoke:
 
             throw new PlatformNotSupportedException();
 
+SmallFill:
+            while (elemCount > 0)
+            {
+                Unsafe.Add(ref dest.Value, (IntPtr)(nint)(--elemCount)) = value;
+            }
+            return;
+
 FillNaturalWord:
             nuint shift = (nuint)Unsafe.AsPointer(ref dest.Value) % sizeof(nuint);
             FillNaturalWord(
                 (IntPtr)(nint)fillPattern,
                 ref Unsafe.AddByteOffset(ref Unsafe.As<T, IntPtr>(ref dest.Value), (IntPtr)(-(nint)shift)),
-                elemCount / 2);
+                elemCount / (nuint)(Unsafe.SizeOf<IntPtr>() / Unsafe.SizeOf<T>()));
         }
 
         private static void FillNaturalWord(IntPtr value, ref IntPtr r, nuint length)
