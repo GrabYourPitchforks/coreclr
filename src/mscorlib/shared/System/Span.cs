@@ -212,18 +212,18 @@ namespace System
                 }
                 if (Unsafe.SizeOf<T>() == sizeof(ushort))
                 {
-                    Buffer.FillPrimitive<ushort>(JitHelpers.ChangeType<T, ushort>(value), new ByReference<ushort>(ref Unsafe.As<T, ushort>(ref _pointer.Value)), (nuint)_length);
+                    Buffer.FillPrimitive<ushort, uint>(JitHelpers.ChangeType<T, ushort>(value), new ByReference<ushort>(ref Unsafe.As<T, ushort>(ref _pointer.Value)), (nuint)_length);
                     return;
                 }
                 else if (Unsafe.SizeOf<T>() == sizeof(uint))
                 {
-                    Buffer.FillPrimitive<uint>(JitHelpers.ChangeType<T, uint>(value), new ByReference<uint>(ref Unsafe.As<T, uint>(ref _pointer.Value)), (nuint)_length);
+                    Buffer.FillPrimitive<uint, uint>(JitHelpers.ChangeType<T, uint>(value), new ByReference<uint>(ref Unsafe.As<T, uint>(ref _pointer.Value)), (nuint)_length);
                     return;
                 }
 #if BIT64
                 else if (Unsafe.SizeOf<T>() == sizeof(ulong))
                 {
-                    Buffer.FillPrimitive<ulong>(JitHelpers.ChangeType<T, ulong>(value), new ByReference<ulong>(ref Unsafe.As<T, ulong>(ref _pointer.Value)), (nuint)_length);
+                    Buffer.FillPrimitive<ulong, ulong>(JitHelpers.ChangeType<T, ulong>(value), new ByReference<ulong>(ref Unsafe.As<T, ulong>(ref _pointer.Value)), (nuint)_length);
                     return;
                 }
 #endif

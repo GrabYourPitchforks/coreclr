@@ -687,34 +687,42 @@ PInvoke:
         [DllImport(JitHelpers.QCall, CharSet = CharSet.Unicode)]
         extern private unsafe static void __Memmove(byte* dest, byte* src, nuint len);
 
-        internal unsafe static void FillPrimitive<T>(T value, ByReference<T> dest, nuint elemCount) where T : struct
+        internal unsafe static void FillPrimitive<TPrimitive, TStack>(TStack value, ByReference<TPrimitive> start, nuint elemCount)
+            where TPrimitive : struct
+            where TStack : struct
         {
-            Debug.Assert(typeof(T) == typeof(ushort) || typeof(T) == typeof(uint) || typeof(T) == typeof(ulong));
+            Debug.Assert((typeof(TPrimitive) == typeof(ushort) && typeof(TStack) == typeof(uint))
+                || (typeof(TPrimitive) == typeof(uint) && typeof(TStack) == typeof(uint))
+                || (typeof(TPrimitive) == typeof(ulong) && typeof(TStack) == typeof(ulong)));
 
             // If the full byte count of the data to be written is at least two vectors, go down the
             // vectorized code path. We perform the length check because otherwise the overhead of
             // spinning up the vectorized code path is too high.
 
-            if (Vector.IsHardwareAccelerated && elemCount >= (nuint)2 * (nuint)Vector<T>.Count)
+            if (Vector.IsHardwareAccelerated && elemCount >= (nuint)2 * (nuint)Vector<TPrimitive>.Count)
             {
-                ref T newStartingPoint = ref FillPrimitiveVectorized(value,
-                    new ByReference<Vector<T>>(ref Unsafe.As<T, Vector<T>>(ref dest.Value)),
-                    new ByReference<Vector<T>>(ref Unsafe.As<T, Vector<T>>(ref Unsafe.Add(ref dest.Value, (IntPtr)(nint)elemCount))));
+                ref var newStartingPoint = ref FillPrimitiveVectorized(
+                    value,
+                    new ByReference<Vector<TPrimitive>>(ref Unsafe.As<TPrimitive, Vector<TPrimitive>>(ref start.Value)),
+                    new ByReference<Vector<TPrimitive>>(ref Unsafe.As<TPrimitive, Vector<TPrimitive>>(ref Unsafe.Add(ref start.Value, (IntPtr)(nint)elemCount))));
 
-                elemCount -= (nuint)Unsafe.ByteOffset(ref dest.Value, ref newStartingPoint) / (nuint)Unsafe.SizeOf<T>();
-                dest = new ByReference<T>(ref newStartingPoint);
+                elemCount -= (nuint)Unsafe.ByteOffset(ref start.Value, ref newStartingPoint) / (nuint)Unsafe.SizeOf<TPrimitive>();
+                start = new ByReference<TPrimitive>(ref newStartingPoint);
             }
 
             // Special-case T being the natural word length
             // This is uint on 32-bit, ulong on 64-bit
 
-            if (Unsafe.SizeOf<T>() == sizeof(IntPtr))
+            if (Unsafe.SizeOf<TPrimitive>() == sizeof(IntPtr))
             {
-                FillNaturalWord(Unsafe.As<T, IntPtr>(ref value), ref Unsafe.As<T, IntPtr>(ref dest.Value), elemCount);
+                FillNaturalWord(
+                    JitHelpers.ChangeType<TStack, IntPtr>(value),
+                    ref Unsafe.As<TPrimitive, IntPtr>(ref start.Value),
+                    elemCount);
                 return;
             }
 
-            if (elemCount < (nuint)(2 * (Unsafe.SizeOf<IntPtr>() / Unsafe.SizeOf<T>() - 1)))
+            if (elemCount < (nuint)(2 * (Unsafe.SizeOf<IntPtr>() / Unsafe.SizeOf<TPrimitive>() - 1)))
             {
                 goto SmallFill;
             }
@@ -724,20 +732,20 @@ PInvoke:
             // Special-case T being half the natural word length
             // This is ushort on 32-bit, uint on 32-bit
 
-            if (Unsafe.SizeOf<T>() == sizeof(IntPtr) / 2)
+            if (Unsafe.SizeOf<TPrimitive>() == sizeof(IntPtr) / 2)
             {
                 // Write out the first and last values
 
-                dest.Value = value;
-                Unsafe.Add(ref dest.Value, (IntPtr)(nint)(elemCount - 1)) = value;
+                start.Value = UnwrapInt<TPrimitive, TStack>(value);
+                Unsafe.Add(ref start.Value, (IntPtr)(nint)(elemCount - 1)) = UnwrapInt<TPrimitive, TStack>(value);
 
                 // Set the fill pattern and call into the natural word fill routine
 
 #if BIT64
-                fillPattern = Unsafe.As<T, uint>(ref value);
+                fillPattern = UnwrapInt<uint, TStack>(value);
                 fillPattern += (fillPattern << 32);
 #elif BIT32
-                fillPattern = Unsafe.As<T, ushort>(ref value);
+                fillPattern = UnwrapInt<ushort, TStack>(value);
                 fillPattern += (fillPattern << 16);
 #else
                 throw new PlatformNotSupportedException();
@@ -749,20 +757,20 @@ PInvoke:
             // At this point, the only thing left is ushort for 64-bit platforms.
 
 #if BIT64
-            if (typeof(T) == typeof(ushort))
+            if (typeof(TPrimitive) == typeof(ushort))
             {
                 // Write out the first 3 and last 3 values
 
-                dest.Value = value;
-                Unsafe.Add(ref dest.Value, 1) = value;
-                Unsafe.Add(ref dest.Value, 2) = value;
-                Unsafe.Add(ref dest.Value, (IntPtr)(nint)(elemCount - 1)) = value;
-                Unsafe.Add(ref dest.Value, (IntPtr)(nint)(elemCount - 2)) = value;
-                Unsafe.Add(ref dest.Value, (IntPtr)(nint)(elemCount - 3)) = value;
+                start.Value = UnwrapInt<TPrimitive, TStack>(value);
+                Unsafe.Add(ref start.Value, 1) = UnwrapInt<TPrimitive, TStack>(value);
+                Unsafe.Add(ref start.Value, 2) = UnwrapInt<TPrimitive, TStack>(value);
+                Unsafe.Add(ref start.Value, (IntPtr)(nint)(elemCount - 1)) = UnwrapInt<TPrimitive, TStack>(value);
+                Unsafe.Add(ref start.Value, (IntPtr)(nint)(elemCount - 2)) = UnwrapInt<TPrimitive, TStack>(value);
+                Unsafe.Add(ref start.Value, (IntPtr)(nint)(elemCount - 3)) = UnwrapInt<TPrimitive, TStack>(value);
 
                 // Set the fill pattern and call into the natural word fill routine
 
-                fillPattern = Unsafe.As<T, ushort>(ref value) * 0x0001000100010001UL;
+                fillPattern = JitHelpers.ChangeType<TStack, uint>(value) * 0x0001000100010001UL;
 
                 goto FillNaturalWord;
             }
@@ -775,16 +783,16 @@ PInvoke:
 SmallFill:
             while (elemCount > 0)
             {
-                Unsafe.Add(ref dest.Value, (IntPtr)(nint)(--elemCount)) = value;
+                Unsafe.Add(ref start.Value, (IntPtr)(nint)(--elemCount)) = UnwrapInt<TPrimitive, TStack>(value);
             }
             return;
 
 FillNaturalWord:
-            nuint shift = (nuint)Unsafe.AsPointer(ref dest.Value) % sizeof(nuint);
+            nuint shift = (nuint)Unsafe.AsPointer(ref start.Value) % sizeof(nuint);
             FillNaturalWord(
                 (IntPtr)(nint)fillPattern,
-                ref Unsafe.AddByteOffset(ref Unsafe.As<T, IntPtr>(ref dest.Value), (IntPtr)(-(nint)shift)),
-                elemCount / (nuint)(Unsafe.SizeOf<IntPtr>() / Unsafe.SizeOf<T>()));
+                ref Unsafe.AddByteOffset(ref Unsafe.As<TPrimitive, IntPtr>(ref start.Value), (IntPtr)(-(nint)shift)),
+                elemCount / (nuint)(Unsafe.SizeOf<IntPtr>() / Unsafe.SizeOf<TPrimitive>()));
         }
 
         private static void FillNaturalWord(IntPtr value, ref IntPtr r, nuint length)
@@ -815,63 +823,83 @@ FillNaturalWord:
             }
         }
 
-        private static ref T FillPrimitiveVectorized<T>(T value, ByReference<Vector<T>> start, ByReference<Vector<T>> end) where T : struct
+        private static ref TPrimitive FillPrimitiveVectorized<TStack, TPrimitive>(TStack value, ByReference<Vector<TPrimitive>> start, ByReference<Vector<TPrimitive>> end)
+            where TPrimitive : struct
+            where TStack : struct
         {
             // n.b. We're relying on the infrastructure to handle unaligned writes correctly.
 
             // Precondition checking
 
             Debug.Assert(Vector.IsHardwareAccelerated);
-            Debug.Assert((nuint)Unsafe.ByteOffset(ref start.Value, ref end.Value) >= (nuint)(2 * Unsafe.SizeOf<Vector<T>>()));
-            Debug.Assert(!RuntimeHelpers.IsReferenceOrContainsReferences<T>());
+            Debug.Assert((nuint)Unsafe.ByteOffset(ref start.Value, ref end.Value) >= (nuint)(2 * Unsafe.SizeOf<Vector<TPrimitive>>()));
+            Debug.Assert(!RuntimeHelpers.IsReferenceOrContainsReferences<TPrimitive>());
 
             // First, write two vectors
 
-            var vectorizedValue = new Vector<T>(value);
+            var vectorizedValue = new Vector<TPrimitive>(UnwrapInt<TPrimitive, TStack>(value));
+
             start.Value = vectorizedValue;
             Unsafe.Add(ref start.Value, 1) = vectorizedValue;
 
             // Calculate new bounds
 
-            start = new ByReference<Vector<T>>(ref Unsafe.Add(ref start.Value, 2));
+            start = new ByReference<Vector<TPrimitive>>(ref Unsafe.Add(ref start.Value, 2));
             nint bytesRemaining = (nint)Unsafe.ByteOffset(ref start.Value, ref end.Value);
 
             // Handle 4 vectors at a time
 
-            while ((nuint)bytesRemaining >= 4 * (nuint)Unsafe.SizeOf<Vector<T>>())
+            while ((nuint)bytesRemaining >= 4 * (nuint)Unsafe.SizeOf<Vector<TPrimitive>>())
             {
                 start.Value = vectorizedValue;
                 Unsafe.Add(ref start.Value, 1) = vectorizedValue;
                 Unsafe.Add(ref start.Value, 2) = vectorizedValue;
                 Unsafe.Add(ref start.Value, 3) = vectorizedValue;
-                start = new ByReference<Vector<T>>(ref Unsafe.Add(ref start.Value, 4));
+                start = new ByReference<Vector<TPrimitive>>(ref Unsafe.Add(ref start.Value, 4));
                 bytesRemaining = (nint)Unsafe.ByteOffset(ref start.Value, ref end.Value);
             }
 
             // Handle 2 vectors at a time if possible
 
-            Debug.Assert((nuint)bytesRemaining < 4 * (nuint)Unsafe.SizeOf<Vector<T>>());
+            Debug.Assert((nuint)bytesRemaining < 4 * (nuint)Unsafe.SizeOf<Vector<TPrimitive>>());
 
-            if ((nuint)bytesRemaining >= 2 * (nuint)Unsafe.SizeOf<Vector<T>>())
+            if ((nuint)bytesRemaining >= 2 * (nuint)Unsafe.SizeOf<Vector<TPrimitive>>())
             {
                 start.Value = vectorizedValue;
                 Unsafe.Add(ref start.Value, 1) = vectorizedValue;
 
-                if ((nuint)bytesRemaining >= 3 * (nuint)Unsafe.SizeOf<Vector<T>>())
+                if ((nuint)bytesRemaining >= 3 * (nuint)Unsafe.SizeOf<Vector<TPrimitive>>())
                 {
                     Unsafe.Add(ref start.Value, 2) = vectorizedValue;
-                    return ref Unsafe.As<Vector<T>, T>(ref Unsafe.Add(ref start.Value, 3));
+                    return ref Unsafe.As<Vector<TPrimitive>, TPrimitive>(ref Unsafe.Add(ref start.Value, 3));
                 }
-                return ref Unsafe.As<Vector<T>, T>(ref Unsafe.Add(ref start.Value, 2));
+                return ref Unsafe.As<Vector<TPrimitive>, TPrimitive>(ref Unsafe.Add(ref start.Value, 2));
             }
-            else if ((nuint)bytesRemaining >= (nuint)Unsafe.SizeOf<Vector<T>>())
+            else if ((nuint)bytesRemaining >= (nuint)Unsafe.SizeOf<Vector<TPrimitive>>())
             {
                 start.Value = vectorizedValue;
-                return ref Unsafe.As<Vector<T>, T>(ref Unsafe.Add(ref start.Value, 1));
+                return ref Unsafe.As<Vector<TPrimitive>, TPrimitive>(ref Unsafe.Add(ref start.Value, 1));
             }
             else
             {
-                return ref Unsafe.As<Vector<T>, T>(ref start.Value);
+                return ref Unsafe.As<Vector<TPrimitive>, TPrimitive>(ref start.Value);
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static TPrimitive UnwrapInt<TPrimitive, TStack>(TStack value)
+            where TPrimitive : struct
+            where TStack : struct
+        {
+            if (typeof(TPrimitive) == typeof(ushort))
+            {
+                Debug.Assert(typeof(TStack) == typeof(uint));
+                return JitHelpers.ChangeType<ushort, TPrimitive>((ushort)JitHelpers.ChangeType<TStack, uint>(value));
+            }
+            else
+            {
+                Debug.Assert(Unsafe.SizeOf<TPrimitive>() == Unsafe.SizeOf<TStack>());
+                return JitHelpers.ChangeType<TStack, TPrimitive>(value);
             }
         }
 
