@@ -705,24 +705,76 @@ PInvoke:
                 dest = new ByReference<T>(ref newStartingPoint);
             }
 
+            // Special-case T being the natural word length
+            // This is uint on 32-bit, ulong on 64-bit
+
+            if (Unsafe.SizeOf<T>() == sizeof(IntPtr))
+            {
+                FillNaturalWord(Unsafe.As<T, IntPtr>(ref value), ref Unsafe.As<T, IntPtr>(ref dest.Value), elemCount);
+                return;
+            }
+
             // TODO: make sure we're not going to overrun here
 
-#if BIT64
-            if (typeof(T) == typeof(uint))
+            nuint fillPattern;
+
+            // Special-case T being half the natural word length
+            // This is ushort on 32-bit, uint on 32-bit
+
+            if (Unsafe.SizeOf<T>() == sizeof(IntPtr) / 2)
             {
+                // Write out the first and last values
+
                 dest.Value = value;
                 Unsafe.Add(ref dest.Value, (IntPtr)(nint)(elemCount - 1)) = value;
 
-                ulong fillPattern = Unsafe.As<T, uint>(ref value);
-                fillPattern += (fillPattern << 32);
+                // Set the fill pattern and call into the natural word fill routine
 
-                nuint shift = (nuint)Unsafe.AsPointer(ref dest.Value) % 8;
-                FillNaturalWord(
-                    (IntPtr)(long)fillPattern,
-                    ref Unsafe.AddByteOffset(ref Unsafe.As<T, IntPtr>(ref dest.Value), (IntPtr)(nint)shift),
-                    elemCount / 2);
+#if BIT64
+                fillPattern = Unsafe.As<T, uint>(ref value);
+                fillPattern += (fillPattern << 32);
+#elif BIT32
+                fillPattern = Unsafe.As<T, ushort>(ref value);
+                fillPattern += (fillPattern << 16);
+#else
+                throw new PlatformNotSupportedException();
+#endif
+
+                goto FillNaturalWord;
+            }
+
+            // At this point, the only thing left is ushort for 64-bit platforms.
+
+#if BIT64
+            if (typeof(T) == typeof(ushort))
+            {
+                // Write out the first 3 and last 3 values
+
+                dest.Value = value;
+                Unsafe.Add(ref dest.Value, 1) = value;
+                Unsafe.Add(ref dest.Value, 2) = value;
+                Unsafe.Add(ref dest.Value, (IntPtr)(nint)(elemCount - 1)) = value;
+                Unsafe.Add(ref dest.Value, (IntPtr)(nint)(elemCount - 2)) = value;
+                Unsafe.Add(ref dest.Value, (IntPtr)(nint)(elemCount - 3)) = value;
+
+                // Set the fill pattern and call into the natural word fill routine
+
+                fillPattern = Unsafe.As<T, ushort>(ref value) * 0x0001000100010001UL;
+
+                goto FillNaturalWord;
             }
 #endif
+
+            // If we reached this point, we saw an unexpected T.
+
+            throw new PlatformNotSupportedException();
+
+FillNaturalWord:
+            nuint shift = (nuint)Unsafe.AsPointer(ref dest.Value) % sizeof(nuint);
+            FillNaturalWord(
+                (IntPtr)(nint)fillPattern,
+                ref Unsafe.AddByteOffset(ref Unsafe.As<T, IntPtr>(ref dest.Value), (IntPtr)(-(nint)shift)),
+                elemCount / 2);
         }
 
         private static void FillNaturalWord(IntPtr value, ref IntPtr r, nuint length)
