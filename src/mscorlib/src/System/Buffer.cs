@@ -729,7 +729,7 @@ PInvoke:
 
             if (elemCount < 16)
             {
-                goto FillSlow;
+                goto FillSmall;
             }
 
             // The main loop below writes *backward*
@@ -741,15 +741,16 @@ PInvoke:
 
             do
             {
-                Unsafe.WriteUnaligned(ref Unsafe.As<ushort, byte>(ref Unsafe.AddByteOffset(ref Unsafe.Add(ref start.Value, (IntPtr)(nint)elemCount), unchecked((nuint)(-1 * Unsafe.SizeOf<nuint>())))), extendedValueNative);
-                Unsafe.WriteUnaligned(ref Unsafe.As<ushort, byte>(ref Unsafe.AddByteOffset(ref Unsafe.Add(ref start.Value, (IntPtr)(nint)elemCount), unchecked((nuint)(-2 * Unsafe.SizeOf<nuint>())))), extendedValueNative);
-                Unsafe.WriteUnaligned(ref Unsafe.As<ushort, byte>(ref Unsafe.AddByteOffset(ref Unsafe.Add(ref start.Value, (IntPtr)(nint)elemCount), unchecked((nuint)(-3 * Unsafe.SizeOf<nuint>())))), extendedValueNative);
-                Unsafe.WriteUnaligned(ref Unsafe.As<ushort, byte>(ref Unsafe.AddByteOffset(ref Unsafe.Add(ref start.Value, (IntPtr)(nint)elemCount), unchecked((nuint)(-4 * Unsafe.SizeOf<nuint>())))), extendedValueNative);
+                ref var end = ref Unsafe.As<ushort, nuint>(ref Unsafe.Add(ref start.Value, (IntPtr)(nint)elemCount));
+                Unsafe.WriteUnaligned(ref Unsafe.As<nuint, byte>(ref Unsafe.Add(ref end, -1)), extendedValueNative);
+                Unsafe.WriteUnaligned(ref Unsafe.As<nuint, byte>(ref Unsafe.Add(ref end, -2)), extendedValueNative);
+                Unsafe.WriteUnaligned(ref Unsafe.As<nuint, byte>(ref Unsafe.Add(ref end, -3)), extendedValueNative);
+                Unsafe.WriteUnaligned(ref Unsafe.As<nuint, byte>(ref Unsafe.Add(ref end, -4)), extendedValueNative);
 #if !BIT64
-                Unsafe.WriteUnaligned(ref Unsafe.As<ushort, byte>(ref Unsafe.AddByteOffset(ref Unsafe.Add(ref start.Value, (IntPtr)(nint)elemCount), unchecked((nuint)(-5 * Unsafe.SizeOf<nuint>())))), extendedValueNative);
-                Unsafe.WriteUnaligned(ref Unsafe.As<ushort, byte>(ref Unsafe.AddByteOffset(ref Unsafe.Add(ref start.Value, (IntPtr)(nint)elemCount), unchecked((nuint)(-6 * Unsafe.SizeOf<nuint>())))), extendedValueNative);
-                Unsafe.WriteUnaligned(ref Unsafe.As<ushort, byte>(ref Unsafe.AddByteOffset(ref Unsafe.Add(ref start.Value, (IntPtr)(nint)elemCount), unchecked((nuint)(-7 * Unsafe.SizeOf<nuint>())))), extendedValueNative);
-                Unsafe.WriteUnaligned(ref Unsafe.As<ushort, byte>(ref Unsafe.AddByteOffset(ref Unsafe.Add(ref start.Value, (IntPtr)(nint)elemCount), unchecked((nuint)(-8 * Unsafe.SizeOf<nuint>())))), extendedValueNative);
+                Unsafe.WriteUnaligned(ref Unsafe.As<nuint, byte>(ref Unsafe.Add(ref end, -5)), extendedValueNative);
+                Unsafe.WriteUnaligned(ref Unsafe.As<nuint, byte>(ref Unsafe.Add(ref end, -6)), extendedValueNative);
+                Unsafe.WriteUnaligned(ref Unsafe.As<nuint, byte>(ref Unsafe.Add(ref end, -7)), extendedValueNative);
+                Unsafe.WriteUnaligned(ref Unsafe.As<nuint, byte>(ref Unsafe.Add(ref end, -8)), extendedValueNative);
 #endif
             } while ((elemCount -= 16) > 16);
 
@@ -783,11 +784,11 @@ PInvoke:
 
             goto Return;
 
-FillSlow:
+FillSmall:
 
             // The logic below writes both forward and backward (and may overlap, which is ok)
 
-            Debug.Assert(elemCount <= 16);
+            Debug.Assert(elemCount < 16);
             if (elemCount > 4)
             {
                 // Handle lengths of 5 - 8 elements
@@ -798,7 +799,7 @@ FillSlow:
 
                 if (elemCount > 8)
                 {
-                    // Handle lengths of 9 - 16 elements
+                    // Handle lengths of 9 - 15 elements
                     Unsafe.WriteUnaligned(ref Unsafe.As<ushort, byte>(ref Unsafe.AddByteOffset(ref start.Value, 2 * sizeof(uint))), extendedValue);
                     Unsafe.WriteUnaligned(ref Unsafe.As<ushort, byte>(ref Unsafe.AddByteOffset(ref start.Value, 3 * sizeof(uint))), extendedValue);
                     Unsafe.WriteUnaligned(ref Unsafe.As<ushort, byte>(ref Unsafe.AddByteOffset(ref Unsafe.Add(ref start.Value, (IntPtr)(nint)elemCount), unchecked((nuint)(-3 * sizeof(uint))))), extendedValue);
