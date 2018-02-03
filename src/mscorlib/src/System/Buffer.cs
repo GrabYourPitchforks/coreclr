@@ -687,7 +687,7 @@ PInvoke:
         [DllImport(JitHelpers.QCall, CharSet = CharSet.Unicode)]
         extern private unsafe static void __Memmove(byte* dest, byte* src, nuint len);
 
-        internal unsafe static void WriteValueVectorized<T>(T value, ref Vector<T> start, nuint vectorElemCount) where T : struct
+        private unsafe static void WriteValueVectorized<T>(T value, ref Vector<T> start, nuint vectorElemCount) where T : struct
         {
             var iter = new ByReference<Vector<T>>(ref start);
             var vector = new Vector<T>(value);
@@ -720,101 +720,73 @@ PInvoke:
         {
             if (Vector.IsHardwareAccelerated && elemCount >= (uint)(2 * Vector<ushort>.Count))
             {
-                nuint vectorElementCount = elemCount / (uint)Vector<uint>.Count;
+                nuint vectorElementCount = elemCount / (uint)Vector<ushort>.Count;
                 ref var vectorRef = ref Unsafe.As<ushort, Vector<uint>>(ref start.Value);
                 WriteValueVectorized(extendedValue, ref vectorRef, vectorElementCount);
                 start = new ByReference<ushort>(ref Unsafe.As<Vector<uint>, ushort>(ref Unsafe.Add(ref vectorRef, (IntPtr)(nint)vectorElementCount)));
                 elemCount &= (nuint)(Vector<ushort>.Count - 1);
             }
 
-            if (elemCount <= 16)
+            if (elemCount < 16)
             {
                 goto FillSlow;
             }
 
-            // Write the first and last element (unaligned), then we know the middle fill is aligned
+            // The main loop below writes *backward*
 
-            Unsafe.WriteUnaligned(ref Unsafe.As<ushort, byte>(ref start.Value), extendedValue);
-            Unsafe.WriteUnaligned(ref Unsafe.As<ushort, byte>(ref Unsafe.AddByteOffset(ref Unsafe.Add(ref start.Value, (IntPtr)(nint)elemCount), unchecked((nuint)(-sizeof(uint))))), extendedValue);
-
-            // We want to align the inner loop to 32 bits for best performance.
-            // We already wrote 2 x 16-bit elements at the start and end of the buffer.
-            // This means that we can safely jump forward by 16 or 32 bits as necessary and not have missed any fill
-            // at the beginning of the buffer.
-
-            ref var innerStart = ref Unsafe.AddByteOffset(ref Unsafe.As<ushort, uint>(ref start.Value), (nuint)4 >> JitHelpers.ChangeType<bool, byte>(((nuint)Unsafe.AsPointer(ref start.Value) & 3) != 0));
-            elemCount = (elemCount / 2) - 1; // convert ushort count to uint count, -1 so we don't run past end of buffer
-
-            // Here, we know the fill is aligned.
-            // However, due to the -1 above we might only have 7 elements to fill.
-
-            if (elemCount < 8)
-            {
-                // The only way this can happen is that the original buffer had 17 ushort elements and the
-                // first element was already aligned.
-                goto Fill7Elements;
-            }
-
-            // The main loop below is writing *backward*
-
+            nuint extendedValueNative = extendedValue;
 #if BIT64
-            nuint extendedValue64 = extendedValue;
-            extendedValue64 += (extendedValue64 << 32);
+            extendedValueNative += (extendedValueNative << 32);
+#endif
 
             do
             {
-                Unsafe.As<uint, ulong>(ref Unsafe.AddByteOffset(ref Unsafe.Add(ref innerStart, (IntPtr)(nint)elemCount), unchecked((nuint)(-1 * sizeof(ulong))))) = extendedValue64;
-                Unsafe.As<uint, ulong>(ref Unsafe.AddByteOffset(ref Unsafe.Add(ref innerStart, (IntPtr)(nint)elemCount), unchecked((nuint)(-2 * sizeof(ulong))))) = extendedValue64;
-                Unsafe.As<uint, ulong>(ref Unsafe.AddByteOffset(ref Unsafe.Add(ref innerStart, (IntPtr)(nint)elemCount), unchecked((nuint)(-3 * sizeof(ulong))))) = extendedValue64;
-                Unsafe.As<uint, ulong>(ref Unsafe.AddByteOffset(ref Unsafe.Add(ref innerStart, (IntPtr)(nint)elemCount), unchecked((nuint)(-4 * sizeof(ulong))))) = extendedValue64;
-            } while ((elemCount -= 8) > 8);
-#else
+                Unsafe.WriteUnaligned(ref Unsafe.As<ushort, byte>(ref Unsafe.AddByteOffset(ref Unsafe.Add(ref start.Value, (IntPtr)(nint)elemCount), unchecked((nuint)(-1 * Unsafe.SizeOf<nuint>())))), extendedValueNative);
+                Unsafe.WriteUnaligned(ref Unsafe.As<ushort, byte>(ref Unsafe.AddByteOffset(ref Unsafe.Add(ref start.Value, (IntPtr)(nint)elemCount), unchecked((nuint)(-2 * Unsafe.SizeOf<nuint>())))), extendedValueNative);
+                Unsafe.WriteUnaligned(ref Unsafe.As<ushort, byte>(ref Unsafe.AddByteOffset(ref Unsafe.Add(ref start.Value, (IntPtr)(nint)elemCount), unchecked((nuint)(-3 * Unsafe.SizeOf<nuint>())))), extendedValueNative);
+                Unsafe.WriteUnaligned(ref Unsafe.As<ushort, byte>(ref Unsafe.AddByteOffset(ref Unsafe.Add(ref start.Value, (IntPtr)(nint)elemCount), unchecked((nuint)(-4 * Unsafe.SizeOf<nuint>())))), extendedValueNative);
+#if !BIT64
+                Unsafe.WriteUnaligned(ref Unsafe.As<ushort, byte>(ref Unsafe.AddByteOffset(ref Unsafe.Add(ref start.Value, (IntPtr)(nint)elemCount), unchecked((nuint)(-5 * Unsafe.SizeOf<nuint>())))), extendedValueNative);
+                Unsafe.WriteUnaligned(ref Unsafe.As<ushort, byte>(ref Unsafe.AddByteOffset(ref Unsafe.Add(ref start.Value, (IntPtr)(nint)elemCount), unchecked((nuint)(-6 * Unsafe.SizeOf<nuint>())))), extendedValueNative);
+                Unsafe.WriteUnaligned(ref Unsafe.As<ushort, byte>(ref Unsafe.AddByteOffset(ref Unsafe.Add(ref start.Value, (IntPtr)(nint)elemCount), unchecked((nuint)(-7 * Unsafe.SizeOf<nuint>())))), extendedValueNative);
+                Unsafe.WriteUnaligned(ref Unsafe.As<ushort, byte>(ref Unsafe.AddByteOffset(ref Unsafe.Add(ref start.Value, (IntPtr)(nint)elemCount), unchecked((nuint)(-8 * Unsafe.SizeOf<nuint>())))), extendedValueNative);
 #endif
+            } while ((elemCount -= 16) > 16);
 
-            //do
-            //{
-            //    Unsafe.AddByteOffset(ref Unsafe.Add(ref innerStart, (IntPtr)(nint)elemCount), unchecked((nuint)(-1 * sizeof(uint)))) = extendedValue;
-            //    Unsafe.AddByteOffset(ref Unsafe.Add(ref innerStart, (IntPtr)(nint)elemCount), unchecked((nuint)(-2 * sizeof(uint)))) = extendedValue;
-            //    Unsafe.AddByteOffset(ref Unsafe.Add(ref innerStart, (IntPtr)(nint)elemCount), unchecked((nuint)(-3 * sizeof(uint)))) = extendedValue;
-            //    Unsafe.AddByteOffset(ref Unsafe.Add(ref innerStart, (IntPtr)(nint)elemCount), unchecked((nuint)(-4 * sizeof(uint)))) = extendedValue;
-            //    Unsafe.AddByteOffset(ref Unsafe.Add(ref innerStart, (IntPtr)(nint)elemCount), unchecked((nuint)(-5 * sizeof(uint)))) = extendedValue;
-            //    Unsafe.AddByteOffset(ref Unsafe.Add(ref innerStart, (IntPtr)(nint)elemCount), unchecked((nuint)(-6 * sizeof(uint)))) = extendedValue;
-            //    Unsafe.AddByteOffset(ref Unsafe.Add(ref innerStart, (IntPtr)(nint)elemCount), unchecked((nuint)(-7 * sizeof(uint)))) = extendedValue;
-            //    Unsafe.AddByteOffset(ref Unsafe.Add(ref innerStart, (IntPtr)(nint)elemCount), unchecked((nuint)(-8 * sizeof(uint)))) = extendedValue;
-            //} while ((elemCount -= 8) > 8);
-
-            // The branches below are writing *forward* (and may overlap with the backward-written buffer above, which is ok)
+            // The logic below writes *forward* (and may overlap with the backward-written buffer above, which is ok)
 
             if (elemCount > 0)
             {
-                // Handle 1 - 3 elements
-                innerStart = extendedValue;
-                Unsafe.Add(ref innerStart, 1) = extendedValue;
-                Unsafe.Add(ref innerStart, 2) = extendedValue;
-
-                if (elemCount >= 4)
+                // Handle 1 - 8 elements
+                Unsafe.WriteUnaligned(ref Unsafe.As<nuint, byte>(ref Unsafe.Add(ref Unsafe.As<ushort, nuint>(ref start.Value), 0)), extendedValueNative);
+                Unsafe.WriteUnaligned(ref Unsafe.As<nuint, byte>(ref Unsafe.Add(ref Unsafe.As<ushort, nuint>(ref start.Value), 1)), extendedValueNative);
+#if !BIT64
+                Unsafe.WriteUnaligned(ref Unsafe.As<nuint, byte>(ref Unsafe.Add(ref Unsafe.As<ushort, nuint>(ref start.Value), 2)), extendedValueNative);
+                Unsafe.WriteUnaligned(ref Unsafe.As<nuint, byte>(ref Unsafe.Add(ref Unsafe.As<ushort, nuint>(ref start.Value), 3)), extendedValueNative);
+#endif
+                if (elemCount > 8)
                 {
-                    // Handle 4 - 7 elements
-                    Unsafe.Add(ref innerStart, 3) = extendedValue;
-                    Unsafe.Add(ref innerStart, 4) = extendedValue;
-                    Unsafe.Add(ref innerStart, 5) = extendedValue;
-                    Unsafe.Add(ref innerStart, 6) = extendedValue;
+                    // Handle 9 - 16 elements
+#if BIT64
+                    const int InnerOffset = 2;
+#else
+                    const int InnerOffset = 4;
+#endif
+                    Unsafe.WriteUnaligned(ref Unsafe.As<nuint, byte>(ref Unsafe.Add(ref Unsafe.As<ushort, nuint>(ref start.Value), InnerOffset + 0)), extendedValueNative);
+                    Unsafe.WriteUnaligned(ref Unsafe.As<nuint, byte>(ref Unsafe.Add(ref Unsafe.As<ushort, nuint>(ref start.Value), InnerOffset + 1)), extendedValueNative);
+#if !BIT64
+                    Unsafe.WriteUnaligned(ref Unsafe.As<nuint, byte>(ref Unsafe.Add(ref Unsafe.As<ushort, nuint>(ref start.Value), InnerOffset + 2)), extendedValueNative);
+                    Unsafe.WriteUnaligned(ref Unsafe.As<nuint, byte>(ref Unsafe.Add(ref Unsafe.As<ushort, nuint>(ref start.Value), InnerOffset + 3)), extendedValueNative);
+#endif
                 }
             }
 
             goto Return;
 
-Fill7Elements:
-            innerStart = extendedValue;
-            Unsafe.Add(ref innerStart, 1) = extendedValue;
-            Unsafe.Add(ref innerStart, 2) = extendedValue;
-            Unsafe.Add(ref innerStart, 3) = extendedValue;
-            Unsafe.Add(ref innerStart, 4) = extendedValue;
-            Unsafe.Add(ref innerStart, 5) = extendedValue;
-            Unsafe.Add(ref innerStart, 6) = extendedValue;
-            goto Return;
-
 FillSlow:
+
+            // The logic below writes both forward and backward (and may overlap, which is ok)
+
             Debug.Assert(elemCount <= 16);
             if (elemCount > 4)
             {
@@ -846,6 +818,7 @@ FillSlow:
             }
 
 Return:
+
             return;
         }
 
