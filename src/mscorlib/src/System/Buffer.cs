@@ -718,6 +718,15 @@ PInvoke:
 
         internal unsafe static void FillPrimitiveUInt16(uint extendedValue, ByReference<ushort> start, nuint elemCount)
         {
+            // Special-case small buffers
+
+            if (elemCount < 16)
+            {
+                goto FillSmall;
+            }
+
+            // Try vectorizing if the hardware allows it and we have enough data to vectorize.
+
             if (Vector.IsHardwareAccelerated && elemCount >= (uint)(2 * Vector<ushort>.Count))
             {
                 nuint vectorElementCount = elemCount / (uint)Vector<ushort>.Count;
@@ -725,11 +734,12 @@ PInvoke:
                 WriteValueVectorized(extendedValue, ref vectorRef, vectorElementCount);
                 start = new ByReference<ushort>(ref Unsafe.As<Vector<uint>, ushort>(ref Unsafe.Add(ref vectorRef, (IntPtr)(nint)vectorElementCount)));
                 elemCount &= (nuint)(Vector<ushort>.Count - 1);
-            }
 
-            if (elemCount < 16)
-            {
-                goto FillSmall;
+                // JIT turns this into an unconditional jump if we can never hit the main loop after vectorization
+                if (Vector<ushort>.Count <= 16 || elemCount < 16)
+                {
+                    goto FillSmall;
+                }
             }
 
             // The main loop below writes *backward*
