@@ -687,8 +687,46 @@ PInvoke:
         [DllImport(JitHelpers.QCall, CharSet = CharSet.Unicode)]
         extern private unsafe static void __Memmove(byte* dest, byte* src, nuint len);
 
+        internal unsafe static void WriteValueVectorized<T>(T value, ref Vector<T> start, nuint vectorElemCount) where T : struct
+        {
+            var iter = new ByReference<Vector<T>>(ref start);
+            var vector = new Vector<T>(value);
+
+            while (vectorElemCount > 4)
+            {
+                Unsafe.WriteUnaligned(ref Unsafe.As<Vector<T>, byte>(ref iter.Value), vector);
+                Unsafe.WriteUnaligned(ref Unsafe.As<Vector<T>, byte>(ref Unsafe.Add(ref iter.Value, 1)), vector);
+                Unsafe.WriteUnaligned(ref Unsafe.As<Vector<T>, byte>(ref Unsafe.Add(ref iter.Value, 2)), vector);
+                Unsafe.WriteUnaligned(ref Unsafe.As<Vector<T>, byte>(ref Unsafe.Add(ref iter.Value, 3)), vector);
+                iter = new ByReference<Vector<T>>(ref Unsafe.Add(ref iter.Value, 4));
+                vectorElemCount -= 4;
+            }
+
+            if (vectorElemCount >= 2)
+            {
+                Unsafe.WriteUnaligned(ref Unsafe.As<Vector<T>, byte>(ref iter.Value), vector);
+                Unsafe.WriteUnaligned(ref Unsafe.As<Vector<T>, byte>(ref Unsafe.Add(ref iter.Value, 1)), vector);
+                iter = new ByReference<Vector<T>>(ref Unsafe.Add(ref iter.Value, 2));
+                vectorElemCount -= 2;
+            }
+
+            if (vectorElemCount > 0)
+            {
+                Unsafe.WriteUnaligned(ref Unsafe.As<Vector<T>, byte>(ref iter.Value), vector);
+            }
+        }
+
         internal unsafe static void FillPrimitiveUInt16(uint extendedValue, ByReference<ushort> start, nuint elemCount)
         {
+            if (Vector.IsHardwareAccelerated && elemCount >= (uint)(2 * Vector<ushort>.Count))
+            {
+                nuint vectorElementCount = elemCount / (uint)Vector<uint>.Count;
+                ref var vectorRef = ref Unsafe.As<ushort, Vector<uint>>(ref start.Value);
+                WriteValueVectorized(extendedValue, ref vectorRef, vectorElementCount);
+                start = new ByReference<ushort>(ref Unsafe.As<Vector<uint>, ushort>(ref Unsafe.Add(ref vectorRef, (IntPtr)(nint)vectorElementCount)));
+                elemCount &= (nuint)(Vector<ushort>.Count - 1);
+            }
+
             if (elemCount <= 16)
             {
                 goto FillSlow;
@@ -719,17 +757,31 @@ PInvoke:
 
             // The main loop below is writing *backward*
 
+#if BIT64
+            nuint extendedValue64 = extendedValue;
+            extendedValue64 += (extendedValue64 << 32);
+
             do
             {
-                Unsafe.AddByteOffset(ref Unsafe.Add(ref innerStart, (IntPtr)(nint)elemCount), unchecked((nuint)(-1 * sizeof(uint)))) = extendedValue;
-                Unsafe.AddByteOffset(ref Unsafe.Add(ref innerStart, (IntPtr)(nint)elemCount), unchecked((nuint)(-2 * sizeof(uint)))) = extendedValue;
-                Unsafe.AddByteOffset(ref Unsafe.Add(ref innerStart, (IntPtr)(nint)elemCount), unchecked((nuint)(-3 * sizeof(uint)))) = extendedValue;
-                Unsafe.AddByteOffset(ref Unsafe.Add(ref innerStart, (IntPtr)(nint)elemCount), unchecked((nuint)(-4 * sizeof(uint)))) = extendedValue;
-                Unsafe.AddByteOffset(ref Unsafe.Add(ref innerStart, (IntPtr)(nint)elemCount), unchecked((nuint)(-5 * sizeof(uint)))) = extendedValue;
-                Unsafe.AddByteOffset(ref Unsafe.Add(ref innerStart, (IntPtr)(nint)elemCount), unchecked((nuint)(-6 * sizeof(uint)))) = extendedValue;
-                Unsafe.AddByteOffset(ref Unsafe.Add(ref innerStart, (IntPtr)(nint)elemCount), unchecked((nuint)(-7 * sizeof(uint)))) = extendedValue;
-                Unsafe.AddByteOffset(ref Unsafe.Add(ref innerStart, (IntPtr)(nint)elemCount), unchecked((nuint)(-8 * sizeof(uint)))) = extendedValue;
-            } while ((elemCount -= 8) > 0);
+                Unsafe.As<uint, ulong>(ref Unsafe.AddByteOffset(ref Unsafe.Add(ref innerStart, (IntPtr)(nint)elemCount), unchecked((nuint)(-1 * sizeof(ulong))))) = extendedValue64;
+                Unsafe.As<uint, ulong>(ref Unsafe.AddByteOffset(ref Unsafe.Add(ref innerStart, (IntPtr)(nint)elemCount), unchecked((nuint)(-2 * sizeof(ulong))))) = extendedValue64;
+                Unsafe.As<uint, ulong>(ref Unsafe.AddByteOffset(ref Unsafe.Add(ref innerStart, (IntPtr)(nint)elemCount), unchecked((nuint)(-3 * sizeof(ulong))))) = extendedValue64;
+                Unsafe.As<uint, ulong>(ref Unsafe.AddByteOffset(ref Unsafe.Add(ref innerStart, (IntPtr)(nint)elemCount), unchecked((nuint)(-4 * sizeof(ulong))))) = extendedValue64;
+            } while ((elemCount -= 8) > 8);
+#else
+#endif
+
+            //do
+            //{
+            //    Unsafe.AddByteOffset(ref Unsafe.Add(ref innerStart, (IntPtr)(nint)elemCount), unchecked((nuint)(-1 * sizeof(uint)))) = extendedValue;
+            //    Unsafe.AddByteOffset(ref Unsafe.Add(ref innerStart, (IntPtr)(nint)elemCount), unchecked((nuint)(-2 * sizeof(uint)))) = extendedValue;
+            //    Unsafe.AddByteOffset(ref Unsafe.Add(ref innerStart, (IntPtr)(nint)elemCount), unchecked((nuint)(-3 * sizeof(uint)))) = extendedValue;
+            //    Unsafe.AddByteOffset(ref Unsafe.Add(ref innerStart, (IntPtr)(nint)elemCount), unchecked((nuint)(-4 * sizeof(uint)))) = extendedValue;
+            //    Unsafe.AddByteOffset(ref Unsafe.Add(ref innerStart, (IntPtr)(nint)elemCount), unchecked((nuint)(-5 * sizeof(uint)))) = extendedValue;
+            //    Unsafe.AddByteOffset(ref Unsafe.Add(ref innerStart, (IntPtr)(nint)elemCount), unchecked((nuint)(-6 * sizeof(uint)))) = extendedValue;
+            //    Unsafe.AddByteOffset(ref Unsafe.Add(ref innerStart, (IntPtr)(nint)elemCount), unchecked((nuint)(-7 * sizeof(uint)))) = extendedValue;
+            //    Unsafe.AddByteOffset(ref Unsafe.Add(ref innerStart, (IntPtr)(nint)elemCount), unchecked((nuint)(-8 * sizeof(uint)))) = extendedValue;
+            //} while ((elemCount -= 8) > 8);
 
             // The branches below are writing *forward* (and may overlap with the backward-written buffer above, which is ok)
 
