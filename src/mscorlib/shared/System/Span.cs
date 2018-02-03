@@ -190,18 +190,20 @@ namespace System
         /// <summary>
         /// Fills the contents of this span with the given value.
         /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Fill(T value)
         {
+            // No-op for empty spans
+            if (_length == 0)
+            {
+                return;
+            }
+
             // First, run single-byte fills through initblk.
 
             if (Unsafe.SizeOf<T>() == 1)
             {
-                uint length = (uint)_length;
-                if (length == 0)
-                    return;
-
-                T tmp = value; // Avoid taking address of the "value" argument. It would regress performance of the loop below.
-                Unsafe.InitBlockUnaligned(ref Unsafe.As<T, byte>(ref _pointer.Value), Unsafe.As<T, byte>(ref tmp), length);
+                Unsafe.InitBlockUnaligned(ref Unsafe.As<T, byte>(ref _pointer.Value), Unsafe.As<T, byte>(ref value), (uint)_length);
                 return;
             }
 
@@ -209,63 +211,58 @@ namespace System
 
             if (!RuntimeHelpers.IsReferenceOrContainsReferences<T>())
             {
-                T tmp = value;
                 if (Unsafe.SizeOf<T>() == sizeof(ushort))
                 {
-                    Buffer.FillPrimitive<ushort>(Unsafe.As<T, ushort>(ref tmp), new ByReference<ushort>(ref Unsafe.As<T, ushort>(ref _pointer.Value)), (nuint)_length);
+                    Buffer.FillPrimitive<ushort>(Unsafe.As<T, ushort>(ref value), new ByReference<ushort>(ref Unsafe.As<T, ushort>(ref _pointer.Value)), (nuint)_length);
                     return;
                 }
                 else if (Unsafe.SizeOf<T>() == sizeof(uint))
                 {
-                    Buffer.FillPrimitive<uint>(Unsafe.As<T, uint>(ref tmp), new ByReference<uint>(ref Unsafe.As<T, uint>(ref _pointer.Value)), (nuint)_length);
+                    Buffer.FillPrimitive<uint>(Unsafe.As<T, uint>(ref value), new ByReference<uint>(ref Unsafe.As<T, uint>(ref _pointer.Value)), (nuint)_length);
                     return;
                 }
 #if BIT64
                 else if (Unsafe.SizeOf<T>() == sizeof(ulong))
                 {
-                    Buffer.FillPrimitive<ulong>(Unsafe.As<T, ulong>(ref tmp), new ByReference<ulong>(ref Unsafe.As<T, ulong>(ref _pointer.Value)), (nuint)_length);
+                    Buffer.FillPrimitive<ulong>(Unsafe.As<T, ulong>(ref value), new ByReference<ulong>(ref Unsafe.As<T, ulong>(ref _pointer.Value)), (nuint)_length);
                     return;
                 }
 #endif
             }
 
-            // The logic below is for reference / contains-references / greater-than-IntPtr size types
+            FillSlow(value, ref _pointer.Value, (nuint)_length);
+        }
 
+        // This logic is for reference / contains-references / greater-than-IntPtr size types
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void FillSlow(T value, ref T r, nuint length)
+        {
+            Debug.Assert(length != 0);
+
+            nuint elementSize = (uint)Unsafe.SizeOf<T>();
+            nuint i = 0;
+            for (; i < (length & ~(nuint)7); i += 8)
             {
-                // Do all math as nuint to avoid unnecessary 64->32->64 bit integer truncations
-                nuint length = (uint)_length;
-                if (length == 0)
-                    return;
-
-                ref T r = ref _pointer.Value;
-
-                // TODO: Create block fill for value types of power of two sizes e.g. 2,4,8,16
-
-                nuint elementSize = (uint)Unsafe.SizeOf<T>();
-                nuint i = 0;
-                for (; i < (length & ~(nuint)7); i += 8)
-                {
-                    Unsafe.AddByteOffset<T>(ref r, (i + 0) * elementSize) = value;
-                    Unsafe.AddByteOffset<T>(ref r, (i + 1) * elementSize) = value;
-                    Unsafe.AddByteOffset<T>(ref r, (i + 2) * elementSize) = value;
-                    Unsafe.AddByteOffset<T>(ref r, (i + 3) * elementSize) = value;
-                    Unsafe.AddByteOffset<T>(ref r, (i + 4) * elementSize) = value;
-                    Unsafe.AddByteOffset<T>(ref r, (i + 5) * elementSize) = value;
-                    Unsafe.AddByteOffset<T>(ref r, (i + 6) * elementSize) = value;
-                    Unsafe.AddByteOffset<T>(ref r, (i + 7) * elementSize) = value;
-                }
-                if (i < (length & ~(nuint)3))
-                {
-                    Unsafe.AddByteOffset<T>(ref r, (i + 0) * elementSize) = value;
-                    Unsafe.AddByteOffset<T>(ref r, (i + 1) * elementSize) = value;
-                    Unsafe.AddByteOffset<T>(ref r, (i + 2) * elementSize) = value;
-                    Unsafe.AddByteOffset<T>(ref r, (i + 3) * elementSize) = value;
-                    i += 4;
-                }
-                for (; i < length; i++)
-                {
-                    Unsafe.AddByteOffset<T>(ref r, i * elementSize) = value;
-                }
+                Unsafe.AddByteOffset<T>(ref r, (i + 0) * elementSize) = value;
+                Unsafe.AddByteOffset<T>(ref r, (i + 1) * elementSize) = value;
+                Unsafe.AddByteOffset<T>(ref r, (i + 2) * elementSize) = value;
+                Unsafe.AddByteOffset<T>(ref r, (i + 3) * elementSize) = value;
+                Unsafe.AddByteOffset<T>(ref r, (i + 4) * elementSize) = value;
+                Unsafe.AddByteOffset<T>(ref r, (i + 5) * elementSize) = value;
+                Unsafe.AddByteOffset<T>(ref r, (i + 6) * elementSize) = value;
+                Unsafe.AddByteOffset<T>(ref r, (i + 7) * elementSize) = value;
+            }
+            if (i < (length & ~(nuint)3))
+            {
+                Unsafe.AddByteOffset<T>(ref r, (i + 0) * elementSize) = value;
+                Unsafe.AddByteOffset<T>(ref r, (i + 1) * elementSize) = value;
+                Unsafe.AddByteOffset<T>(ref r, (i + 2) * elementSize) = value;
+                Unsafe.AddByteOffset<T>(ref r, (i + 3) * elementSize) = value;
+                i += 4;
+            }
+            for (; i < length; i++)
+            {
+                Unsafe.AddByteOffset<T>(ref r, i * elementSize) = value;
             }
         }
 
