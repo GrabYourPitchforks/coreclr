@@ -687,7 +687,10 @@ PInvoke:
         [DllImport(JitHelpers.QCall, CharSet = CharSet.Unicode)]
         extern private unsafe static void __Memmove(byte* dest, byte* src, nuint len);
 
-        // Precondition: extendedValue must have high and low word set to same value
+        // Precondition: If used to fill memory with 16-bit values, 'extendedValue' must have its
+        // high and low word set to the same 16-bit value, and 'elemCount' is measured in word count.
+        // If used to fill memory with 32-bit values, 'extendedValue' should represent the 32-bit
+        // target value, and 'elemCount' is still measured in word count (twice dword count).
         internal static void FillMemoryUInt16(uint extendedValue, ref ushort start, nuint elemCount)
         {
             // The main fill method writes in blocks of 16 (or more) elements each.

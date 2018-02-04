@@ -229,9 +229,13 @@ namespace System
                 else if (Unsafe.SizeOf<T>() == sizeof(uint))
                 {
 #if !BIT64
-#error This shouldn't be possible.
+#error This code path should only be compiled for 64-bit platforms.
 #endif
-                    throw new NotImplementedException();
+                    // Don't worry about no-op on empty here since it should be rare and the callee
+                    // will handle it properly anyway. We're reusing the 'ushort' logic here by mimicing
+                    // filling a Span<ushort> whose length is twice the 'this' span.
+
+                    Buffer.FillMemoryUInt16(JitHelpers.ChangeType<T, uint>(value), ref Unsafe.As<T, ushort>(ref _pointer.Value), (nuint)(_length * 2));
                     return;
                 }
             }
