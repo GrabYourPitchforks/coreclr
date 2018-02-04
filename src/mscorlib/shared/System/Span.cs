@@ -195,16 +195,16 @@ namespace System
         {
             // No-op for empty spans
 
-            if (_length == 0)
-            {
-                return;
-            }
-
             // Run 8-bit fills through initblk.
             // Run 16-bit, 32-bit, or 64-bit fills through our custom fill logic.
 
             if (!RuntimeHelpers.IsReferenceOrContainsReferences<T>())
             {
+                if (_length == 0)
+                {
+                    return;
+                }
+
                 if (Unsafe.SizeOf<T>() == sizeof(byte))
                 {
                     Unsafe.InitBlockUnaligned(ref Unsafe.As<T, byte>(ref _pointer.Value), JitHelpers.ChangeType<T, byte>(value), (uint)_length);
@@ -229,6 +229,11 @@ namespace System
                     return;
                 }
 #endif
+            }
+
+            if (_length == 0)
+            {
+                return;
             }
 
             FillSlow(value, ref _pointer.Value, (nuint)_length);
