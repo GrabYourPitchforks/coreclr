@@ -844,7 +844,7 @@ Return:
             // The main fill method writes in blocks of 16 (or more) elements each.
             // This pre-method is responsible for writing anything that doesn't
             // nicely fit in to a multiple of 16.
-
+            
             // This method writes to the buffer both forward and backward
             // We're ok with taking overlapping writes to avoid 'if' checks
 
@@ -896,12 +896,19 @@ Return:
             var start = new ByReference<ushort>(ref startA);
 
             // Try vectorizing if the hardware allows it and we have enough data to vectorize.
+            // Preliminary testing shows that 4x vector width is the inflection point for perf.
 
-            if (Vector.IsHardwareAccelerated && elemCount >= (uint)(2 * Vector<ushort>.Count))
+            if (Vector.IsHardwareAccelerated && elemCount >= (uint)(4 * Vector<ushort>.Count))
             {
-                nuint vectorElementCount = elemCount / (uint)Vector<ushort>.Count;
+                // It's ok to use Vector<ushort> and Vector<uint> interchangeably here since they have
+                // the same width. We use Vector<uint> under the covers since the incoming value
+                // is already extended out to 32 bits.
+
+                Debug.Assert(Unsafe.SizeOf<Vector<ushort>>() == Unsafe.SizeOf<Vector<uint>>());
+
+                nuint vectorCount = elemCount / (nuint)Vector<ushort>.Count;
                 ref var vectorRef = ref Unsafe.As<ushort, Vector<uint>>(ref start.Value);
-                WriteValueVectorized(extendedValue, ref vectorRef, vectorElementCount);
+                WriteValueVectorized(extendedValue, ref vectorRef, vectorCount);
 
                 // Our non-vectorized loop works on 16-element blocks. If a 16-element block
                 // is a whole multiple of the vector size, then there should be no elements
@@ -913,11 +920,12 @@ Return:
                     return;
                 }
 
-                start = new ByReference<ushort>(ref Unsafe.As<Vector<uint>, ushort>(ref Unsafe.Add(ref vectorRef, (IntPtr)(nint)vectorElementCount)));
-                elemCount &= (nuint)(Vector<ushort>.Count - 1);
+                start = new ByReference<ushort>(ref Unsafe.As<Vector<uint>, ushort>(ref Unsafe.Add(ref vectorRef, (IntPtr)(nint)vectorCount)));
+                elemCount %= (nuint)Vector<ushort>.Count;
             }
 
-            // The main loop below writes *backward*
+            // The main loop below writes *backward*.
+            // We write blocks out 16 elements at a time.
 
             nuint extendedValueNative = extendedValue;
 #if BIT64
@@ -936,13 +944,7 @@ Return:
                 Unsafe.WriteUnaligned(ref Unsafe.As<ushort, byte>(ref Unsafe.AddByteOffset(ref Unsafe.Add(ref start.Value, (IntPtr)(nint)elemCount), unchecked((nuint)(-7 * sizeof(nuint))))), extendedValueNative);
                 Unsafe.WriteUnaligned(ref Unsafe.As<ushort, byte>(ref Unsafe.AddByteOffset(ref Unsafe.Add(ref start.Value, (IntPtr)(nint)elemCount), unchecked((nuint)(-8 * sizeof(nuint))))), extendedValueNative);
 #endif
-
-                // The reason for the strangely written check below is that this loop should execute multiple times
-                // *only if* there were at least 32 elements to fill. But if vectorization is enabled, a 32+ element
-                // buffer should have been caught by the vectorization logic at the top of this method (subject to
-                // the vector length). If this is the case then the first part of the condition below evaluates to
-                // 'false' at compile time, causing the JIT to skip the check entirely, and exiting the method.
-            } while ((elemCount -= 16) > 16 && (!Vector.IsHardwareAccelerated || Vector<ushort>.Count > 16));
+            } while ((elemCount -= 16) > 0);
         }
 
         internal unsafe static void FillPrimitive<TPrimitive, TStack>(TStack value, ByReference<TPrimitive> start, nuint elemCount)
