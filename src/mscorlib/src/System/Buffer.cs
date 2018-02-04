@@ -762,7 +762,14 @@ PInvoke:
                 Unsafe.WriteUnaligned(ref Unsafe.As<nuint, byte>(ref Unsafe.Add(ref end, -7)), extendedValueNative);
                 Unsafe.WriteUnaligned(ref Unsafe.As<nuint, byte>(ref Unsafe.Add(ref end, -8)), extendedValueNative);
 #endif
-            } while ((elemCount -= 16) > 16);
+
+                // The reason for the strangely written check below is that this loop should execute multiple times
+                // *only if* there were at least 32 elements to fill. But if vectorization is enabled, a 32+ element
+                // buffer should have been caught by the vectorization logic at the top of this method (subject to
+                // the vector length). If this is the case then the first part of the condition below evaluates to
+                // 'false' at compile time, causing the JIT to skip the check entirely, automatically falling through
+                // to the "handle remaining data" logic immediately below.
+            } while ((!Vector.IsHardwareAccelerated || Vector<ushort>.Count > 16) && (elemCount -= 16) > 16);
 
             // The logic below writes *forward* (and may overlap with the backward-written buffer above, which is ok)
 
