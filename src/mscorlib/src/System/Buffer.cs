@@ -692,15 +692,16 @@ PInvoke:
             var iter = new ByReference<Vector<T>>(ref start);
             var vector = new Vector<T>(value);
 
-            while (vectorElemCount > 4)
+            Debug.Assert(vectorElemCount >= 4); // condition should've been checked by caller
+
+            do
             {
                 Unsafe.WriteUnaligned(ref Unsafe.As<Vector<T>, byte>(ref iter.Value), vector);
                 Unsafe.WriteUnaligned(ref Unsafe.As<Vector<T>, byte>(ref Unsafe.Add(ref iter.Value, 1)), vector);
                 Unsafe.WriteUnaligned(ref Unsafe.As<Vector<T>, byte>(ref Unsafe.Add(ref iter.Value, 2)), vector);
                 Unsafe.WriteUnaligned(ref Unsafe.As<Vector<T>, byte>(ref Unsafe.Add(ref iter.Value, 3)), vector);
                 iter = new ByReference<Vector<T>>(ref Unsafe.Add(ref iter.Value, 4));
-                vectorElemCount -= 4;
-            }
+            } while ((vectorElemCount -= 4) > 0);
 
             if (vectorElemCount >= 2)
             {
@@ -844,7 +845,7 @@ Return:
             // The main fill method writes in blocks of 16 (or more) elements each.
             // This pre-method is responsible for writing anything that doesn't
             // nicely fit in to a multiple of 16.
-            
+
             // This method writes to the buffer both forward and backward
             // We're ok with taking overlapping writes to avoid 'if' checks
 
@@ -877,11 +878,21 @@ Return:
                 // elemCount MOD 16 is 1
                 start = (ushort)extendedValue;
             }
+            else if (elemCount >= 16)
+            {
+                // elemCount MOD 16 is 0 AND there's enough data for bulk fill,
+                // no fixup needed before calling bulk fill method
+                FillPrimitiveUInt16_b(extendedValue, ref start, elemCount);
+                return;
+            }
+
 
             // Now that the remaining data is a perfect multiple of 16 elements, process it in bulk.
 
             if (elemCount >= 16)
             {
+                Debug.Assert((elemCount % 16) != 0); // should've gone down "non-fixup" path if no remainder
+
                 FillPrimitiveUInt16_b(
                     extendedValue,
                     ref Unsafe.Add(ref start, (IntPtr)(nint)(elemCount & (nuint)15)),
