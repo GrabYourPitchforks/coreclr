@@ -190,6 +190,7 @@ namespace System
         /// <summary>
         /// Fills the contents of this span with the given value.
         /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)] // this method just forwards parameters to the correct helper
         public void Fill(T value)
         {
             // Run 8-bit fills through initblk.
@@ -221,20 +222,20 @@ namespace System
                     Buffer.FillPrimitiveUInt16_a(extendedValue, ref Unsafe.As<T, ushort>(ref _pointer.Value), (nuint)_length);
                     return;
                 }
+                if (Unsafe.SizeOf<T>() == sizeof(nuint))
+                {
+                    throw new NotImplementedException();
+                }
                 else if (Unsafe.SizeOf<T>() == sizeof(uint))
                 {
+#if !BIT64
+#error This shouldn't be possible.
+#endif
                     Buffer.FillPrimitive<uint, uint>(JitHelpers.ChangeType<T, uint>(value), new ByReference<uint>(ref Unsafe.As<T, uint>(ref _pointer.Value)), (nuint)_length);
                     return;
                 }
-#if BIT64
-                else if (Unsafe.SizeOf<T>() == sizeof(ulong))
-                {
-                    Buffer.FillPrimitive<ulong, ulong>(JitHelpers.ChangeType<T, ulong>(value), new ByReference<ulong>(ref Unsafe.As<T, ulong>(ref _pointer.Value)), (nuint)_length);
-                    return;
-                }
-#endif
             }
-            
+
             if (_length != 0)
             {
                 FillSlow(value, ref _pointer.Value, (nuint)_length);
