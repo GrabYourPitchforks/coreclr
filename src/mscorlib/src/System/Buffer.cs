@@ -823,17 +823,16 @@ PInvoke:
                 Unsafe.WriteUnaligned(ref Unsafe.As<Vector<T>, byte>(ref Unsafe.Add(ref iter.Value, 2)), vector);
                 Unsafe.WriteUnaligned(ref Unsafe.As<Vector<T>, byte>(ref Unsafe.Add(ref iter.Value, 3)), vector);
                 iter = new ByReference<Vector<T>>(ref Unsafe.Add(ref iter.Value, 4));
-            } while ((vectorCount -= 4) > 0);
+            } while ((vectorCount -= 4) >= 4);
 
-            if (vectorCount >= 2)
+            if ((vectorCount & 2) != 0)
             {
                 Unsafe.WriteUnaligned(ref Unsafe.As<Vector<T>, byte>(ref iter.Value), vector);
                 Unsafe.WriteUnaligned(ref Unsafe.As<Vector<T>, byte>(ref Unsafe.Add(ref iter.Value, 1)), vector);
                 iter = new ByReference<Vector<T>>(ref Unsafe.Add(ref iter.Value, 2));
-                vectorCount -= 2;
             }
 
-            if (vectorCount > 0)
+            if ((vectorCount & 1) != 0)
             {
                 Unsafe.WriteUnaligned(ref Unsafe.As<Vector<T>, byte>(ref iter.Value), vector);
             }
