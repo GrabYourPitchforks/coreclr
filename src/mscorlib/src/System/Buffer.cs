@@ -768,7 +768,7 @@ PInvoke:
                 // the vector length). If this is the case then the first part of the condition below evaluates to
                 // 'false' at compile time, causing the JIT to skip the check entirely, automatically falling through
                 // to the "handle remaining data" logic immediately below.
-            } while ((!Vector.IsHardwareAccelerated || Vector<ushort>.Count > 16) && (elemCount -= 16) > 16);
+            } while ((elemCount -= 16) > 16 && (!Vector.IsHardwareAccelerated || Vector<ushort>.Count > 16));
 
             // The logic below writes *forward* (and may overlap with the backward-written buffer above, which is ok)
 
