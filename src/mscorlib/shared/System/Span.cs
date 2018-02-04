@@ -214,7 +214,7 @@ namespace System
                 {
                     uint extendedValue = JitHelpers.ChangeType<T, ushort>(value);
                     extendedValue += (extendedValue << 16);
-                    Buffer.FillPrimitiveUInt16(extendedValue, new ByReference<ushort>(ref Unsafe.As<T, ushort>(ref _pointer.Value)), (nuint)_length);
+                    Buffer.FillPrimitiveUInt16_a(extendedValue, ref Unsafe.As<T, ushort>(ref _pointer.Value), (nuint)_length);
                     return;
                 }
                 else if (Unsafe.SizeOf<T>() == sizeof(uint))
