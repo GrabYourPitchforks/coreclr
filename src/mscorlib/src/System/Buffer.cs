@@ -687,160 +687,8 @@ PInvoke:
         [DllImport(JitHelpers.QCall, CharSet = CharSet.Unicode)]
         extern private unsafe static void __Memmove(byte* dest, byte* src, nuint len);
 
-        private unsafe static void WriteValueVectorized<T>(T value, ref Vector<T> start, nuint vectorElemCount) where T : struct
-        {
-            var iter = new ByReference<Vector<T>>(ref start);
-            var vector = new Vector<T>(value);
-
-            Debug.Assert(vectorElemCount >= 4); // condition should've been checked by caller
-
-            do
-            {
-                Unsafe.WriteUnaligned(ref Unsafe.As<Vector<T>, byte>(ref iter.Value), vector);
-                Unsafe.WriteUnaligned(ref Unsafe.As<Vector<T>, byte>(ref Unsafe.Add(ref iter.Value, 1)), vector);
-                Unsafe.WriteUnaligned(ref Unsafe.As<Vector<T>, byte>(ref Unsafe.Add(ref iter.Value, 2)), vector);
-                Unsafe.WriteUnaligned(ref Unsafe.As<Vector<T>, byte>(ref Unsafe.Add(ref iter.Value, 3)), vector);
-                iter = new ByReference<Vector<T>>(ref Unsafe.Add(ref iter.Value, 4));
-            } while ((vectorElemCount -= 4) > 0);
-
-            if (vectorElemCount >= 2)
-            {
-                Unsafe.WriteUnaligned(ref Unsafe.As<Vector<T>, byte>(ref iter.Value), vector);
-                Unsafe.WriteUnaligned(ref Unsafe.As<Vector<T>, byte>(ref Unsafe.Add(ref iter.Value, 1)), vector);
-                iter = new ByReference<Vector<T>>(ref Unsafe.Add(ref iter.Value, 2));
-                vectorElemCount -= 2;
-            }
-
-            if (vectorElemCount > 0)
-            {
-                Unsafe.WriteUnaligned(ref Unsafe.As<Vector<T>, byte>(ref iter.Value), vector);
-            }
-        }
-
-        internal unsafe static void FillPrimitiveUInt16(uint extendedValue, ByReference<ushort> start, nuint elemCount)
-        {
-            // Special-case small buffers
-
-            if (elemCount < 16)
-            {
-                goto FillSmall;
-            }
-
-            // Try vectorizing if the hardware allows it and we have enough data to vectorize.
-
-            if (Vector.IsHardwareAccelerated && elemCount >= (uint)(2 * Vector<ushort>.Count))
-            {
-                nuint vectorElementCount = elemCount / (uint)Vector<ushort>.Count;
-                ref var vectorRef = ref Unsafe.As<ushort, Vector<uint>>(ref start.Value);
-                WriteValueVectorized(extendedValue, ref vectorRef, vectorElementCount);
-                start = new ByReference<ushort>(ref Unsafe.As<Vector<uint>, ushort>(ref Unsafe.Add(ref vectorRef, (IntPtr)(nint)vectorElementCount)));
-                elemCount &= (nuint)(Vector<ushort>.Count - 1);
-
-                // JIT turns this into an unconditional jump if we can never hit the main loop after vectorization
-                if (Vector<ushort>.Count <= 16 || elemCount < 16)
-                {
-                    goto FillSmall;
-                }
-            }
-
-            // The main loop below writes *backward*
-
-            nuint extendedValueNative = extendedValue;
-#if BIT64
-            extendedValueNative += (extendedValueNative << 32);
-#endif
-
-            do
-            {
-                Unsafe.WriteUnaligned(ref Unsafe.As<ushort, byte>(ref Unsafe.AddByteOffset(ref Unsafe.Add(ref start.Value, (IntPtr)(nint)elemCount), unchecked((nuint)(-1 * sizeof(nuint))))), extendedValueNative);
-                Unsafe.WriteUnaligned(ref Unsafe.As<ushort, byte>(ref Unsafe.AddByteOffset(ref Unsafe.Add(ref start.Value, (IntPtr)(nint)elemCount), unchecked((nuint)(-2 * sizeof(nuint))))), extendedValueNative);
-                Unsafe.WriteUnaligned(ref Unsafe.As<ushort, byte>(ref Unsafe.AddByteOffset(ref Unsafe.Add(ref start.Value, (IntPtr)(nint)elemCount), unchecked((nuint)(-3 * sizeof(nuint))))), extendedValueNative);
-                Unsafe.WriteUnaligned(ref Unsafe.As<ushort, byte>(ref Unsafe.AddByteOffset(ref Unsafe.Add(ref start.Value, (IntPtr)(nint)elemCount), unchecked((nuint)(-4 * sizeof(nuint))))), extendedValueNative);
-#if !BIT64
-                Unsafe.WriteUnaligned(ref Unsafe.As<ushort, byte>(ref Unsafe.AddByteOffset(ref Unsafe.Add(ref start.Value, (IntPtr)(nint)elemCount), unchecked((nuint)(-5 * sizeof(nuint))))), extendedValueNative);
-                Unsafe.WriteUnaligned(ref Unsafe.As<ushort, byte>(ref Unsafe.AddByteOffset(ref Unsafe.Add(ref start.Value, (IntPtr)(nint)elemCount), unchecked((nuint)(-6 * sizeof(nuint))))), extendedValueNative);
-                Unsafe.WriteUnaligned(ref Unsafe.As<ushort, byte>(ref Unsafe.AddByteOffset(ref Unsafe.Add(ref start.Value, (IntPtr)(nint)elemCount), unchecked((nuint)(-7 * sizeof(nuint))))), extendedValueNative);
-                Unsafe.WriteUnaligned(ref Unsafe.As<ushort, byte>(ref Unsafe.AddByteOffset(ref Unsafe.Add(ref start.Value, (IntPtr)(nint)elemCount), unchecked((nuint)(-8 * sizeof(nuint))))), extendedValueNative);
-#endif
-
-                // The reason for the strangely written check below is that this loop should execute multiple times
-                // *only if* there were at least 32 elements to fill. But if vectorization is enabled, a 32+ element
-                // buffer should have been caught by the vectorization logic at the top of this method (subject to
-                // the vector length). If this is the case then the first part of the condition below evaluates to
-                // 'false' at compile time, causing the JIT to skip the check entirely, automatically falling through
-                // to the "handle remaining data" logic immediately below.
-            } while ((elemCount -= 16) > 16 && (!Vector.IsHardwareAccelerated || Vector<ushort>.Count > 16));
-
-            // The logic below writes *forward* (and may overlap with the backward-written buffer above, which is ok)
-
-            if (elemCount > 0)
-            {
-                // Handle 1 - 8 elements
-                Unsafe.WriteUnaligned(ref Unsafe.As<nuint, byte>(ref Unsafe.Add(ref Unsafe.As<ushort, nuint>(ref start.Value), 0)), extendedValueNative);
-                Unsafe.WriteUnaligned(ref Unsafe.As<nuint, byte>(ref Unsafe.Add(ref Unsafe.As<ushort, nuint>(ref start.Value), 1)), extendedValueNative);
-#if !BIT64
-                Unsafe.WriteUnaligned(ref Unsafe.As<nuint, byte>(ref Unsafe.Add(ref Unsafe.As<ushort, nuint>(ref start.Value), 2)), extendedValueNative);
-                Unsafe.WriteUnaligned(ref Unsafe.As<nuint, byte>(ref Unsafe.Add(ref Unsafe.As<ushort, nuint>(ref start.Value), 3)), extendedValueNative);
-#endif
-                if (elemCount > 8)
-                {
-                    // Handle 9 - 16 elements
-#if BIT64
-                    const int InnerOffset = 2;
-#else
-                    const int InnerOffset = 4;
-#endif
-                    Unsafe.WriteUnaligned(ref Unsafe.As<nuint, byte>(ref Unsafe.Add(ref Unsafe.As<ushort, nuint>(ref start.Value), InnerOffset + 0)), extendedValueNative);
-                    Unsafe.WriteUnaligned(ref Unsafe.As<nuint, byte>(ref Unsafe.Add(ref Unsafe.As<ushort, nuint>(ref start.Value), InnerOffset + 1)), extendedValueNative);
-#if !BIT64
-                    Unsafe.WriteUnaligned(ref Unsafe.As<nuint, byte>(ref Unsafe.Add(ref Unsafe.As<ushort, nuint>(ref start.Value), InnerOffset + 2)), extendedValueNative);
-                    Unsafe.WriteUnaligned(ref Unsafe.As<nuint, byte>(ref Unsafe.Add(ref Unsafe.As<ushort, nuint>(ref start.Value), InnerOffset + 3)), extendedValueNative);
-#endif
-                }
-            }
-
-            goto Return;
-
-FillSmall:
-
-            // The logic below writes both forward and backward (and may overlap, which is ok)
-
-            Debug.Assert(elemCount < 16);
-            if (elemCount > 4)
-            {
-                // Handle lengths of 5 - 8 elements
-                Unsafe.WriteUnaligned(ref Unsafe.As<ushort, byte>(ref start.Value), extendedValue);
-                Unsafe.WriteUnaligned(ref Unsafe.As<ushort, byte>(ref Unsafe.AddByteOffset(ref start.Value, sizeof(uint))), extendedValue);
-                Unsafe.WriteUnaligned(ref Unsafe.As<ushort, byte>(ref Unsafe.AddByteOffset(ref Unsafe.Add(ref start.Value, (IntPtr)(nint)elemCount), unchecked((nuint)(-1 * sizeof(uint))))), extendedValue);
-                Unsafe.WriteUnaligned(ref Unsafe.As<ushort, byte>(ref Unsafe.AddByteOffset(ref Unsafe.Add(ref start.Value, (IntPtr)(nint)elemCount), unchecked((nuint)(-2 * sizeof(uint))))), extendedValue);
-
-                if (elemCount > 8)
-                {
-                    // Handle lengths of 9 - 15 elements
-                    Unsafe.WriteUnaligned(ref Unsafe.As<ushort, byte>(ref Unsafe.AddByteOffset(ref start.Value, 2 * sizeof(uint))), extendedValue);
-                    Unsafe.WriteUnaligned(ref Unsafe.As<ushort, byte>(ref Unsafe.AddByteOffset(ref start.Value, 3 * sizeof(uint))), extendedValue);
-                    Unsafe.WriteUnaligned(ref Unsafe.As<ushort, byte>(ref Unsafe.AddByteOffset(ref Unsafe.Add(ref start.Value, (IntPtr)(nint)elemCount), unchecked((nuint)(-3 * sizeof(uint))))), extendedValue);
-                    Unsafe.WriteUnaligned(ref Unsafe.As<ushort, byte>(ref Unsafe.AddByteOffset(ref Unsafe.Add(ref start.Value, (IntPtr)(nint)elemCount), unchecked((nuint)(-4 * sizeof(uint))))), extendedValue);
-                }
-            }
-            else if (elemCount >= 2)
-            {
-                // Handle lengths of 2 - 4 elements
-                Unsafe.WriteUnaligned(ref Unsafe.As<ushort, byte>(ref start.Value), extendedValue);
-                Unsafe.WriteUnaligned(ref Unsafe.As<ushort, byte>(ref Unsafe.AddByteOffset(ref Unsafe.Add(ref start.Value, (IntPtr)(nint)elemCount), unchecked((nuint)(-sizeof(uint))))), extendedValue);
-            }
-            else if (elemCount > 0)
-            {
-                // Handle single element
-                start.Value = (ushort)extendedValue;
-            }
-
-Return:
-
-            return;
-        }
-
-        internal unsafe static void FillPrimitiveUInt16_a(uint extendedValue, ref ushort start, nuint elemCount)
+        // Precondition: extendedValue must have high and low word set to same value
+        internal static void FillMemoryUInt16(uint extendedValue, ref ushort start, nuint elemCount)
         {
             // The main fill method writes in blocks of 16 (or more) elements each.
             // This pre-method is responsible for writing anything that doesn't
@@ -882,10 +730,9 @@ Return:
             {
                 // elemCount MOD 16 is 0 AND there's enough data for bulk fill,
                 // no fixup needed before calling bulk fill method
-                FillPrimitiveUInt16_b(extendedValue, ref start, elemCount);
+                FillMemoryUInt16_Bulk(extendedValue, ref start, elemCount);
                 return;
             }
-
 
             // Now that the remaining data is a perfect multiple of 16 elements, process it in bulk.
 
@@ -893,14 +740,14 @@ Return:
             {
                 Debug.Assert((elemCount % 16) != 0); // should've gone down "non-fixup" path if no remainder
 
-                FillPrimitiveUInt16_b(
+                FillMemoryUInt16_Bulk(
                     extendedValue,
                     ref Unsafe.Add(ref start, (IntPtr)(nint)(elemCount & (nuint)15)),
                     elemCount & unchecked((nuint)~15));
             }
         }
 
-        internal unsafe static void FillPrimitiveUInt16_b(uint extendedValue, ref ushort startA, nuint elemCount)
+        private static void FillMemoryUInt16_Bulk(uint extendedValue, ref ushort startA, nuint elemCount)
         {
             Debug.Assert(elemCount % 16 == 0);
 
@@ -919,7 +766,7 @@ Return:
 
                 nuint vectorCount = elemCount / (nuint)Vector<ushort>.Count;
                 ref var vectorRef = ref Unsafe.As<ushort, Vector<uint>>(ref start.Value);
-                WriteValueVectorized(extendedValue, ref vectorRef, vectorCount);
+                FillMemoryVectorized(extendedValue, ref vectorRef, vectorCount);
 
                 // Our non-vectorized loop works on 16-element blocks. If a 16-element block
                 // is a whole multiple of the vector size, then there should be no elements
@@ -958,219 +805,34 @@ Return:
             } while ((elemCount -= 16) > 0);
         }
 
-        internal unsafe static void FillPrimitive<TPrimitive, TStack>(TStack value, ByReference<TPrimitive> start, nuint elemCount)
-            where TPrimitive : struct
-            where TStack : struct
+        // Precondition: vectorCount must be >= 4
+        private static void FillMemoryVectorized<T>(T value, ref Vector<T> start, nuint vectorCount) where T : struct
         {
-            Debug.Assert((typeof(TPrimitive) == typeof(ushort) && typeof(TStack) == typeof(uint))
-                || (typeof(TPrimitive) == typeof(uint) && typeof(TStack) == typeof(uint))
-                || (typeof(TPrimitive) == typeof(ulong) && typeof(TStack) == typeof(ulong)));
+            var iter = new ByReference<Vector<T>>(ref start);
+            var vector = new Vector<T>(value);
 
-            // If the full byte count of the data to be written is at least two vectors, go down the
-            // vectorized code path. We perform the length check because otherwise the overhead of
-            // spinning up the vectorized code path is too high.
+            Debug.Assert(vectorCount >= 4); // condition should've been checked by caller
 
-            if (Vector.IsHardwareAccelerated && elemCount >= (nuint)2 * (nuint)Vector<TPrimitive>.Count)
+            do
             {
-                ref var newStartingPoint = ref FillPrimitiveVectorized(
-                    value,
-                    new ByReference<Vector<TPrimitive>>(ref Unsafe.As<TPrimitive, Vector<TPrimitive>>(ref start.Value)),
-                    new ByReference<Vector<TPrimitive>>(ref Unsafe.As<TPrimitive, Vector<TPrimitive>>(ref Unsafe.Add(ref start.Value, (IntPtr)(nint)elemCount))));
+                Unsafe.WriteUnaligned(ref Unsafe.As<Vector<T>, byte>(ref iter.Value), vector);
+                Unsafe.WriteUnaligned(ref Unsafe.As<Vector<T>, byte>(ref Unsafe.Add(ref iter.Value, 1)), vector);
+                Unsafe.WriteUnaligned(ref Unsafe.As<Vector<T>, byte>(ref Unsafe.Add(ref iter.Value, 2)), vector);
+                Unsafe.WriteUnaligned(ref Unsafe.As<Vector<T>, byte>(ref Unsafe.Add(ref iter.Value, 3)), vector);
+                iter = new ByReference<Vector<T>>(ref Unsafe.Add(ref iter.Value, 4));
+            } while ((vectorCount -= 4) > 0);
 
-                elemCount -= (nuint)Unsafe.ByteOffset(ref start.Value, ref newStartingPoint) / (nuint)Unsafe.SizeOf<TPrimitive>();
-                start = new ByReference<TPrimitive>(ref newStartingPoint);
+            if (vectorCount >= 2)
+            {
+                Unsafe.WriteUnaligned(ref Unsafe.As<Vector<T>, byte>(ref iter.Value), vector);
+                Unsafe.WriteUnaligned(ref Unsafe.As<Vector<T>, byte>(ref Unsafe.Add(ref iter.Value, 1)), vector);
+                iter = new ByReference<Vector<T>>(ref Unsafe.Add(ref iter.Value, 2));
+                vectorCount -= 2;
             }
 
-            // Special-case T being the natural word length
-            // This is uint on 32-bit, ulong on 64-bit
-
-            if (Unsafe.SizeOf<TPrimitive>() == sizeof(IntPtr))
+            if (vectorCount > 0)
             {
-                FillNaturalWord(
-                    JitHelpers.ChangeType<TStack, IntPtr>(value),
-                    ref Unsafe.As<TPrimitive, IntPtr>(ref start.Value),
-                    elemCount);
-                return;
-            }
-
-            if (elemCount < (nuint)(2 * (Unsafe.SizeOf<IntPtr>() / Unsafe.SizeOf<TPrimitive>() - 1)))
-            {
-                goto SmallFill;
-            }
-
-            nuint fillPattern;
-
-            // Special-case T being half the natural word length
-            // This is ushort on 32-bit, uint on 32-bit
-
-            if (Unsafe.SizeOf<TPrimitive>() == sizeof(IntPtr) / 2)
-            {
-                // Write out the first and last values
-
-                start.Value = UnwrapInt<TPrimitive, TStack>(value);
-                Unsafe.Add(ref start.Value, (IntPtr)(nint)(elemCount - 1)) = UnwrapInt<TPrimitive, TStack>(value);
-
-                // Set the fill pattern and call into the natural word fill routine
-
-#if BIT64
-                fillPattern = UnwrapInt<uint, TStack>(value);
-                fillPattern += (fillPattern << 32);
-#elif BIT32
-                fillPattern = UnwrapInt<ushort, TStack>(value);
-                fillPattern += (fillPattern << 16);
-#else
-                throw new PlatformNotSupportedException();
-#endif
-
-                goto FillNaturalWord;
-            }
-
-            // At this point, the only thing left is ushort for 64-bit platforms.
-
-#if BIT64
-            if (typeof(TPrimitive) == typeof(ushort))
-            {
-                // Write out the first 3 and last 3 values
-
-                start.Value = UnwrapInt<TPrimitive, TStack>(value);
-                Unsafe.Add(ref start.Value, 1) = UnwrapInt<TPrimitive, TStack>(value);
-                Unsafe.Add(ref start.Value, 2) = UnwrapInt<TPrimitive, TStack>(value);
-                Unsafe.Add(ref start.Value, (IntPtr)(nint)(elemCount - 1)) = UnwrapInt<TPrimitive, TStack>(value);
-                Unsafe.Add(ref start.Value, (IntPtr)(nint)(elemCount - 2)) = UnwrapInt<TPrimitive, TStack>(value);
-                Unsafe.Add(ref start.Value, (IntPtr)(nint)(elemCount - 3)) = UnwrapInt<TPrimitive, TStack>(value);
-
-                // Set the fill pattern and call into the natural word fill routine
-
-                fillPattern = JitHelpers.ChangeType<TStack, uint>(value) * 0x0001000100010001UL;
-
-                goto FillNaturalWord;
-            }
-#endif
-
-            // If we reached this point, we saw an unexpected T.
-
-            throw new PlatformNotSupportedException();
-
-SmallFill:
-            while (elemCount > 0)
-            {
-                Unsafe.Add(ref start.Value, (IntPtr)(nint)(--elemCount)) = UnwrapInt<TPrimitive, TStack>(value);
-            }
-            return;
-
-FillNaturalWord:
-            nuint shift = (nuint)Unsafe.AsPointer(ref start.Value) % sizeof(nuint);
-            FillNaturalWord(
-                (IntPtr)(nint)fillPattern,
-                ref Unsafe.AddByteOffset(ref Unsafe.As<TPrimitive, IntPtr>(ref start.Value), (IntPtr)(-(nint)shift)),
-                elemCount / (nuint)(Unsafe.SizeOf<IntPtr>() / Unsafe.SizeOf<TPrimitive>()));
-        }
-
-        private static void FillNaturalWord(IntPtr value, ref IntPtr r, nuint length)
-        {
-            nuint i = 0;
-            for (; i < (length & ~(nuint)7); i += 8)
-            {
-                Unsafe.Add(ref r, (IntPtr)(nint)(i + 0)) = value;
-                Unsafe.Add(ref r, (IntPtr)(nint)(i + 1)) = value;
-                Unsafe.Add(ref r, (IntPtr)(nint)(i + 2)) = value;
-                Unsafe.Add(ref r, (IntPtr)(nint)(i + 3)) = value;
-                Unsafe.Add(ref r, (IntPtr)(nint)(i + 4)) = value;
-                Unsafe.Add(ref r, (IntPtr)(nint)(i + 5)) = value;
-                Unsafe.Add(ref r, (IntPtr)(nint)(i + 6)) = value;
-                Unsafe.Add(ref r, (IntPtr)(nint)(i + 7)) = value;
-            }
-            if (i < (length & ~(nuint)3))
-            {
-                Unsafe.Add(ref r, (IntPtr)(nint)(i + 0)) = value;
-                Unsafe.Add(ref r, (IntPtr)(nint)(i + 1)) = value;
-                Unsafe.Add(ref r, (IntPtr)(nint)(i + 2)) = value;
-                Unsafe.Add(ref r, (IntPtr)(nint)(i + 3)) = value;
-                i += 4;
-            }
-            for (; i < length; i++)
-            {
-                Unsafe.Add(ref r, (IntPtr)(nint)i) = value;
-            }
-        }
-
-        private static ref TPrimitive FillPrimitiveVectorized<TStack, TPrimitive>(TStack value, ByReference<Vector<TPrimitive>> start, ByReference<Vector<TPrimitive>> end)
-            where TPrimitive : struct
-            where TStack : struct
-        {
-            // n.b. We're relying on the infrastructure to handle unaligned writes correctly.
-
-            // Precondition checking
-
-            Debug.Assert(Vector.IsHardwareAccelerated);
-            Debug.Assert((nuint)Unsafe.ByteOffset(ref start.Value, ref end.Value) >= (nuint)(2 * Unsafe.SizeOf<Vector<TPrimitive>>()));
-            Debug.Assert(!RuntimeHelpers.IsReferenceOrContainsReferences<TPrimitive>());
-
-            // First, write two vectors
-
-            var vectorizedValue = new Vector<TPrimitive>(UnwrapInt<TPrimitive, TStack>(value));
-
-            start.Value = vectorizedValue;
-            Unsafe.Add(ref start.Value, 1) = vectorizedValue;
-
-            // Calculate new bounds
-
-            start = new ByReference<Vector<TPrimitive>>(ref Unsafe.Add(ref start.Value, 2));
-            nint bytesRemaining = (nint)Unsafe.ByteOffset(ref start.Value, ref end.Value);
-
-            // Handle 4 vectors at a time
-
-            while ((nuint)bytesRemaining >= 4 * (nuint)Unsafe.SizeOf<Vector<TPrimitive>>())
-            {
-                start.Value = vectorizedValue;
-                Unsafe.Add(ref start.Value, 1) = vectorizedValue;
-                Unsafe.Add(ref start.Value, 2) = vectorizedValue;
-                Unsafe.Add(ref start.Value, 3) = vectorizedValue;
-                start = new ByReference<Vector<TPrimitive>>(ref Unsafe.Add(ref start.Value, 4));
-                bytesRemaining = (nint)Unsafe.ByteOffset(ref start.Value, ref end.Value);
-            }
-
-            // Handle 2 vectors at a time if possible
-
-            Debug.Assert((nuint)bytesRemaining < 4 * (nuint)Unsafe.SizeOf<Vector<TPrimitive>>());
-
-            if ((nuint)bytesRemaining >= 2 * (nuint)Unsafe.SizeOf<Vector<TPrimitive>>())
-            {
-                start.Value = vectorizedValue;
-                Unsafe.Add(ref start.Value, 1) = vectorizedValue;
-
-                if ((nuint)bytesRemaining >= 3 * (nuint)Unsafe.SizeOf<Vector<TPrimitive>>())
-                {
-                    Unsafe.Add(ref start.Value, 2) = vectorizedValue;
-                    return ref Unsafe.As<Vector<TPrimitive>, TPrimitive>(ref Unsafe.Add(ref start.Value, 3));
-                }
-                return ref Unsafe.As<Vector<TPrimitive>, TPrimitive>(ref Unsafe.Add(ref start.Value, 2));
-            }
-            else if ((nuint)bytesRemaining >= (nuint)Unsafe.SizeOf<Vector<TPrimitive>>())
-            {
-                start.Value = vectorizedValue;
-                return ref Unsafe.As<Vector<TPrimitive>, TPrimitive>(ref Unsafe.Add(ref start.Value, 1));
-            }
-            else
-            {
-                return ref Unsafe.As<Vector<TPrimitive>, TPrimitive>(ref start.Value);
-            }
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static TPrimitive UnwrapInt<TPrimitive, TStack>(TStack value)
-            where TPrimitive : struct
-            where TStack : struct
-        {
-            if (typeof(TPrimitive) == typeof(ushort))
-            {
-                Debug.Assert(typeof(TStack) == typeof(uint));
-                return JitHelpers.ChangeType<ushort, TPrimitive>((ushort)JitHelpers.ChangeType<TStack, uint>(value));
-            }
-            else
-            {
-                Debug.Assert(Unsafe.SizeOf<TPrimitive>() == Unsafe.SizeOf<TStack>());
-                return JitHelpers.ChangeType<TStack, TPrimitive>(value);
+                Unsafe.WriteUnaligned(ref Unsafe.As<Vector<T>, byte>(ref iter.Value), vector);
             }
         }
 

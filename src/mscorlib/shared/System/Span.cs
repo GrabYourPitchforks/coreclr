@@ -219,7 +219,7 @@ namespace System
                     uint extendedValue = JitHelpers.ChangeType<T, ushort>(value);
                     extendedValue += (extendedValue << 16);
 
-                    Buffer.FillPrimitiveUInt16_a(extendedValue, ref Unsafe.As<T, ushort>(ref _pointer.Value), (nuint)_length);
+                    Buffer.FillMemoryUInt16(extendedValue, ref Unsafe.As<T, ushort>(ref _pointer.Value), (nuint)_length);
                     return;
                 }
                 if (Unsafe.SizeOf<T>() == sizeof(nuint))
@@ -231,7 +231,7 @@ namespace System
 #if !BIT64
 #error This shouldn't be possible.
 #endif
-                    Buffer.FillPrimitive<uint, uint>(JitHelpers.ChangeType<T, uint>(value), new ByReference<uint>(ref Unsafe.As<T, uint>(ref _pointer.Value)), (nuint)_length);
+                    throw new NotImplementedException();
                     return;
                 }
             }
