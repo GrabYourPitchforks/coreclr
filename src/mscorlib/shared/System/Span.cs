@@ -190,30 +190,34 @@ namespace System
         /// <summary>
         /// Fills the contents of this span with the given value.
         /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Fill(T value)
         {
-            // No-op for empty spans
-
             // Run 8-bit fills through initblk.
             // Run 16-bit, 32-bit, or 64-bit fills through our custom fill logic.
 
             if (!RuntimeHelpers.IsReferenceOrContainsReferences<T>())
             {
-                if (_length == 0)
-                {
-                    return;
-                }
-
                 if (Unsafe.SizeOf<T>() == sizeof(byte))
                 {
-                    Unsafe.InitBlockUnaligned(ref Unsafe.As<T, byte>(ref _pointer.Value), JitHelpers.ChangeType<T, byte>(value), (uint)_length);
+                    // No-op before initblk for empty spans
+                    if (_length != 0)
+                    {
+                        Unsafe.InitBlockUnaligned(ref Unsafe.As<T, byte>(ref _pointer.Value), JitHelpers.ChangeType<T, byte>(value), (uint)_length);
+                    }
                     return;
                 }
                 if (Unsafe.SizeOf<T>() == sizeof(ushort))
                 {
+                    // Don't worry about no-op on empty here since it should be rare and the callee
+                    // will handle it properly anyway. Since in this code path we're the same
+                    // width as a char, it's likely that the developer passed a constant for
+                    // the 'value' parameter. We'll immediately extend the 16-bit value to 32 bits
+                    // as an optimization, hoping for the JIT to evaluate the logic below and
+                    // bake the extended constant value into the codegen.
+
                     uint extendedValue = JitHelpers.ChangeType<T, ushort>(value);
                     extendedValue += (extendedValue << 16);
+
                     Buffer.FillPrimitiveUInt16_a(extendedValue, ref Unsafe.As<T, ushort>(ref _pointer.Value), (nuint)_length);
                     return;
                 }
@@ -230,13 +234,11 @@ namespace System
                 }
 #endif
             }
-
-            if (_length == 0)
+            
+            if (_length != 0)
             {
-                return;
+                FillSlow(value, ref _pointer.Value, (nuint)_length);
             }
-
-            FillSlow(value, ref _pointer.Value, (nuint)_length);
         }
 
         // This logic is for reference / contains-references / greater-than-IntPtr size types
