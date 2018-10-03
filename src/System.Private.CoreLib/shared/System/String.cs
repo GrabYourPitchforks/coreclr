@@ -360,6 +360,11 @@ namespace System
             return result;
         }
 
+        // Similar to the ROS<char> implicit conversion operator, but only to be used when we know for a fact that
+        // 'this' is not null. Otherwise we'll get a null ref when trying to read the Length property.
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal ReadOnlySpan<char> AsSpanFast() => new ReadOnlySpan<char>(ref GetRawStringData(), Length);
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static implicit operator ReadOnlySpan<char>(string value) =>
             value != null ? new ReadOnlySpan<char>(ref value.GetRawStringData(), value.Length) : default;
