@@ -21,8 +21,10 @@ using Internal.Runtime.CompilerServices;
 
 #if BIT64
 using nuint = System.UInt64;
+using nint = System.Int64;
 #else // BIT64
 using nuint = System.UInt32;
+using nint = System.Int32;
 #endif // BIT64
 
 namespace System.Globalization
@@ -321,35 +323,47 @@ namespace System.Globalization
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal void ChangeCaseToLower(ReadOnlySpan<char> source, Span<char> destination) => ChangeCaseCommon<ToLowerConversion>(source, destination);
+        internal void ChangeCaseToLower(ReadOnlySpan<char> source, Span<char> destination)
+        {
+            ChangeCaseCommon<ToLowerConversion>(ref MemoryMarshal.GetReference(source), source.Length, ref MemoryMarshal.GetReference(destination), destination.Length);
+        }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal void ChangeCaseToUpper(ReadOnlySpan<char> source, Span<char> destination) => ChangeCaseCommon<ToUpperConversion>(source, destination);
+        internal void ChangeCaseToUpper(ReadOnlySpan<char> source, Span<char> destination)
+        {
+            ChangeCaseCommon<ToUpperConversion>(ref MemoryMarshal.GetReference(source), source.Length, ref MemoryMarshal.GetReference(destination), destination.Length);
+        }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void ChangeCaseCommon<TConversion>(ReadOnlySpan<char> source, Span<char> destination) where TConversion : struct
+        {
+            ChangeCaseCommon<TConversion>(ref MemoryMarshal.GetReference(source), source.Length, ref MemoryMarshal.GetReference(destination), destination.Length);
+        }
+
+        private void ChangeCaseCommon<TConversion>(ref char source, int sourceLength, ref char destination, int destinationLength) where TConversion : struct
         {
             Debug.Assert(typeof(TConversion) == typeof(ToUpperConversion) || typeof(TConversion) == typeof(ToLowerConversion));
             bool toUpper = typeof(TConversion) == typeof(ToUpperConversion); // JIT will treat this as a constant in release builds
 
             Debug.Assert(!_invariantMode);
-            Debug.Assert(destination.Length >= source.Length);
+            Debug.Assert(destinationLength >= sourceLength);
+            Debug.Assert(sourceLength >= 0);
+            Debug.Assert(destinationLength >= 0);
 
-            if (source.IsEmpty)
+            if (sourceLength == 0)
             {
                 return;
             }
 
             if (IsAsciiCasingSameAsInvariant)
             {
-                nuint currIdx = 0; // in bytes, not chars
-                ref byte sourceBytes = ref Unsafe.As<char, byte>(ref MemoryMarshal.GetReference(source));
-                ref byte destBytes = ref Unsafe.As<char, byte>(ref MemoryMarshal.GetReference(destination));
+                nuint currIdxChars = 0; // in chars
 
-                // Read 8 bytes (4 chars) at a time
+                // Read 4 chars (two 32-bit integers) at a time
 
-                if (source.Length >= 4)
+                if (sourceLength >= 4)
                 {
-                    nuint lastIndexWhereCanReadFourChars = (uint)(2 * source.Length - 8);
+                    nuint lastIndexWhereCanReadFourChars = (uint)sourceLength - 4;
                     do
                     {
                         // This is a mostly branchless case change routine. Generally speaking, we assume that the majority
@@ -361,51 +375,51 @@ namespace System.Globalization
                         //
                         // Keep the logic in ChangeCaseCommon and Marvin.ComputeHash32OrdinalIgnoreCase in sync.
 
-                        uint tempValue = Unsafe.ReadUnaligned<uint>(ref Unsafe.AddByteOffset(ref sourceBytes, currIdx));
+                        uint tempValue = Unsafe.ReadUnaligned<uint>(ref Unsafe.As<char, byte>(ref Unsafe.Add(ref source, (nint)currIdxChars)));
                         if (!Utf16Utility.DWordAllCharsAreAscii(tempValue))
                         {
                             goto NonAscii;
                         }
                         tempValue = (toUpper) ? Utf16Utility.ToUpperInvariantAsciiDWord(tempValue) : Utf16Utility.ToLowerInvariantAsciiDWord(tempValue);
-                        Unsafe.WriteUnaligned<uint>(ref Unsafe.AddByteOffset(ref destBytes, currIdx), tempValue);
+                        Unsafe.WriteUnaligned<uint>(ref Unsafe.As<char, byte>(ref Unsafe.Add(ref destination, (nint)currIdxChars)), tempValue);
 
-                        tempValue = Unsafe.ReadUnaligned<uint>(ref Unsafe.AddByteOffset(ref Unsafe.AddByteOffset(ref sourceBytes, currIdx), 4));
+                        tempValue = Unsafe.ReadUnaligned<uint>(ref Unsafe.As<char, byte>(ref Unsafe.AddByteOffset(ref Unsafe.Add(ref source, (nint)currIdxChars), 4)));
                         if (!Utf16Utility.DWordAllCharsAreAscii(tempValue))
                         {
-                            goto NonAsciiSkip4Bytes;
+                            goto NonAsciiSkipTwoChars;
                         }
                         tempValue = (toUpper) ? Utf16Utility.ToUpperInvariantAsciiDWord(tempValue) : Utf16Utility.ToLowerInvariantAsciiDWord(tempValue);
-                        Unsafe.WriteUnaligned<uint>(ref Unsafe.AddByteOffset(ref Unsafe.AddByteOffset(ref destBytes, currIdx), 4), tempValue);
-                        currIdx += 8;
-                    } while (currIdx <= lastIndexWhereCanReadFourChars);
+                        Unsafe.WriteUnaligned<uint>(ref Unsafe.As<char, byte>(ref Unsafe.AddByteOffset(ref Unsafe.Add(ref destination, (nint)currIdxChars), 4)), tempValue);
+                        currIdxChars += 4;
+                    } while (currIdxChars <= lastIndexWhereCanReadFourChars);
 
                     // At this point, there are fewer than 4 characters remaining to convert.
-                    Debug.Assert(source.Length - (int)currIdx <= 6);
+                    Debug.Assert((uint)sourceLength - currIdxChars < 4);
                 }
 
                 // If there are 2 or 3 characters left to convert, we'll convert 2 of them now.
-                if ((source.Length & 2) != 0)
+                if ((sourceLength & 2) != 0)
                 {
-                    uint tempValue = Unsafe.ReadUnaligned<uint>(ref Unsafe.AddByteOffset(ref sourceBytes, currIdx));
+                    uint tempValue = Unsafe.ReadUnaligned<uint>(ref Unsafe.As<char, byte>(ref Unsafe.Add(ref source, (nint)currIdxChars)));
                     if (!Utf16Utility.DWordAllCharsAreAscii(tempValue))
                     {
                         goto NonAscii;
                     }
                     tempValue = (toUpper) ? Utf16Utility.ToUpperInvariantAsciiDWord(tempValue) : Utf16Utility.ToLowerInvariantAsciiDWord(tempValue);
-                    Unsafe.WriteUnaligned<uint>(ref Unsafe.AddByteOffset(ref destBytes, currIdx), tempValue);
-                    currIdx += 4;
+                    Unsafe.WriteUnaligned<uint>(ref Unsafe.As<char, byte>(ref Unsafe.Add(ref destination, (nint)currIdxChars)), tempValue);
+                    currIdxChars += 2;
                 }
 
                 // If there's a single character left to convert, do it now.
-                if ((source.Length & 1) != 0)
+                if ((sourceLength & 1) != 0)
                 {
-                    uint tempValue = Unsafe.As<byte, char>(ref Unsafe.AddByteOffset(ref sourceBytes, currIdx));
+                    uint tempValue = Unsafe.Add(ref source, (nint)currIdxChars);
                     if (tempValue > 0x7Fu)
                     {
                         goto NonAscii;
                     }
                     tempValue = (toUpper) ? Utf16Utility.ToUpperInvariantAsciiDWord(tempValue) : Utf16Utility.ToLowerInvariantAsciiDWord(tempValue);
-                    Unsafe.As<byte, char>(ref Unsafe.AddByteOffset(ref destBytes, currIdx)) = (char)tempValue;
+                    Unsafe.Add(ref destination, (nint)currIdxChars) = (char)tempValue;
                 }
 
                 // And we're finished!
@@ -415,14 +429,15 @@ namespace System.Globalization
                 // If we reached this point, we found non-ASCII data.
                 // Fall back down the p/invoke code path.
 
-            NonAsciiSkip4Bytes:
-                currIdx += 4;
+            NonAsciiSkipTwoChars:
+                currIdxChars += 2;
 
             NonAscii:
-                Debug.Assert((currIdx / 2) < (ulong)source.Length, "We somehow read past the end of the buffer.");
-                int subtrahend = (int)((uint)currIdx / 2);
-                source = new ReadOnlySpan<char>(ref Unsafe.As<byte, char>(ref Unsafe.AddByteOffset(ref sourceBytes, currIdx)), source.Length - subtrahend);
-                destination = new Span<char>(ref Unsafe.As<byte, char>(ref Unsafe.AddByteOffset(ref destBytes, currIdx)), destination.Length - subtrahend);
+                Debug.Assert(currIdxChars < (uint)sourceLength, "We somehow read past the end of the buffer.");
+                source = ref Unsafe.Add(ref source, (nint)currIdxChars);
+                sourceLength -= (int)currIdxChars;
+                destination = ref Unsafe.Add(ref destination, (nint)currIdxChars);
+                destinationLength -= (int)currIdxChars;
             }
 
             // We encountered non-ASCII data and therefore can't perform invariant case conversion; or the requested culture
@@ -431,10 +446,10 @@ namespace System.Globalization
 
             unsafe
             {
-                fixed (char* pSource = &MemoryMarshal.GetReference(source))
-                fixed (char* pResult = &MemoryMarshal.GetReference(destination))
+                fixed (char* pSource = &source)
+                fixed (char* pDestination = &destination)
                 {
-                    ChangeCase(pSource, source.Length, pResult, destination.Length, toUpper);
+                    ChangeCase(pSource, sourceLength, pDestination, destinationLength, toUpper);
                 }
             }
         }
