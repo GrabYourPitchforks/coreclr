@@ -419,7 +419,8 @@ namespace System.Globalization
                     {
                         goto NonAscii;
                     }
-                    tempValue = (toUpper) ? Utf16Utility.ToUpperInvariantAsciiDWord(tempValue) : Utf16Utility.ToLowerInvariantAsciiDWord(tempValue);
+                    bool mustChangeCase = (toUpper) ? ((tempValue - 'a') <= (uint)('z' - 'a')) : ((tempValue - 'A') <= (uint)('Z' - 'A'));
+                    tempValue ^= (mustChangeCase) ? 0x20u : 0;
                     Unsafe.Add(ref destination, (nint)currIdx) = (char)tempValue;
                 }
 
@@ -444,17 +445,23 @@ namespace System.Globalization
             // has a case conversion that's different from the invariant culture, even for ASCII data (e.g., tr-TR converts
             // 'i' (U+0069) to Latin Capital Letter I With Dot Above (U+0130)).
 
-            unsafe
-            {
-                fixed (char* pSource = &source)
-                fixed (char* pDestination = &destination)
-                {
-                    ChangeCase(pSource, charCount, pDestination, charCount, toUpper);
-                }
-            }
+            ChangeCaseCommonSlow<TConversion>(ref source, ref destination, charCount);
 
         Return:
             return;
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)] // move pinning logic outside main method - it prevents the JIT from optimizing stack usage as aggressively
+        private unsafe void ChangeCaseCommonSlow<TConversion>(ref char source, ref char destination, int charCount) where TConversion : struct
+        {
+            Debug.Assert(typeof(TConversion) == typeof(ToUpperConversion) || typeof(TConversion) == typeof(ToLowerConversion));
+            bool toUpper = typeof(TConversion) == typeof(ToUpperConversion); // JIT will treat this as a constant in release builds
+
+            fixed (char* pSource = &source)
+            fixed (char* pDestination = &destination)
+            {
+                ChangeCase(pSource, charCount, pDestination, charCount, toUpper);
+            }
         }
 
         private static unsafe string ToLowerAsciiInvariant(string s)
@@ -634,7 +641,7 @@ namespace System.Globalization
 
                 Debug.Assert(Unsafe.SizeOf<Tristate>() == Unsafe.SizeOf<bool>());
                 Debug.Assert(_isAsciiCasingSameAsInvariant == Tristate.True || _isAsciiCasingSameAsInvariant == Tristate.False);
-                return Unsafe.As<Tristate, bool>(ref _isAsciiCasingSameAsInvariant);
+                return (_isAsciiCasingSameAsInvariant != Tristate.False);
             }
         }
 
