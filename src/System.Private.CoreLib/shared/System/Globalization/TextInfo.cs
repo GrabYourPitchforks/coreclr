@@ -233,12 +233,13 @@ namespace System.Globalization
                 return string.Empty;
             }
 
+            nuint currIdx = 0; // in chars
+
             // If this culture's casing for ASCII is the same as invariant, try to take
             // a fast path that'll work in managed code and ASCII rather than calling out
             // to the OS for culture-aware casing.
             if (IsAsciiCasingSameAsInvariant)
             {
-                nuint currIdx = 0; // in chars
                 ref char sourceChars = ref source.GetRawStringData();
 
                 // Read 4 bytes (2 chars) at a time
@@ -248,14 +249,7 @@ namespace System.Globalization
                     nuint lastIndexWhereCanReadTwoChars = (uint)(source.Length - 2);
                     do
                     {
-                        // This is a mostly branchless case change routine. Generally speaking, we assume that the majority
-                        // of input is ASCII, so the 'if' checks below should normally evaluate to false. However, within
-                        // the ASCII data, we expect that characters of either case might be about equally distributed, so
-                        // we want the case change operation itself to be branchless. This gives optimal performance in the
-                        // common case. We also expect that developers aren't passing very long (16+ character) strings into
-                        // this method, so we won't bother vectorizing until data shows us that it's worthwhile to do so.
-                        //
-                        // Keep the logic in ChangeCaseCommon and Marvin.ComputeHash32OrdinalIgnoreCase in sync.
+                        // See the comments in ChangeCaseCommon<TConversion>(ROS<char>, Span<char>) for a full explanation of the below code.
 
                         uint tempValue = Unsafe.ReadUnaligned<uint>(ref Unsafe.As<char, byte>(ref Unsafe.Add(ref sourceChars, (IntPtr)(void*)currIdx)));
                         if (!Utf16Utility.DWordAllCharsAreAscii(tempValue))
@@ -291,41 +285,36 @@ namespace System.Globalization
             AsciiMustChangeCase:
                 {
                     string result = string.FastAllocateString(source.Length); // changing case uses simple folding: doesn't change UTF-16 code unit count
-                    Span<char> resultSpan = new Span<char>(ref result.GetRawStringData(), result.Length);
 
                     // copy existing known-good data into the result
+                    Span<char> resultSpan = new Span<char>(ref result.GetRawStringData(), result.Length);
                     source.AsSpan(0, (int)currIdx).CopyTo(resultSpan);
 
                     // and re-run the fast span-based logic over the remainder of the data
                     ChangeCaseCommon<TConversion>(source.AsSpan((int)currIdx), resultSpan.Slice((int)currIdx));
                     return result;
                 }
-
-            NotAscii:
-                {
-                    string result = string.FastAllocateString(source.Length); // changing case uses simple folding: doesn't change UTF-16 code unit count
-                    Span<char> resultSpan = new Span<char>(ref result.GetRawStringData(), result.Length);
-
-                    // copy existing known-good data into the result
-                    source.AsSpan(0, (int)currIdx).CopyTo(resultSpan);
-
-                    // and run the culture-aware logic over the remainder of the data
-                    fixed (char* pSource = source)
-                    fixed (char* pResult = result)
-                    {
-                        ChangeCase(pSource + currIdx, source.Length - (int)currIdx, pResult + currIdx, result.Length - (int)currIdx, toUpper);
-                    }
-                    return result;
-                }
             }
-            else
+
+        NotAscii:
             {
-                // Requested culture doesn't map ASCII the same way as the invariant culture - fall back to localization tables.
+                // We reached non-ASCII data *or* the requested culture doesn't map ASCII data the same way as the invariant culture.
+                // In either case we need to fall back to the localization tables.
+
                 string result = string.FastAllocateString(source.Length); // changing case uses simple folding: doesn't change UTF-16 code unit count
+
+                if (currIdx > 0)
+                {
+                    // copy existing known-good data into the result
+                    Span<char> resultSpan = new Span<char>(ref result.GetRawStringData(), result.Length);
+                    source.AsSpan(0, (int)currIdx).CopyTo(resultSpan);
+                }
+
+                // and run the culture-aware logic over the remainder of the data
                 fixed (char* pSource = source)
                 fixed (char* pResult = result)
                 {
-                    ChangeCase(pSource, source.Length, pResult, result.Length, toUpper);
+                    ChangeCase(pSource + currIdx, source.Length - (int)currIdx, pResult + currIdx, result.Length - (int)currIdx, toUpper);
                 }
                 return result;
             }
