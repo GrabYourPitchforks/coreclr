@@ -10,6 +10,54 @@ namespace System.Text
     internal static partial class Utf16Utility
     {
         /// <summary>
+        /// Given a DWORD that represents two ASCII UTF-16 characters, returns true iff
+        /// the input contains one or more lowercase ASCII characters.
+        /// </summary>
+        /// <remarks>
+        /// This is a branchless implementation.
+        /// </remarks>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static bool ContainsLowercaseAsciiDWord(uint value)
+        {
+            // ASSUMPTION: Caller has validated that input value is ASCII.
+            Debug.Assert(DWordAllCharsAreAscii(value));
+
+            // the 0x80 bit of each word of 'lowerIndicator' will be set iff the word has value >= 'a'
+            uint lowerIndicator = value + 0x00800080u - 0x00610061u;
+
+            // the 0x80 bit of each word of 'upperIndicator' will be set iff the word has value <= 'z'
+            uint upperIndicator = value + 0x00800080u - 0x007B007Bu;
+
+            // the 0x80 bit of each word of 'combinedIndicator' will be set iff the word has value >= 'a' and <= 'z'
+            uint combinedIndicator = (lowerIndicator ^ upperIndicator);
+            return (combinedIndicator & 0x00800080u) != 0;
+        }
+
+        /// <summary>
+        /// Given a DWORD that represents two ASCII UTF-16 characters, returns true iff
+        /// the input contains one or more uppercase ASCII characters.
+        /// </summary>
+        /// <remarks>
+        /// This is a branchless implementation.
+        /// </remarks>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static bool ContainsUppercaseAsciiDWord(uint value)
+        {
+            // ASSUMPTION: Caller has validated that input value is ASCII.
+            Debug.Assert(DWordAllCharsAreAscii(value));
+
+            // the 0x80 bit of each word of 'lowerIndicator' will be set iff the word has value >= 'A'
+            uint lowerIndicator = value + 0x00800080u - 0x00410041u;
+
+            // the 0x80 bit of each word of 'upperIndicator' will be set iff the word has value <= 'Z'
+            uint upperIndicator = value + 0x00800080u - 0x005B005Bu;
+
+            // the 0x80 bit of each word of 'combinedIndicator' will be set iff the word has value >= 'A' and <= 'Z'
+            uint combinedIndicator = (lowerIndicator ^ upperIndicator);
+            return (combinedIndicator & 0x00800080u) != 0;
+        }
+
+        /// <summary>
         /// Returns true iff the DWORD represents two ASCII UTF-16 characters in machine endianness.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

@@ -207,7 +207,7 @@ namespace System.Globalization
                 return ToLowerAsciiInvariant(str);
             }
 
-            return ChangeCase(str, toUpper: false);
+            return ChangeCaseCommon<ToLowerConversion>(str);
         }
 
         private unsafe char ChangeCase(char c, bool toUpper)
@@ -219,8 +219,11 @@ namespace System.Globalization
             return dst;
         }
 
-        private unsafe string ChangeCase(string source, bool toUpper)
+        private unsafe string ChangeCaseCommon<TConversion>(string source) where TConversion : struct
         {
+            Debug.Assert(typeof(TConversion) == typeof(ToUpperConversion) || typeof(TConversion) == typeof(ToLowerConversion));
+            bool toUpper = typeof(TConversion) == typeof(ToUpperConversion); // JIT will treat this as a constant in release builds
+
             Debug.Assert(!_invariantMode);
             Debug.Assert(source != null);
 
@@ -230,155 +233,102 @@ namespace System.Globalization
                 return string.Empty;
             }
 
-            int sourcePos = 0;
-            string result = null;
-
             // If this culture's casing for ASCII is the same as invariant, try to take
             // a fast path that'll work in managed code and ASCII rather than calling out
             // to the OS for culture-aware casing.
             if (IsAsciiCasingSameAsInvariant)
             {
-                if (toUpper)
+                nuint currIdx = 0; // in chars
+                ref char sourceChars = ref source.GetRawStringData();
+
+                // Read 4 bytes (2 chars) at a time
+
+                if (source.Length >= 2)
                 {
-                    // Loop through each character.
-                    for (sourcePos = 0; sourcePos < source.Length; sourcePos++)
+                    nuint lastIndexWhereCanReadTwoChars = (uint)(source.Length - 2);
+                    do
                     {
-                        // If the character is lower-case, we're going to need to allocate a string.
-                        char c = source[sourcePos];
-                        if ((uint)(c - 'a') <= 'z' - 'a')
+                        // This is a mostly branchless case change routine. Generally speaking, we assume that the majority
+                        // of input is ASCII, so the 'if' checks below should normally evaluate to false. However, within
+                        // the ASCII data, we expect that characters of either case might be about equally distributed, so
+                        // we want the case change operation itself to be branchless. This gives optimal performance in the
+                        // common case. We also expect that developers aren't passing very long (16+ character) strings into
+                        // this method, so we won't bother vectorizing until data shows us that it's worthwhile to do so.
+                        //
+                        // Keep the logic in ChangeCaseCommon and Marvin.ComputeHash32OrdinalIgnoreCase in sync.
+
+                        uint tempValue = Unsafe.ReadUnaligned<uint>(ref Unsafe.As<char, byte>(ref Unsafe.Add(ref sourceChars, (IntPtr)(void*)currIdx)));
+                        if (!Utf16Utility.DWordAllCharsAreAscii(tempValue))
                         {
-                            // Allocate the result string.
-                            result = string.FastAllocateString(source.Length);
-                            fixed (char* pResult = result)
-                            {
-                                // Store all of characters examined thus far.
-                                if (sourcePos > 0)
-                                {
-                                    source.AsSpan(0, sourcePos).CopyTo(new Span<char>(pResult, sourcePos));
-                                }
-
-                                // And store the current character, upper-cased.
-                                char* d = pResult + sourcePos;
-                                *d++ = (char)(c & ~0x20);
-                                sourcePos++;
-
-                                // Then continue looping through the remainder of the characters. If we hit
-                                // a non-ASCII character, bail to fall back to culture-aware casing.
-                                for (; sourcePos < source.Length; sourcePos++)
-                                {
-                                    c = source[sourcePos];
-                                    if ((uint)(c - 'a') <= 'z' - 'a')
-                                    {
-                                        *d++ = (char)(c & ~0x20);
-                                    }
-                                    else if (!IsAscii(c))
-                                    {
-                                        break;
-                                    }
-                                    else
-                                    {
-                                        *d++ = c;
-                                    }
-                                }
-                            }
-
-                            break;
+                            goto NotAscii;
                         }
-                        else if (!IsAscii(c))
+                        if ((toUpper) ? Utf16Utility.ContainsLowercaseAsciiDWord(tempValue) : Utf16Utility.ContainsUppercaseAsciiDWord(tempValue))
                         {
-                            // The character isn't ASCII; bail to fall back to a culture-aware casing.
-                            break;
+                            goto AsciiMustChangeCase;
                         }
-                    }
+
+                        currIdx += 2;
+                    } while (currIdx <= lastIndexWhereCanReadTwoChars);
                 }
-                else // toUpper == false
+
+                // If there's a single character left to convert, do it now.
+                if ((source.Length & 1) != 0)
                 {
-                    // Loop through each character.
-                    for (sourcePos = 0; sourcePos < source.Length; sourcePos++)
+                    uint tempValue = Unsafe.Add(ref sourceChars, (IntPtr)(void*)currIdx);
+                    if (tempValue > 0x7Fu)
                     {
-                        // If the character is upper-case, we're going to need to allocate a string.
-                        char c = source[sourcePos];
-                        if ((uint)(c - 'A') <= 'Z' - 'A')
-                        {
-                            // Allocate the result string.
-                            result = string.FastAllocateString(source.Length);
-                            fixed (char* pResult = result)
-                            {
-                                // Store all of characters examined thus far.
-                                if (sourcePos > 0)
-                                {
-                                    source.AsSpan(0, sourcePos).CopyTo(new Span<char>(pResult, sourcePos));
-                                }
-
-                                // And store the current character, lower-cased.
-                                char* d = pResult + sourcePos;
-                                *d++ = (char)(c | 0x20);
-                                sourcePos++;
-
-                                // Then continue looping through the remainder of the characters. If we hit
-                                // a non-ASCII character, bail to fall back to culture-aware casing.
-                                for (; sourcePos < source.Length; sourcePos++)
-                                {
-                                    c = source[sourcePos];
-                                    if ((uint)(c - 'A') <= 'Z' - 'A')
-                                    {
-                                       *d++ = (char)(c | 0x20);
-                                    }
-                                    else if (!IsAscii(c))
-                                    {
-                                        break;
-                                    }
-                                    else
-                                    {
-                                        *d++ = c;
-                                    }
-                                }
-                            }
-
-                            break;
-                        }
-                        else if (!IsAscii(c))
-                        {
-                            // The character isn't ASCII; bail to fall back to a culture-aware casing.
-                            break;
-                        }
+                        goto NotAscii;
+                    }
+                    if ((toUpper) ? ((tempValue - 'a') <= (uint)('z' - 'a')) : ((tempValue - 'A') <= (uint)('Z' - 'A')))
+                    {
+                        goto AsciiMustChangeCase;
                     }
                 }
 
-                // If we successfully iterated through all of the characters, we didn't need to fall back
-                // to culture-aware casing.  In that case, if we allocated a result string, use it, otherwise
-                // just return the original string, as no modifications were necessary.
-                if (sourcePos == source.Length)
-                {
-                    return result ?? source;
-                }
-            }
+                // We got through all characters without finding anything that needed to change - done!
+                return source;
 
-            // Falling back to culture-aware casing.  Make sure we have a result string to write into.
-            // If we need to allocate the result string, we'll also need to copy over to it any
-            // characters already examined.
-            if (result == null)
-            {
-                result = string.FastAllocateString(source.Length);
-                if (sourcePos > 0)
+            AsciiMustChangeCase:
                 {
+                    string result = string.FastAllocateString(source.Length); // changing case uses simple folding: doesn't change UTF-16 code unit count
+                    Span<char> resultSpan = new Span<char>(ref result.GetRawStringData(), result.Length);
+
+                    // copy existing known-good data into the result
+                    source.AsSpan(0, (int)currIdx).CopyTo(resultSpan);
+
+                    // and re-run the fast span-based logic over the remainder of the data
+                    ChangeCaseCommon<TConversion>(source.AsSpan((int)currIdx), resultSpan.Slice((int)currIdx));
+                    return result;
+                }
+
+            NotAscii:
+                {
+                    string result = string.FastAllocateString(source.Length); // changing case uses simple folding: doesn't change UTF-16 code unit count
+                    Span<char> resultSpan = new Span<char>(ref result.GetRawStringData(), result.Length);
+
+                    // copy existing known-good data into the result
+                    source.AsSpan(0, (int)currIdx).CopyTo(resultSpan);
+
+                    // and run the culture-aware logic over the remainder of the data
+                    fixed (char* pSource = source)
                     fixed (char* pResult = result)
                     {
-                        source.AsSpan(0, sourcePos).CopyTo(new Span<char>(pResult, sourcePos));
+                        ChangeCase(pSource + currIdx, source.Length - (int)currIdx, pResult + currIdx, result.Length - (int)currIdx, toUpper);
                     }
+                    return result;
                 }
             }
-
-            // Do the casing operation on everything after what we already processed.
-            fixed (char* pSource = source)
+            else
             {
+                // Requested culture doesn't map ASCII the same way as the invariant culture - fall back to localization tables.
+                string result = string.FastAllocateString(source.Length); // changing case uses simple folding: doesn't change UTF-16 code unit count
+                fixed (char* pSource = source)
                 fixed (char* pResult = result)
                 {
-                    ChangeCase(pSource + sourcePos, source.Length - sourcePos, pResult + sourcePos, result.Length - sourcePos, toUpper);
+                    ChangeCase(pSource, source.Length, pResult, result.Length, toUpper);
                 }
+                return result;
             }
-
-            return result;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -648,7 +598,7 @@ namespace System.Globalization
                 return ToUpperAsciiInvariant(str);
             }
 
-            return ChangeCase(str, toUpper: true);
+            return ChangeCaseCommon<ToUpperConversion>(str);
         }
 
         internal static char ToUpperAsciiInvariant(char c)
