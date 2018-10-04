@@ -357,7 +357,7 @@ namespace System.Globalization
 
             if (IsAsciiCasingSameAsInvariant)
             {
-                nuint currIdxChars = 0; // in chars
+                nuint currIdx = 0; // in chars
 
                 // Read 4 chars (two 32-bit integers) at a time
 
@@ -375,51 +375,51 @@ namespace System.Globalization
                         //
                         // Keep the logic in ChangeCaseCommon and Marvin.ComputeHash32OrdinalIgnoreCase in sync.
 
-                        uint tempValue = Unsafe.ReadUnaligned<uint>(ref Unsafe.As<char, byte>(ref Unsafe.Add(ref source, (nint)currIdxChars)));
+                        uint tempValue = Unsafe.ReadUnaligned<uint>(ref Unsafe.As<char, byte>(ref Unsafe.Add(ref source, (nint)currIdx)));
                         if (!Utf16Utility.DWordAllCharsAreAscii(tempValue))
                         {
                             goto NonAscii;
                         }
                         tempValue = (toUpper) ? Utf16Utility.ToUpperInvariantAsciiDWord(tempValue) : Utf16Utility.ToLowerInvariantAsciiDWord(tempValue);
-                        Unsafe.WriteUnaligned<uint>(ref Unsafe.As<char, byte>(ref Unsafe.Add(ref destination, (nint)currIdxChars)), tempValue);
+                        Unsafe.WriteUnaligned<uint>(ref Unsafe.As<char, byte>(ref Unsafe.Add(ref destination, (nint)currIdx)), tempValue);
 
-                        tempValue = Unsafe.ReadUnaligned<uint>(ref Unsafe.As<char, byte>(ref Unsafe.AddByteOffset(ref Unsafe.Add(ref source, (nint)currIdxChars), 4)));
+                        tempValue = Unsafe.ReadUnaligned<uint>(ref Unsafe.As<char, byte>(ref Unsafe.AddByteOffset(ref Unsafe.Add(ref source, (nint)currIdx), 4)));
                         if (!Utf16Utility.DWordAllCharsAreAscii(tempValue))
                         {
                             goto NonAsciiSkipTwoChars;
                         }
                         tempValue = (toUpper) ? Utf16Utility.ToUpperInvariantAsciiDWord(tempValue) : Utf16Utility.ToLowerInvariantAsciiDWord(tempValue);
-                        Unsafe.WriteUnaligned<uint>(ref Unsafe.As<char, byte>(ref Unsafe.AddByteOffset(ref Unsafe.Add(ref destination, (nint)currIdxChars), 4)), tempValue);
-                        currIdxChars += 4;
-                    } while (currIdxChars <= lastIndexWhereCanReadFourChars);
+                        Unsafe.WriteUnaligned<uint>(ref Unsafe.As<char, byte>(ref Unsafe.AddByteOffset(ref Unsafe.Add(ref destination, (nint)currIdx), 4)), tempValue);
+                        currIdx += 4;
+                    } while (currIdx <= lastIndexWhereCanReadFourChars);
 
                     // At this point, there are fewer than 4 characters remaining to convert.
-                    Debug.Assert((uint)sourceLength - currIdxChars < 4);
+                    Debug.Assert((uint)sourceLength - currIdx < 4);
                 }
 
                 // If there are 2 or 3 characters left to convert, we'll convert 2 of them now.
                 if ((sourceLength & 2) != 0)
                 {
-                    uint tempValue = Unsafe.ReadUnaligned<uint>(ref Unsafe.As<char, byte>(ref Unsafe.Add(ref source, (nint)currIdxChars)));
+                    uint tempValue = Unsafe.ReadUnaligned<uint>(ref Unsafe.As<char, byte>(ref Unsafe.Add(ref source, (nint)currIdx)));
                     if (!Utf16Utility.DWordAllCharsAreAscii(tempValue))
                     {
                         goto NonAscii;
                     }
                     tempValue = (toUpper) ? Utf16Utility.ToUpperInvariantAsciiDWord(tempValue) : Utf16Utility.ToLowerInvariantAsciiDWord(tempValue);
-                    Unsafe.WriteUnaligned<uint>(ref Unsafe.As<char, byte>(ref Unsafe.Add(ref destination, (nint)currIdxChars)), tempValue);
-                    currIdxChars += 2;
+                    Unsafe.WriteUnaligned<uint>(ref Unsafe.As<char, byte>(ref Unsafe.Add(ref destination, (nint)currIdx)), tempValue);
+                    currIdx += 2;
                 }
 
                 // If there's a single character left to convert, do it now.
                 if ((sourceLength & 1) != 0)
                 {
-                    uint tempValue = Unsafe.Add(ref source, (nint)currIdxChars);
+                    uint tempValue = Unsafe.Add(ref source, (nint)currIdx);
                     if (tempValue > 0x7Fu)
                     {
                         goto NonAscii;
                     }
                     tempValue = (toUpper) ? Utf16Utility.ToUpperInvariantAsciiDWord(tempValue) : Utf16Utility.ToLowerInvariantAsciiDWord(tempValue);
-                    Unsafe.Add(ref destination, (nint)currIdxChars) = (char)tempValue;
+                    Unsafe.Add(ref destination, (nint)currIdx) = (char)tempValue;
                 }
 
                 // And we're finished!
@@ -430,14 +430,14 @@ namespace System.Globalization
                 // Fall back down the p/invoke code path.
 
             NonAsciiSkipTwoChars:
-                currIdxChars += 2;
+                currIdx += 2;
 
             NonAscii:
-                Debug.Assert(currIdxChars < (uint)sourceLength, "We somehow read past the end of the buffer.");
-                source = ref Unsafe.Add(ref source, (nint)currIdxChars);
-                sourceLength -= (int)currIdxChars;
-                destination = ref Unsafe.Add(ref destination, (nint)currIdxChars);
-                destinationLength -= (int)currIdxChars;
+                Debug.Assert(currIdx < (uint)sourceLength, "We somehow read past the end of the buffer.");
+                source = ref Unsafe.Add(ref source, (nint)currIdx);
+                sourceLength -= (int)currIdx;
+                destination = ref Unsafe.Add(ref destination, (nint)currIdx);
+                destinationLength -= (int)currIdx;
             }
 
             // We encountered non-ASCII data and therefore can't perform invariant case conversion; or the requested culture
