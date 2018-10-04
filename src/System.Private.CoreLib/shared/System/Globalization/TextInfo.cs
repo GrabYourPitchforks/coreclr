@@ -419,8 +419,7 @@ namespace System.Globalization
                     {
                         goto NonAscii;
                     }
-                    bool mustChangeCase = (toUpper) ? ((tempValue - 'a') <= (uint)('z' - 'a')) : ((tempValue - 'A') <= (uint)('Z' - 'A'));
-                    tempValue ^= (mustChangeCase) ? 0x20u : 0;
+                    tempValue = (toUpper) ? Utf16Utility.ToUpperInvariantAsciiDWord(tempValue) : Utf16Utility.ToLowerInvariantAsciiDWord(tempValue);
                     Unsafe.Add(ref destination, (nint)currIdx) = (char)tempValue;
                 }
 
