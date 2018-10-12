@@ -111,9 +111,8 @@ namespace System
 
                 do
                 {
-                    ulong temp = Unsafe.ReadUnaligned<ulong>(ref Unsafe.AddByteOffset(ref data, byteOffset));
-                    s0p0 += (uint)temp;
-                    s1p0 += (uint)(temp >> 32);
+                    s0p0 += Unsafe.ReadUnaligned<uint>(ref Unsafe.AddByteOffset(ref data, byteOffset));
+                    s1p0 += Unsafe.ReadUnaligned<uint>(ref Unsafe.AddByteOffset(ref Unsafe.AddByteOffset(ref data, byteOffset), 4));
 
                     Block_Test(ref s0p0, ref s0p1, ref s1p0, ref s1p1);
 
@@ -164,7 +163,7 @@ namespace System
                     goto case 3;
 
                 case 3:
-                    s0p0 += 0x80000000u | (((uint)(Unsafe.AddByteOffset(ref data, byteOffset + 2))) << 16) | (uint)(Unsafe.ReadUnaligned<ushort>(ref Unsafe.AddByteOffset(ref data, byteOffset)));
+                    s0p0 += 0x80000000u | (((uint)(Unsafe.AddByteOffset(ref Unsafe.AddByteOffset(ref data, byteOffset), 2))) << 16) | (uint)(Unsafe.ReadUnaligned<ushort>(ref Unsafe.AddByteOffset(ref data, byteOffset)));
                     break;
             }
 
