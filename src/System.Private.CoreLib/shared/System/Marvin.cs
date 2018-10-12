@@ -94,7 +94,86 @@ namespace System
 
             return (int)(p1 ^ p0);
         }
-        
+
+        /// <summary>
+        /// Compute a Marvin hash and collapse it into a 32-bit hash.
+        /// </summary>
+        public static int ComputeHash32_Test(ref byte data, int count, ulong seed0, ulong seed1)
+        {
+            uint s0p0 = (uint)seed0;
+            uint s0p1 = (uint)(seed0 >> 32);
+            nuint byteOffset = 0;
+
+            if ((uint)count >= 8)
+            {
+                uint s1p0 = (uint)seed1;
+                uint s1p1 = (uint)(seed1 >> 32);
+
+                do
+                {
+                    ulong temp = Unsafe.ReadUnaligned<ulong>(ref Unsafe.AddByteOffset(ref data, byteOffset));
+                    s0p0 += (uint)temp;
+                    s1p0 += (uint)(temp >> 32);
+
+                    Block_Test(ref s0p0, ref s0p1, ref s1p0, ref s1p1);
+
+                    byteOffset += 8;
+                    count -= 8;
+                } while ((uint)count >= 8);
+
+                s0p0 ^= s1p0;
+                s0p1 ^= s1p1;
+            }
+
+            switch ((uint)count)
+            {
+                case 4:
+                    s0p0 += Unsafe.ReadUnaligned<uint>(ref Unsafe.AddByteOffset(ref data, byteOffset));
+                    Block(ref s0p0, ref s0p1);
+                    goto case 0;
+
+                case 0:
+                    s0p0 += 0x80u;
+                    break;
+
+                case 5:
+                    s0p0 += Unsafe.ReadUnaligned<uint>(ref Unsafe.AddByteOffset(ref data, byteOffset));
+                    byteOffset += 4;
+                    Block(ref s0p0, ref s0p1);
+                    goto case 1;
+
+                case 1:
+                    s0p0 += 0x8000u | Unsafe.AddByteOffset(ref data, byteOffset);
+                    break;
+
+                case 6:
+                    s0p0 += Unsafe.ReadUnaligned<uint>(ref Unsafe.AddByteOffset(ref data, byteOffset));
+                    byteOffset += 4;
+                    Block(ref s0p0, ref s0p1);
+                    goto case 2;
+
+                case 2:
+                    s0p0 += 0x800000u | Unsafe.ReadUnaligned<ushort>(ref Unsafe.AddByteOffset(ref data, byteOffset));
+                    break;
+
+                default:
+                    Debug.Assert(count == 7);
+                    s0p0 += Unsafe.ReadUnaligned<uint>(ref Unsafe.AddByteOffset(ref data, byteOffset));
+                    byteOffset += 4;
+                    Block(ref s0p0, ref s0p1);
+                    goto case 3;
+
+                case 3:
+                    s0p0 += 0x80000000u | (((uint)(Unsafe.AddByteOffset(ref data, byteOffset + 2))) << 16) | (uint)(Unsafe.ReadUnaligned<ushort>(ref Unsafe.AddByteOffset(ref data, byteOffset)));
+                    break;
+            }
+
+            Block(ref s0p0, ref s0p1);
+            Block(ref s0p0, ref s0p1);
+
+            return (int)(s0p1 ^ s0p0);
+        }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void Block(ref uint rp0, ref uint rp1)
         {
@@ -118,6 +197,40 @@ namespace System
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void Block_Test(ref uint rs0p0, ref uint rs0p1, ref uint rs1p0, ref uint rs1p1)
+        {
+            uint s0p0 = rs0p0;
+            uint s0p1 = rs0p1;
+            uint s1p0 = rs1p0;
+            uint s1p1 = rs1p1;
+
+            s0p1 ^= s0p0;
+            s1p1 ^= s1p0;
+            s0p0 = _rotl(s0p0, 20);
+            s1p0 = _rotl(s1p0, 20);
+
+            s0p0 += s0p1;
+            s1p0 += s1p1;
+            s0p1 = _rotl(s0p1, 9);
+            s1p1 = _rotl(s1p1, 9);
+
+            s0p1 ^= s0p0;
+            s1p1 ^= s1p0;
+            s0p0 = _rotl(s0p0, 27);
+            s1p0 = _rotl(s1p0, 27);
+
+            s0p0 += s0p1;
+            s1p0 += s1p1;
+            s0p1 = _rotl(s0p1, 19);
+            s1p1 = _rotl(s1p1, 19);
+
+            rs0p0 = s0p0;
+            rs0p1 = s0p1;
+            rs1p0 = s1p0;
+            rs1p1 = s1p1;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static uint _rotl(uint value, int shift)
         {
             // This is expected to be optimized into a single rol (or ror with negated shift value) instruction
@@ -125,6 +238,9 @@ namespace System
         }
 
         public static ulong DefaultSeed { get; } = GenerateSeed();
+
+        public static ulong DefaultSeed0_Test { get; } = GenerateSeed();
+        public static ulong DefaultSeed1_Test { get; } = GenerateSeed();
 
         private static unsafe ulong GenerateSeed()
         {

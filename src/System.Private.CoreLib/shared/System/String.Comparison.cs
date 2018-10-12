@@ -747,8 +747,7 @@ namespace System
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public override int GetHashCode()
         {
-            ulong seed = Marvin.DefaultSeed;
-            return Marvin.ComputeHash32(ref Unsafe.As<char, byte>(ref _firstChar), _stringLength * 2, (uint)seed, (uint)(seed >> 32));
+            return Marvin.ComputeHash32_Test(ref Unsafe.As<char, byte>(ref _firstChar), _stringLength * 2, Marvin.DefaultSeed0_Test, Marvin.DefaultSeed1_Test);
         }
 
         // Gets a hash code for this string and this comparison. If strings A and B and comparison C are such
