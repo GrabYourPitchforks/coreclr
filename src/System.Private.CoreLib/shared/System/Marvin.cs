@@ -23,6 +23,43 @@ namespace System
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int ComputeHash32(ReadOnlySpan<byte> data, ulong seed) => ComputeHash32(ref MemoryMarshal.GetReference(data), data.Length, (uint)seed, (uint)(seed >> 32));
 
+        // We expect caller to reinterpret_cast the input as a byte*, but the count parameter is specified in chars
+        public unsafe static int ComputeHashStringOrdinal32(ref byte bytes, uint charCount, uint p0, uint p1)
+        {
+            nuint byteOffset = 0;
+
+            while (charCount >= 4)
+            {
+                p0 += Unsafe.ReadUnaligned<uint>(ref Unsafe.AddByteOffset(ref bytes, byteOffset));
+                Block(ref p0, ref p1);
+
+                p0 += Unsafe.ReadUnaligned<uint>(ref Unsafe.AddByteOffset(ref Unsafe.AddByteOffset(ref bytes, byteOffset), 4));
+                Block(ref p0, ref p1);
+
+                byteOffset += 8;
+                charCount -= 4;
+            }
+
+            if (charCount >= 2)
+            {
+                p0 += Unsafe.ReadUnaligned<uint>(ref Unsafe.AddByteOffset(ref bytes, byteOffset));
+                Block(ref p0, ref p1);
+            }
+
+            if ((charCount & 1) != 0)
+            {
+                p0 += Unsafe.Add(ref Unsafe.Add(ref Unsafe.As<byte, char>(ref bytes), (IntPtr)(void*)charCount), -1);
+                p0 += 0x800000u - 0x80u;
+            }
+
+            p0 += 0x80u;
+
+            Block(ref p0, ref p1);
+            Block(ref p0, ref p1);
+
+            return (int)(p1 ^ p0);
+        }
+
         /// <summary>
         /// Compute a Marvin hash and collapse it into a 32-bit hash.
         /// </summary>
@@ -94,7 +131,7 @@ namespace System
 
             return (int)(p1 ^ p0);
         }
-        
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void Block(ref uint rp0, ref uint rp1)
         {
