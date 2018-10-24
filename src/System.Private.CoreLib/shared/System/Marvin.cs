@@ -60,6 +60,81 @@ namespace System
             return (int)(p1 ^ p0);
         }
 
+        public unsafe static int ComputeHashStringOrdinal32_Parallel(ref byte bytes, uint charCount, ulong seedA, ulong seedB)
+        {
+            uint p0 = (uint)seedA;
+            uint p1 = (uint)(seedA >> 32);
+
+            nuint byteOffset = 0;
+
+            if (charCount >= 4)
+            {
+                if (charCount < 8)
+                {
+                    // Sequential Marvin code path
+
+                    p0 += Unsafe.ReadUnaligned<uint>(ref Unsafe.AddByteOffset(ref bytes, byteOffset));
+                    Block(ref p0, ref p1);
+
+                    p0 += Unsafe.ReadUnaligned<uint>(ref Unsafe.AddByteOffset(ref Unsafe.AddByteOffset(ref bytes, byteOffset), 4));
+                    Block(ref p0, ref p1);
+
+                    byteOffset += 8;
+                    charCount -= 4;
+                }
+                else
+                {
+                    // Parallel Marvin code path
+
+                    uint p0_b = (uint)seedB;
+                    uint p1_b = (uint)(seedB >> 32);
+
+                    p0 += Unsafe.ReadUnaligned<uint>(ref Unsafe.AddByteOffset(ref bytes, byteOffset));
+                    p0_b += Unsafe.ReadUnaligned<uint>(ref Unsafe.AddByteOffset(ref Unsafe.AddByteOffset(ref bytes, byteOffset), 4));
+
+                    byteOffset += 8;
+                    charCount -= 4;
+                    Block_Parallel(ref p0, ref p1, ref p0_b, ref p1_b);
+
+                    Debug.Assert(charCount >= 4);
+
+                    do
+                    {
+                        p0 += Unsafe.ReadUnaligned<uint>(ref Unsafe.AddByteOffset(ref bytes, byteOffset));
+                        p0_b += Unsafe.ReadUnaligned<uint>(ref Unsafe.AddByteOffset(ref Unsafe.AddByteOffset(ref bytes, byteOffset), 4));
+
+                        byteOffset += 8;
+                        charCount -= 4;
+                        Block_Parallel(ref p0, ref p1, ref p0_b, ref p1_b);
+                    } while (charCount >= 4);
+
+                    // mix seedB state back in to seedA
+                    Block_Parallel(ref p0, ref p0_b, ref p1, ref p1_b);
+                }
+            }
+
+            Debug.Assert(charCount <= 3);
+
+            if (charCount >= 2)
+            {
+                p0 += Unsafe.ReadUnaligned<uint>(ref Unsafe.AddByteOffset(ref bytes, byteOffset));
+                Block(ref p0, ref p1);
+            }
+
+            if ((charCount & 1) != 0)
+            {
+                p0 += Unsafe.Add(ref Unsafe.Add(ref Unsafe.As<byte, char>(ref bytes), (IntPtr)(void*)charCount), -1);
+                p0 += 0x800000u - 0x80u;
+            }
+
+            p0 += 0x80u;
+
+            Block(ref p0, ref p1);
+            Block(ref p0, ref p1);
+
+            return (int)(p1 ^ p0);
+        }
+
         /// <summary>
         /// Compute a Marvin hash and collapse it into a 32-bit hash.
         /// </summary>
@@ -155,6 +230,40 @@ namespace System
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void Block_Parallel(ref uint rp0_a, ref uint rp1_a, ref uint rp0_b, ref uint rp1_b)
+        {
+            uint p0_a = rp0_a;
+            uint p0_b = rp0_b;
+            uint p1_a = rp1_a;
+            uint p1_b = rp1_b;
+
+            p1_a ^= p0_a;
+            p1_b ^= p0_b;
+            p0_a = _rotl(p0_a, 20);
+            p0_b = _rotl(p0_b, 20);
+
+            p0_a += p1_a;
+            p0_b += p1_b;
+            p1_a = _rotl(p1_a, 9);
+            p1_b = _rotl(p1_b, 9);
+
+            p1_a ^= p0_a;
+            p1_b ^= p0_b;
+            p0_a = _rotl(p0_a, 27);
+            p0_b = _rotl(p0_b, 27);
+
+            p0_a += p1_a;
+            p0_b += p1_b;
+            p1_a = _rotl(p1_a, 19);
+            p1_b = _rotl(p1_b, 19);
+
+            rp0_a = p0_a;
+            rp0_b = p0_b;
+            rp1_a = p1_a;
+            rp1_b = p1_b;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static uint _rotl(uint value, int shift)
         {
             // This is expected to be optimized into a single rol (or ror with negated shift value) instruction
@@ -162,6 +271,9 @@ namespace System
         }
 
         public static ulong DefaultSeed { get; } = GenerateSeed();
+
+        public static ulong DefaultSeed_ParallelA { get; } = GenerateSeed();
+        public static ulong DefaultSeed_ParallelB { get; } = GenerateSeed();
 
         private static unsafe ulong GenerateSeed()
         {

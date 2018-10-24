@@ -747,8 +747,9 @@ namespace System
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public override int GetHashCode()
         {
-            ulong seed = Marvin.DefaultSeed;
-            return Marvin.ComputeHashStringOrdinal32(ref Unsafe.As<char, byte>(ref _firstChar), (uint)_stringLength /* char count, not byte count */, (uint)seed, (uint)(seed >> 32));
+            //ulong seed = Marvin.DefaultSeed;
+            //return Marvin.ComputeHashStringOrdinal32(ref Unsafe.As<char, byte>(ref _firstChar), (uint)_stringLength /* char count, not byte count */, (uint)seed, (uint)(seed >> 32));
+            return Marvin.ComputeHashStringOrdinal32_Parallel(ref Unsafe.As<char, byte>(ref _firstChar), (uint)_stringLength /* char count, not byte count */, Marvin.DefaultSeed_ParallelA, Marvin.DefaultSeed_ParallelB);
         }
 
         // Gets a hash code for this string and this comparison. If strings A and B and comparison C are such
