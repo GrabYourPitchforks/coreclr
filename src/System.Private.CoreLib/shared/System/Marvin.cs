@@ -60,79 +60,102 @@ namespace System
             return (int)(p1 ^ p0);
         }
 
-        public unsafe static int ComputeHashStringOrdinal32_Parallel(ref byte bytes, uint charCount, ulong seedA, ulong seedB)
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private unsafe static int ComputeHashStringOrdinal32_Parallel(ref byte bytes, uint charCount, ulong seedA, ulong seedB)
         {
-            uint p0 = (uint)seedA;
-            uint p1 = (uint)(seedA >> 32);
+            Debug.Assert(charCount >= 8);
 
-            nuint byteOffset = 0;
+            // Parallel Marvin code path
 
-            if (charCount >= 4)
+            uint p0_a = (uint)seedA;
+            uint p1_a = (uint)(seedA >> 32);
+            uint p0_b = (uint)seedB;
+            uint p1_b = (uint)(seedB >> 32);
+
+            p0_a += Unsafe.ReadUnaligned<uint>(ref bytes);
+            p0_b += Unsafe.ReadUnaligned<uint>(ref Unsafe.AddByteOffset(ref bytes, 4));
+
+            nuint byteOffset = 8;
+            charCount -= 4;
+            Block_Parallel(ref p0_a, ref p1_a, ref p0_b, ref p1_b);
+
+            do
             {
-                if (charCount < 8)
-                {
-                    // Sequential Marvin code path
+                p0_a += Unsafe.ReadUnaligned<uint>(ref Unsafe.AddByteOffset(ref bytes, byteOffset));
+                p0_b += Unsafe.ReadUnaligned<uint>(ref Unsafe.AddByteOffset(ref Unsafe.AddByteOffset(ref bytes, byteOffset), 4));
 
-                    p0 += Unsafe.ReadUnaligned<uint>(ref Unsafe.AddByteOffset(ref bytes, byteOffset));
-                    Block(ref p0, ref p1);
-
-                    p0 += Unsafe.ReadUnaligned<uint>(ref Unsafe.AddByteOffset(ref Unsafe.AddByteOffset(ref bytes, byteOffset), 4));
-                    Block(ref p0, ref p1);
-
-                    byteOffset += 8;
-                    charCount -= 4;
-                }
-                else
-                {
-                    // Parallel Marvin code path
-
-                    uint p0_b = (uint)seedB;
-                    uint p1_b = (uint)(seedB >> 32);
-
-                    p0 += Unsafe.ReadUnaligned<uint>(ref Unsafe.AddByteOffset(ref bytes, byteOffset));
-                    p0_b += Unsafe.ReadUnaligned<uint>(ref Unsafe.AddByteOffset(ref Unsafe.AddByteOffset(ref bytes, byteOffset), 4));
-
-                    byteOffset += 8;
-                    charCount -= 4;
-                    Block_Parallel(ref p0, ref p1, ref p0_b, ref p1_b);
-
-                    Debug.Assert(charCount >= 4);
-
-                    do
-                    {
-                        p0 += Unsafe.ReadUnaligned<uint>(ref Unsafe.AddByteOffset(ref bytes, byteOffset));
-                        p0_b += Unsafe.ReadUnaligned<uint>(ref Unsafe.AddByteOffset(ref Unsafe.AddByteOffset(ref bytes, byteOffset), 4));
-
-                        byteOffset += 8;
-                        charCount -= 4;
-                        Block_Parallel(ref p0, ref p1, ref p0_b, ref p1_b);
-                    } while (charCount >= 4);
-
-                    // mix seedB state back in to seedA
-                    Block_Parallel(ref p0, ref p0_b, ref p1, ref p1_b);
-                }
-            }
+                byteOffset += 8;
+                charCount -= 4;
+                Block_Parallel(ref p0_a, ref p1_a, ref p0_b, ref p1_b);
+            } while (charCount >= 4);
 
             Debug.Assert(charCount <= 3);
 
             if (charCount >= 2)
             {
-                p0 += Unsafe.ReadUnaligned<uint>(ref Unsafe.AddByteOffset(ref bytes, byteOffset));
-                Block(ref p0, ref p1);
+                // Mix two chars in to the 'a' seed
+                p0_a += Unsafe.ReadUnaligned<uint>(ref Unsafe.AddByteOffset(ref bytes, byteOffset));
+                Block(ref p0_a, ref p1_a);
+                p0_a += 0x80u;
+                if (charCount == 3)
+                {
+                    // Mix a single char in to the 'b' seed
+                    p0_b += (uint)Unsafe.Add(ref Unsafe.Add(ref Unsafe.As<byte, char>(ref bytes), (IntPtr)(void*)charCount), -1) + 0x800000u;
+                }
             }
-
-            if ((charCount & 1) != 0)
+            else if (charCount != 0)
             {
-                p0 += Unsafe.Add(ref Unsafe.Add(ref Unsafe.As<byte, char>(ref bytes), (IntPtr)(void*)charCount), -1);
-                p0 += 0x800000u - 0x80u;
+                // Mix a single char in to the 'a' seed
+                p0_a += (uint)Unsafe.Add(ref Unsafe.Add(ref Unsafe.As<byte, char>(ref bytes), (IntPtr)(void*)charCount), -1) + 0x800000u;
+                p0_b += 0x80u;
             }
 
-            p0 += 0x80u;
+            Block_Parallel(ref p0_a, ref p1_a, ref p0_b, ref p1_b);
+            Block_Parallel(ref p0_a, ref p1_a, ref p0_b, ref p1_b);
+            return (int)((p1_a + p1_b) ^ (p0_a + p0_b));
+        }
 
-            Block(ref p0, ref p1);
-            Block(ref p0, ref p1);
+        public unsafe static int ComputeHashStringOrdinal32(ref byte bytes, uint charCount, ulong seedA, ulong seedB)
+        {
+            if (charCount < 8)
+            {
+                // Sequential Marvin code path
 
-            return (int)(p1 ^ p0);
+                uint p0 = (uint)seedA;
+                uint p1 = (uint)(seedA >> 32);
+
+                if (charCount >= 4)
+                {
+                    p0 += Unsafe.ReadUnaligned<uint>(ref bytes);
+                    Block(ref p0, ref p1);
+
+                    p0 += Unsafe.ReadUnaligned<uint>(ref Unsafe.AddByteOffset(ref bytes, 4));
+                    Block(ref p0, ref p1);
+                }
+
+                if ((charCount & 2) != 0)
+                {
+                    p0 += Unsafe.ReadUnaligned<uint>(ref Unsafe.As<char, byte>(ref Unsafe.Add(ref Unsafe.As<byte, char>(ref bytes), (IntPtr)(void*)(charCount & 4))));
+                    Block(ref p0, ref p1);
+                }
+
+                if ((charCount & 1) != 0)
+                {
+                    p0 += Unsafe.Add(ref Unsafe.Add(ref Unsafe.As<byte, char>(ref bytes), (IntPtr)(void*)charCount), -1);
+                    p0 += 0x800000u - 0x80u;
+                }
+
+                p0 += 0x80u;
+
+                Block(ref p0, ref p1);
+                Block(ref p0, ref p1);
+
+                return (int)(p1 ^ p0);
+            }
+            else
+            {
+                return ComputeHashStringOrdinal32_Parallel(ref bytes, charCount, seedA, seedB);
+            }
         }
 
         /// <summary>
