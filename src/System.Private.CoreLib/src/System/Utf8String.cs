@@ -862,21 +862,7 @@ namespace System
                 return this.AsSpanFast().StartsWith(value.AsSpanFast());
             }
         }
-
-        private static unsafe nuint strlen(byte* value)
-        {
-            Debug.Assert(value != null);
-
-            // TODO: Optimize this method.
-
-            nuint idx = 0;
-            while (value[idx] != 0)
-            {
-                idx++;
-            }
-            return idx;
-        }
-
+        
         public Utf8String Substring(int startIndex)
         {
             if ((uint)startIndex < (uint)Length)

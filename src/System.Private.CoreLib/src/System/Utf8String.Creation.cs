@@ -140,7 +140,7 @@ namespace System
                 return Empty;
             }
 
-            return Ctor(new ReadOnlySpan<byte>(value, checked((int)strlen(value))));
+            return Ctor(new ReadOnlySpan<byte>(value, checked((int)Marshal.GetStringLengthUtf8(value))));
         }
 
         /*

@@ -3,16 +3,28 @@
 // See the LICENSE file in the project root for more information.
 
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Reflection;
 using System.Reflection.Emit;
-using System.Security;
-using System.Text;
 using System.Runtime.CompilerServices;
 using System.Runtime.ConstrainedExecution;
-using Win32Native = Microsoft.Win32.Win32Native;
-using System.Diagnostics;
 using System.Runtime.InteropServices.ComTypes;
+using System.Runtime.Intrinsics;
+using System.Runtime.Intrinsics.X86;
+using System.Security;
 using System.StubHelpers;
+using System.Text;
+using Internal.Runtime.CompilerServices;
+
+using Win32Native = Microsoft.Win32.Win32Native;
+
+#if BIT64
+using nint = System.Int64;
+using nuint = System.UInt64;
+#else // BIT64
+using nint = System.Int32;
+using nuint = System.UInt32;
+#endif // BIT64
 
 namespace System.Runtime.InteropServices
 {
@@ -1017,6 +1029,105 @@ namespace System.Runtime.InteropServices
         {
             // Ansi platforms are no longer supported
             return StringToHGlobalUni(s);
+        }
+
+        // Given a pointer to a null-terminated UTF-16 string, returns the string's length (as the number of UTF-16 code units),
+        // not including the null terminator. Behavior is undefined for a null input pointer.
+        [CLSCompliant(false)]
+        public static unsafe IntPtr GetStringLength(char* pStringData)
+        {
+            if (Sse2.IsSupported && Bmi1.IsSupported)
+            {
+                // Vectorized code path
+                // We know that reading aligned vectors can't possibly cross a page boundary so can't AV unexpectedly
+
+                // The very first read we perform might require backing up a little bit so that we are guaranteed
+                // that the read is aligned. We'll mask out the bits we don't care about when performing the comparison
+                // against zero.
+
+                nuint offset = (nuint)pStringData & (nuint)15;
+                uint cmpMask = (uint)Sse2.MoveMask(Sse2.StaticCast<ushort, byte>(Sse2.CompareEqual(Sse2.LoadAlignedVector128((ushort*)((nuint)pStringData & ~(nuint)15)), default(Vector128<ushort>))));
+                cmpMask &= (uint)((-1) << (int)offset);
+                offset = (nuint)(-(nint)offset);
+
+                while (true)
+                {
+                    Debug.Assert(cmpMask <= 0xFFFFu, "Mask should never have more than the low 16 bits set since we're performing a 128-bit vector read.");
+                    if (cmpMask == 0)
+                    {
+                        // No match - increment and iterate
+                        offset += 16;
+                        cmpMask = (uint)Sse2.MoveMask(Sse2.StaticCast<ushort, byte>(Sse2.CompareEqual(Sse2.LoadAlignedVector128((ushort*)&pStringData[offset]), default(Vector128<ushort>))));
+                    }
+                    else
+                    {
+                        // Found a match!
+                        return (IntPtr)(void*)((offset + Bmi1.TrailingZeroCount(cmpMask)) / 2 /* length is in chars, not in bytes */);
+                    }
+                }
+            }
+            else
+            {
+                // Slower non-vectorized code path
+                // TODO: Should this be copied from string.wcslen?
+
+                IntPtr index = IntPtr.Zero;
+                while (Unsafe.Add(ref *pStringData, index) != '\0')
+                {
+                    index += 1;
+                }
+
+                return index;
+            }
+        }
+
+        // Given a pointer to a null-terminated UTF-8 string, returns the string's length (as the number of UTF-8 code units),
+        // not including the null terminator. Behavior is undefined for a null input pointer.
+        [CLSCompliant(false)]
+        public static unsafe IntPtr GetStringLengthUtf8(byte* pUtf8StringData)
+        {
+            if (Sse2.IsSupported && Bmi1.IsSupported)
+            {
+                // Vectorized code path
+                // We know that reading aligned vectors can't possibly cross a page boundary so can't AV unexpectedly
+
+                // The very first read we perform might require backing up a little bit so that we are guaranteed
+                // that the read is aligned. We'll mask out the bits we don't care about when performing the comparison
+                // against zero.
+
+                nuint offset = (nuint)pUtf8StringData & (nuint)15;
+                uint cmpMask = (uint)Sse2.MoveMask(Sse2.CompareEqual(Sse2.LoadAlignedVector128((byte*)((nuint)pUtf8StringData & ~(nuint)15)), default(Vector128<byte>)));
+                cmpMask &= (uint)((-1) << (int)offset);
+                offset = (nuint)(-(nint)offset);
+
+                while (true)
+                {
+                    Debug.Assert(cmpMask <= 0xFFFFu, "Mask should never have more than the low 16 bits set since we're performing a 128-bit vector read.");
+                    if (cmpMask == 0)
+                    {
+                        // No match - increment and iterate
+                        offset += 16;
+                        cmpMask = (uint)Sse2.MoveMask(Sse2.CompareEqual(Sse2.LoadAlignedVector128(&pUtf8StringData[offset]), default(Vector128<byte>)));
+                    }
+                    else
+                    {
+                        // Found a match!
+                        return (IntPtr)(void*)(offset + Bmi1.TrailingZeroCount(cmpMask));
+                    }
+                }
+            }
+            else
+            {
+                // Slower non-vectorized code path
+
+                IntPtr index = IntPtr.Zero;
+                while (Unsafe.Add(ref *pUtf8StringData, index) != 0)
+                {
+                    index += 1;
+                }
+
+                return index;
+            }
         }
 
 #if FEATURE_COMINTEROP
