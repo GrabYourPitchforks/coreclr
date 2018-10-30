@@ -671,7 +671,7 @@ namespace System
 
         private int IndexOf_Char_NoBoundsChecks(char value, int startIndex, int count)
         {
-            if (value <= 0x7FU)
+            if (value <= 0x7Fu)
             {
                 // ASCII
                 return IndexOf_Ascii_NoBoundsChecks((byte)value, startIndex, count);
