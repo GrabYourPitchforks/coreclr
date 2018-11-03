@@ -23,6 +23,89 @@ namespace System
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int ComputeHash32(ReadOnlySpan<byte> data, ulong seed) => ComputeHash32(ref MemoryMarshal.GetReference(data), data.Length, (uint)seed, (uint)(seed >> 32));
 
+        public static int ComputeStringHashCode32Ordinal(ref char chars, nuint charCount, ulong seedA, ulong seedB)
+        {
+            uint seedA_p0 = (uint)seedA;
+            uint seedA_p1 = (uint)(seedA >> 32);
+
+            nuint byteOffset = 0;
+
+            if (charCount >= 4)
+            {
+                // Run parallel implementation
+
+                uint seedB_p0 = (uint)seedB;
+                uint seedB_p1 = (uint)(seedB >> 32);
+
+                do
+                {
+                    seedA_p0 += Unsafe.ReadUnaligned<uint>(ref Unsafe.AddByteOffset(ref Unsafe.As<char, byte>(ref chars), byteOffset));
+                    seedB_p0 += Unsafe.ReadUnaligned<uint>(ref Unsafe.AddByteOffset(ref Unsafe.AddByteOffset(ref Unsafe.As<char, byte>(ref chars), byteOffset), 4));
+                    Block_Parallel(ref seedA_p0, ref seedA_p1, ref seedB_p0, ref seedB_p1);
+                    byteOffset += 8;
+                    charCount -= 4;
+                } while (charCount >= 4);
+
+                int shift = 0;
+
+                if ((charCount & 2) != 0)
+                {
+                    Debug.Assert(charCount == 2 || charCount == 3);
+                    seedA_p0 += Unsafe.AddByteOffset(ref chars, byteOffset);
+                    seedB_p0 += Unsafe.AddByteOffset(ref Unsafe.AddByteOffset(ref chars, byteOffset), 2);
+                    byteOffset += 4;
+                    shift += 16;
+                }
+
+                if ((charCount & 1) != 0)
+                {
+                    Debug.Assert(charCount == 1 || charCount == 3);
+                    uint tempA = Unsafe.AddByteOffset(ref Unsafe.As<char, byte>(ref chars), byteOffset);
+                    uint tempB = Unsafe.AddByteOffset(ref Unsafe.AddByteOffset(ref Unsafe.As<char, byte>(ref chars), byteOffset), 1);
+                    tempA <<= shift;
+                    tempB <<= shift;
+                    seedA_p0 += tempA;
+                    seedB_p0 += tempB;
+                    shift += 8;
+                }
+
+                uint marker = 0x80u << shift;
+                seedA_p0 += marker;
+                seedB_p0 += marker;
+
+                Block_Parallel(ref seedA_p0, ref seedA_p1, ref seedB_p0, ref seedB_p1);
+                Block_Parallel(ref seedA_p0, ref seedA_p1, ref seedB_p0, ref seedB_p1);
+
+                return (int)((seedA_p0 ^ seedA_p1) ^ (seedB_p0 ^ seedB_p1));
+            }
+            else
+            {
+                // Run serial implementation
+
+                if ((charCount & 2) != 0)
+                {
+                    Debug.Assert(charCount == 2 || charCount == 3);
+                    seedA_p0 += Unsafe.ReadUnaligned<uint>(ref Unsafe.As<char, byte>(ref chars));
+                    Block(ref seedA_p0, ref seedA_p1);
+                    byteOffset += 4;
+                }
+
+                if ((charCount & 1) != 0)
+                {
+                    Debug.Assert(charCount == 1 || charCount == 3);
+                    seedA_p0 += Unsafe.AddByteOffset(ref chars, byteOffset);
+                    seedA_p0 += 0x800000u - 0x80u; // the -0x80 will be offset by the add which immediately follows
+                }
+
+                seedA_p0 += 0x80u;
+
+                Block(ref seedA_p0, ref seedA_p1);
+                Block(ref seedA_p0, ref seedA_p1);
+
+                return (int)(seedA_p1 ^ seedA_p0);
+            }
+        }
+
         // We expect caller to reinterpret_cast the input as a byte*, but the count parameter is specified in chars
         public unsafe static int ComputeHashStringOrdinal32(ref byte bytes, uint charCount, uint p0, uint p1)
         {
