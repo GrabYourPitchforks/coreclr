@@ -46,37 +46,34 @@ namespace System
                     charCount -= 4;
                 } while (charCount >= 4);
 
-                int shift = 0;
+                uint tempA = 0x80u;
+                uint tempB = 0x80u;
 
-                if ((charCount & 2) != 0)
+                if (((uint)charCount & 2) != 0)
                 {
                     Debug.Assert(charCount == 2 || charCount == 3);
-                    seedA_p0 += Unsafe.AddByteOffset(ref chars, byteOffset);
-                    seedB_p0 += Unsafe.AddByteOffset(ref Unsafe.AddByteOffset(ref chars, byteOffset), 2);
+                    tempA = (tempA << 16) | Unsafe.AddByteOffset(ref chars, byteOffset);
+                    tempB = (tempB << 16) | Unsafe.AddByteOffset(ref Unsafe.AddByteOffset(ref chars, byteOffset), 2);
                     byteOffset += 4;
-                    shift += 16;
                 }
 
-                if ((charCount & 1) != 0)
+                if (((uint)charCount & 1) != 0)
                 {
                     Debug.Assert(charCount == 1 || charCount == 3);
-                    uint tempA = Unsafe.AddByteOffset(ref Unsafe.As<char, byte>(ref chars), byteOffset);
-                    uint tempB = Unsafe.AddByteOffset(ref Unsafe.AddByteOffset(ref Unsafe.As<char, byte>(ref chars), byteOffset), 1);
-                    tempA <<= shift;
-                    tempB <<= shift;
-                    seedA_p0 += tempA;
-                    seedB_p0 += tempB;
-                    shift += 8;
+                    tempA = (tempA << 8) | Unsafe.AddByteOffset(ref Unsafe.As<char, byte>(ref chars), byteOffset);
+                    tempB = (tempB << 8) | Unsafe.AddByteOffset(ref Unsafe.AddByteOffset(ref Unsafe.As<char, byte>(ref chars), byteOffset), 1);
                 }
 
-                uint marker = 0x80u << shift;
-                seedA_p0 += marker;
-                seedB_p0 += marker;
+                seedA_p0 += tempA;
+                seedB_p0 += tempB;
 
                 Block_Parallel(ref seedA_p0, ref seedA_p1, ref seedB_p0, ref seedB_p1);
                 Block_Parallel(ref seedA_p0, ref seedA_p1, ref seedB_p0, ref seedB_p1);
 
-                return (int)((seedA_p0 ^ seedA_p1) ^ (seedB_p0 ^ seedB_p1));
+                seedA_p0 ^= seedB_p0;
+                seedA_p1 ^= seedB_p1;
+
+                return (int)(seedA_p0 ^ seedA_p1);
             }
             else
             {
