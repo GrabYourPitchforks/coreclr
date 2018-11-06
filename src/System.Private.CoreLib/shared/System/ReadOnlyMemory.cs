@@ -75,14 +75,7 @@ namespace System
                 this = default;
                 return; // returns default
             }
-#if BIT64
-            // See comment in Span<T>.Slice for how this works.
-            if ((ulong)(uint)start + (ulong)(uint)length > (ulong)(uint)array.Length)
-                ThrowHelper.ThrowArgumentOutOfRangeException();
-#else
-            if ((uint)start > (uint)array.Length || (uint)length > (uint)(array.Length - start))
-                ThrowHelper.ThrowArgumentOutOfRangeException();
-#endif
+            ArgValidation.ThrowIfArgsOutOfRangeForSlice(start, length, array.Length);
 
             _object = array;
             _index = start;
@@ -174,14 +167,7 @@ namespace System
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ReadOnlyMemory<T> Slice(int start, int length)
         {
-#if BIT64
-            // See comment in Span<T>.Slice for how this works.
-            if ((ulong)(uint)start + (ulong)(uint)length > (ulong)(uint)_length)
-                ThrowHelper.ThrowArgumentOutOfRangeException(ExceptionArgument.start);
-#else
-            if ((uint)start > (uint)_length || (uint)length > (uint)(_length - start))
-                ThrowHelper.ThrowArgumentOutOfRangeException(ExceptionArgument.start);
-#endif
+            ArgValidation.ThrowIfArgsOutOfRangeForSlice(start, length, _length, ExceptionArgument.start);
 
             // It is expected for _index + start to be negative if the memory is already pre-pinned.
             return new ReadOnlyMemory<T>(_object, _index + start, length);
@@ -246,18 +232,7 @@ namespace System
                     int desiredStartIndex = _index & RemoveFlagsBitMask;
                     int desiredLength = _length;
 
-#if BIT64
-                    // See comment in Span<T>.Slice for how this works.
-                    if ((ulong)(uint)desiredStartIndex + (ulong)(uint)desiredLength > (ulong)(uint)lengthOfUnderlyingSpan)
-                    {
-                        ThrowHelper.ThrowArgumentOutOfRangeException();
-                    }
-#else
-                    if ((uint)desiredStartIndex > (uint)lengthOfUnderlyingSpan || (uint)desiredLength > (uint)(lengthOfUnderlyingSpan - desiredStartIndex))
-                    {
-                        ThrowHelper.ThrowArgumentOutOfRangeException();
-                    }
-#endif
+                    ArgValidation.ThrowIfArgsOutOfRangeForSlice(desiredStartIndex, desiredLength, lengthOfUnderlyingSpan);
 
                     refToReturn = ref Unsafe.Add(ref refToReturn, desiredStartIndex);
                     lengthOfUnderlyingSpan = desiredLength;
