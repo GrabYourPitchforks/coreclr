@@ -217,13 +217,13 @@ namespace System
         public static bool Contains<T>(this Span<T> span, T value)
             where T : IEquatable<T>
         {
-            if (typeof(T) == typeof(byte))
+            if (IsTypeEquatableAsByte<T>())
                 return SpanHelpers.Contains(
                     ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(span)),
                     Unsafe.As<T, byte>(ref value),
                     span.Length);
 
-            if (typeof(T) == typeof(char))
+            if (IsTypeEquatableAsChar<T>())
                 return SpanHelpers.Contains(
                     ref Unsafe.As<T, char>(ref MemoryMarshal.GetReference(span)),
                     Unsafe.As<T, char>(ref value),
@@ -242,13 +242,13 @@ namespace System
         public static bool Contains<T>(this ReadOnlySpan<T> span, T value)
             where T : IEquatable<T>
         {
-            if (typeof(T) == typeof(byte))
+            if (IsTypeEquatableAsByte<T>())
                 return SpanHelpers.Contains(
                     ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(span)),
                     Unsafe.As<T, byte>(ref value),
                     span.Length);
 
-            if (typeof(T) == typeof(char))
+            if (IsTypeEquatableAsChar<T>())
                 return SpanHelpers.Contains(
                     ref Unsafe.As<T, char>(ref MemoryMarshal.GetReference(span)),
                     Unsafe.As<T, char>(ref value),
@@ -266,13 +266,13 @@ namespace System
         public static int IndexOf<T>(this Span<T> span, T value)
             where T : IEquatable<T>
         {
-            if (typeof(T) == typeof(byte))
+            if (IsTypeEquatableAsByte<T>())
                 return SpanHelpers.IndexOf(
                     ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(span)),
                     Unsafe.As<T, byte>(ref value),
                     span.Length);
 
-            if (typeof(T) == typeof(char))
+            if (IsTypeEquatableAsChar<T>())
                 return SpanHelpers.IndexOf(
                     ref Unsafe.As<T, char>(ref MemoryMarshal.GetReference(span)),
                     Unsafe.As<T, char>(ref value),
@@ -290,7 +290,7 @@ namespace System
         public static int IndexOf<T>(this Span<T> span, ReadOnlySpan<T> value)
             where T : IEquatable<T>
         {
-            if (typeof(T) == typeof(byte))
+            if (IsTypeEquatableAsByte<T>())
                 return SpanHelpers.IndexOf(
                     ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(span)),
                     span.Length,
@@ -309,13 +309,13 @@ namespace System
         public static int LastIndexOf<T>(this Span<T> span, T value)
             where T : IEquatable<T>
         {
-            if (typeof(T) == typeof(byte))
+            if (IsTypeEquatableAsByte<T>())
                 return SpanHelpers.LastIndexOf(
                     ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(span)),
                     Unsafe.As<T, byte>(ref value),
                     span.Length);
 
-            if (typeof(T) == typeof(char))
+            if (IsTypeEquatableAsChar<T>())
                 return SpanHelpers.LastIndexOf(
                     ref Unsafe.As<T, char>(ref MemoryMarshal.GetReference(span)),
                     Unsafe.As<T, char>(ref value),
@@ -333,7 +333,7 @@ namespace System
         public static int LastIndexOf<T>(this Span<T> span, ReadOnlySpan<T> value)
             where T : IEquatable<T>
         {
-            if (typeof(T) == typeof(byte))
+            if (IsTypeEquatableAsByte<T>())
                 return SpanHelpers.LastIndexOf(
                     ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(span)),
                     span.Length,
@@ -394,13 +394,13 @@ namespace System
         public static int IndexOf<T>(this ReadOnlySpan<T> span, T value)
             where T : IEquatable<T>
         {
-            if (typeof(T) == typeof(byte))
+            if (IsTypeEquatableAsByte<T>())
                 return SpanHelpers.IndexOf(
                     ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(span)),
                     Unsafe.As<T, byte>(ref value),
                     span.Length);
 
-            if (typeof(T) == typeof(char))
+            if (IsTypeEquatableAsChar<T>())
                 return SpanHelpers.IndexOf(
                     ref Unsafe.As<T, char>(ref MemoryMarshal.GetReference(span)),
                     Unsafe.As<T, char>(ref value),
@@ -418,7 +418,7 @@ namespace System
         public static int IndexOf<T>(this ReadOnlySpan<T> span, ReadOnlySpan<T> value)
             where T : IEquatable<T>
         {
-            if (typeof(T) == typeof(byte))
+            if (IsTypeEquatableAsByte<T>())
                 return SpanHelpers.IndexOf(
                     ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(span)),
                     span.Length,
@@ -437,13 +437,13 @@ namespace System
         public static int LastIndexOf<T>(this ReadOnlySpan<T> span, T value)
             where T : IEquatable<T>
         {
-            if (typeof(T) == typeof(byte))
+            if (IsTypeEquatableAsByte<T>())
                 return SpanHelpers.LastIndexOf(
                     ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(span)),
                     Unsafe.As<T, byte>(ref value),
                     span.Length);
 
-            if (typeof(T) == typeof(char))
+            if (IsTypeEquatableAsChar<T>())
                 return SpanHelpers.LastIndexOf(
                     ref Unsafe.As<T, char>(ref MemoryMarshal.GetReference(span)),
                     Unsafe.As<T, char>(ref value),
@@ -461,7 +461,7 @@ namespace System
         public static int LastIndexOf<T>(this ReadOnlySpan<T> span, ReadOnlySpan<T> value)
             where T : IEquatable<T>
         {
-            if (typeof(T) == typeof(byte))
+            if (IsTypeEquatableAsByte<T>())
                 return SpanHelpers.LastIndexOf(
                     ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(span)),
                     span.Length,
@@ -481,13 +481,13 @@ namespace System
         public static int IndexOfAny<T>(this Span<T> span, T value0, T value1)
             where T : IEquatable<T>
         {
-            if (typeof(T) == typeof(byte))
+            if (IsTypeEquatableAsByte<T>())
                 return SpanHelpers.IndexOfAny(
                     ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(span)),
                     Unsafe.As<T, byte>(ref value0),
                     Unsafe.As<T, byte>(ref value1),
                     span.Length);
-            if (typeof(T) == typeof(char))
+            if (IsTypeEquatableAsChar<T>())
                 return SpanHelpers.IndexOfAny(
                     ref Unsafe.As<T, char>(ref MemoryMarshal.GetReference(span)),
                     Unsafe.As<T, char>(ref value0),
@@ -508,14 +508,14 @@ namespace System
         public static int IndexOfAny<T>(this Span<T> span, T value0, T value1, T value2)
             where T : IEquatable<T>
         {
-            if (typeof(T) == typeof(byte))
+            if (IsTypeEquatableAsByte<T>())
                 return SpanHelpers.IndexOfAny(
                     ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(span)),
                     Unsafe.As<T, byte>(ref value0),
                     Unsafe.As<T, byte>(ref value1),
                     Unsafe.As<T, byte>(ref value2),
                     span.Length);
-            if (typeof(T) == typeof(char))
+            if (IsTypeEquatableAsChar<T>())
                 return SpanHelpers.IndexOfAny(
                     ref Unsafe.As<T, char>(ref MemoryMarshal.GetReference(span)),
                     Unsafe.As<T, char>(ref value0),
@@ -535,7 +535,7 @@ namespace System
         public static int IndexOfAny<T>(this Span<T> span, ReadOnlySpan<T> values)
             where T : IEquatable<T>
         {
-            if (typeof(T) == typeof(byte))
+            if (IsTypeEquatableAsByte<T>())
             {
                 return SpanHelpers.IndexOfAny(
                     ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(span)),
@@ -543,7 +543,7 @@ namespace System
                     ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(values)),
                     values.Length);
             }
-            if (typeof(T) == typeof(char))
+            if (IsTypeEquatableAsChar<T>())
             {
                 ref var valueRef = ref Unsafe.As<T, char>(ref MemoryMarshal.GetReference(values));
                 if (values.Length == 5)
@@ -611,13 +611,13 @@ namespace System
         public static int IndexOfAny<T>(this ReadOnlySpan<T> span, T value0, T value1)
             where T : IEquatable<T>
         {
-            if (typeof(T) == typeof(byte))
+            if (IsTypeEquatableAsByte<T>())
                 return SpanHelpers.IndexOfAny(
                     ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(span)),
                     Unsafe.As<T, byte>(ref value0),
                     Unsafe.As<T, byte>(ref value1),
                     span.Length);
-            if (typeof(T) == typeof(char))
+            if (IsTypeEquatableAsChar<T>())
                 return SpanHelpers.IndexOfAny(
                     ref Unsafe.As<T, char>(ref MemoryMarshal.GetReference(span)),
                     Unsafe.As<T, char>(ref value0),
@@ -638,14 +638,14 @@ namespace System
         public static int IndexOfAny<T>(this ReadOnlySpan<T> span, T value0, T value1, T value2)
             where T : IEquatable<T>
         {
-            if (typeof(T) == typeof(byte))
+            if (IsTypeEquatableAsByte<T>())
                 return SpanHelpers.IndexOfAny(
                     ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(span)),
                     Unsafe.As<T, byte>(ref value0),
                     Unsafe.As<T, byte>(ref value1),
                     Unsafe.As<T, byte>(ref value2),
                     span.Length);
-            if (typeof(T) == typeof(char))
+            if (IsTypeEquatableAsChar<T>())
                 return SpanHelpers.IndexOfAny(
                     ref Unsafe.As<T, char>(ref MemoryMarshal.GetReference(span)),
                     Unsafe.As<T, char>(ref value0),
@@ -665,14 +665,14 @@ namespace System
         public static int IndexOfAny<T>(this ReadOnlySpan<T> span, ReadOnlySpan<T> values)
             where T : IEquatable<T>
         {
-            if (typeof(T) == typeof(byte))
+            if (IsTypeEquatableAsByte<T>())
                 return SpanHelpers.IndexOfAny(
                     ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(span)),
                     span.Length,
                     ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(values)),
                     values.Length);
 
-            if (typeof(T) == typeof(char))
+            if (IsTypeEquatableAsChar<T>())
             {
                 ref var valueRef = ref Unsafe.As<T, char>(ref MemoryMarshal.GetReference(values));
                 if (values.Length == 5)
@@ -740,7 +740,7 @@ namespace System
         public static int LastIndexOfAny<T>(this Span<T> span, T value0, T value1)
             where T : IEquatable<T>
         {
-            if (typeof(T) == typeof(byte))
+            if (IsTypeEquatableAsByte<T>())
                 return SpanHelpers.LastIndexOfAny(
                     ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(span)),
                     Unsafe.As<T, byte>(ref value0),
@@ -761,7 +761,7 @@ namespace System
         public static int LastIndexOfAny<T>(this Span<T> span, T value0, T value1, T value2)
             where T : IEquatable<T>
         {
-            if (typeof(T) == typeof(byte))
+            if (IsTypeEquatableAsByte<T>())
                 return SpanHelpers.LastIndexOfAny(
                     ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(span)),
                     Unsafe.As<T, byte>(ref value0),
@@ -781,7 +781,7 @@ namespace System
         public static int LastIndexOfAny<T>(this Span<T> span, ReadOnlySpan<T> values)
             where T : IEquatable<T>
         {
-            if (typeof(T) == typeof(byte))
+            if (IsTypeEquatableAsByte<T>())
                 return SpanHelpers.LastIndexOfAny(
                     ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(span)),
                     span.Length,
@@ -801,7 +801,7 @@ namespace System
         public static int LastIndexOfAny<T>(this ReadOnlySpan<T> span, T value0, T value1)
             where T : IEquatable<T>
         {
-            if (typeof(T) == typeof(byte))
+            if (IsTypeEquatableAsByte<T>())
                 return SpanHelpers.LastIndexOfAny(
                     ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(span)),
                     Unsafe.As<T, byte>(ref value0),
@@ -822,7 +822,7 @@ namespace System
         public static int LastIndexOfAny<T>(this ReadOnlySpan<T> span, T value0, T value1, T value2)
             where T : IEquatable<T>
         {
-            if (typeof(T) == typeof(byte))
+            if (IsTypeEquatableAsByte<T>())
                 return SpanHelpers.LastIndexOfAny(
                     ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(span)),
                     Unsafe.As<T, byte>(ref value0),
@@ -842,7 +842,7 @@ namespace System
         public static int LastIndexOfAny<T>(this ReadOnlySpan<T> span, ReadOnlySpan<T> values)
             where T : IEquatable<T>
         {
-            if (typeof(T) == typeof(byte))
+            if (IsTypeEquatableAsByte<T>())
                 return SpanHelpers.LastIndexOfAny(
                     ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(span)),
                     span.Length,
@@ -1568,13 +1568,13 @@ namespace System
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static bool IsTypeComparableAsBytes<T>(out nuint size)
         {
-            if (typeof(T) == typeof(byte) || typeof(T) == typeof(sbyte) || typeof(T) == typeof(Utf8Char))
+            if (IsTypeEquatableAsByte<T>())
             {
                 size = sizeof(byte);
                 return true;
             }
 
-            if (typeof(T) == typeof(char) || typeof(T) == typeof(short) || typeof(T) == typeof(ushort))
+            if (IsTypeEquatableAsChar<T>())
             {
                 size = sizeof(char);
                 return true;
@@ -1594,6 +1594,28 @@ namespace System
 
             size = default;
             return false;
+        }
+
+        // Returns true if T is a struct the same size as byte and implements equality checks as a simple
+        // bitwise comparison. n.b. even if this method returns true, it makes no claims about the behavior
+        // of T.CompareTo, T.GetHashCode, or other methods aside from equality checking.
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static bool IsTypeEquatableAsByte<T>()
+        {
+            return typeof(T) == typeof(byte)
+                || typeof(T) == typeof(sbyte)
+                || typeof(T) == typeof(Utf8Char);
+        }
+
+        // Returns true if T is a struct the same size as char and implements equality checks as a simple
+        // bitwise comparison. n.b. even if this method returns true, it makes no claims about the behavior
+        // of T.CompareTo, T.GetHashCode, or other methods aside from equality checking.
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static bool IsTypeEquatableAsChar<T>()
+        {
+            return typeof(T) == typeof(char)
+                || typeof(T) == typeof(short)
+                || typeof(T) == typeof(ushort);
         }
     }
 }
