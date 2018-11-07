@@ -1568,13 +1568,13 @@ namespace System
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static bool IsTypeComparableAsBytes<T>(out nuint size)
         {
-            if (IsTypeEquatableAsByte<T>())
+            if (typeof(T) == typeof(byte) || typeof(T) == typeof(sbyte) || typeof(T) == typeof(Utf8Char))
             {
                 size = sizeof(byte);
                 return true;
             }
 
-            if (IsTypeEquatableAsChar<T>())
+            if (typeof(T) == typeof(char) || typeof(T) == typeof(short) || typeof(T) == typeof(ushort))
             {
                 size = sizeof(char);
                 return true;
