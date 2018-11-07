@@ -44,8 +44,14 @@ namespace System
         private readonly byte _firstByte;
 
         /*
-         * STANDARD PROPERTIES AND METHODS
+         * STANDARD INDEXER, PROPERTIES, AND METHODS
          */
+
+        public ref readonly Utf8Char this[int index]
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => ref Unsafe.As<byte, Utf8Char>(ref AsMutableSpan()[index]);
+        }
 
         public int Length => _length;
 
@@ -189,6 +195,10 @@ namespace System
 
             return retVal.BakeWithoutValidation();
         }
+
+        public void CopyTo(Span<byte> destination) => AsSpanFast().CopyTo(destination);
+
+        public void CopyTo(Span<Utf8Char> destination) => AsSpanFast().CopyTo(new Span<byte>(ref Unsafe.As<Utf8Char, byte>(ref MemoryMarshal.GetReference(destination)), destination.Length));
 
         internal string ConvertToUtf16PreservingCorruption()
         {
@@ -862,7 +872,7 @@ namespace System
                 return this.AsSpanFast().StartsWith(value.AsSpanFast());
             }
         }
-        
+
         public Utf8String Substring(int startIndex)
         {
             if ((uint)startIndex < (uint)Length)

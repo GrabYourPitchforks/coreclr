@@ -79,6 +79,14 @@ namespace System
             return new UnbakedUtf8String(value).Bake(behavior);
         }
 
+        public static Utf8String Create(ReadOnlySpan<Utf8Char> value, InvalidSequenceBehavior behavior = InvalidSequenceBehavior.ReplaceInvalidSequence)
+        {
+            return Create(value.AsBytes(), behavior);
+        }
+
+        // TODO: We should have an overload Create<TState>(int, TState, SpanAction<Utf8Char, TState>, InvalidSequenceBehavior), but then
+        // type inference will fail at compile time if the developer relies on type inference for the span action delegate. Need to figure
+        // out how to work around this. Maybe give the Utf8Char-consuming method a different name?
         public static Utf8String Create<TState>(int length, TState state, SpanAction<byte, TState> action, InvalidSequenceBehavior behavior = InvalidSequenceBehavior.ReplaceInvalidSequence)
         {
             if (action == null)
