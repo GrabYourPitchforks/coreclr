@@ -16,11 +16,6 @@ namespace System.Text
             return Utf8String.Equals(span.AsBytes(), other.AsBytes(), comparisonType);
         }
 
-        public static ScalarCollection GetScalars(this ReadOnlySpan<Utf8Char> span)
-        {
-            return new ScalarCollection(span.AsBytes());
-        }
-
         public static bool IsWhiteSpace(this ReadOnlySpan<Utf8Char> span)
         {
             return Utf8String.IsEmptyOrWhiteSpace(span.AsBytes());
@@ -75,38 +70,6 @@ namespace System.Text
         public static ReadOnlySpan<Utf8Char> TrimStart(this ReadOnlySpan<Utf8Char> span)
         {
             return span.Slice(Utf8Utility.GetIndexOfFirstNonWhiteSpaceChar(span.AsBytes()));
-        }
-
-        public readonly ref struct ScalarCollection
-        {
-            private readonly ReadOnlySpan<byte> _utf8Data;
-
-            internal ScalarCollection(ReadOnlySpan<byte> utf8Data)
-            {
-                _utf8Data = utf8Data;
-            }
-
-            public Enumerator GetEnumerator() => new Enumerator(_utf8Data);
-
-            public ref struct Enumerator
-            {
-                private ReadOnlySpan<byte> _remainingData;
-
-                internal Enumerator(ReadOnlySpan<byte> utf8Data)
-                {
-                    _remainingData = utf8Data;
-                    Current = default;
-                }
-
-                public UnicodeScalar Current { get; private set; }
-
-                public bool MoveNext()
-                {
-                    var result = UnicodeReader.PeekFirstScalarUtf8(_remainingData);
-                    Current = result.scalar;
-                    return (result.charsConsumed != 0); // return true iff we read any data at all
-                }
-            }
         }
     }
 }
