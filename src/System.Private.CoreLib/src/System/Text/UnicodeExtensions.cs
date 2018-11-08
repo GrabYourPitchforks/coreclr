@@ -6,9 +6,9 @@ using System.Collections;
 using System.Collections.Generic;
 using System.ComponentModel;
 
-namespace System.Text.Unicode
+namespace System.Text
 {
-    public static class ScalarEnumerator
+    public static class UnicodeExtensions
     {
         public static CharSpanScalarEnumerator GetScalars(ReadOnlySpan<char> value)
         {

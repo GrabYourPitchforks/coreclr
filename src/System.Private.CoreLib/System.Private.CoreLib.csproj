@@ -253,7 +253,6 @@
     <Compile Include="$(BclSourcesRoot)\System\ThrowHelper.cs" />
     <Compile Include="$(BclSourcesRoot)\System\String.CoreCLR.cs" />
     <Compile Include="$(BclSourcesRoot)\System\Text\StringBuilder.CoreCLR.cs" />
-    <Compile Include="src\System\Text\Unicode\ScalarEnumerator.cs" />
     <Compile Include="src\System\Text\Unicode\Transcoders.cs" />
     <Compile Include="src\System\Text\TrimType.cs" />
     <Compile Include="src\System\Text\InvalidSequenceBehavior.cs" />
@@ -264,6 +263,7 @@
     <Compile Include="src\System\Text\Utf8Extensions.cs" />
     <Compile Include="src\System\Text\Utf8.cs" />
     <Compile Include="src\System\Text\Utf8Transcoder.cs" />
+    <Compile Include="src\System\Text\UnicodeExtensions.cs" />
     <Compile Include="src\System\Text\UnicodeScalar.cs" />
     <Compile Include="src\System\Text\Utf8Char.cs" />
     <Compile Include="src\System\Text\Utf16Utility.cs" />
