@@ -181,7 +181,7 @@ namespace System.Text
             return offsetToFirstInvalidSequence;
         }
 
-        private static unsafe ref byte GetRefToFirstInvalidUtf8Sequence(ref byte inputBuffer, int inputLength, out int utf16CodeUnitCountAdjustment, out int scalarCountAdjustment)
+        internal static unsafe ref byte GetRefToFirstInvalidUtf8Sequence(ref byte inputBuffer, int inputLength, out int utf16CodeUnitCountAdjustment, out int scalarCountAdjustment)
         {
             // The fields below control where we read from the buffer.
 

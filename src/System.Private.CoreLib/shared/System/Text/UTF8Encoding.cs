@@ -17,7 +17,9 @@
 using System;
 using System.Diagnostics;
 using System.Globalization;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using Internal.Runtime.CompilerServices;
 
 namespace System.Text
 {
@@ -306,9 +308,19 @@ namespace System.Text
             if (count == 0)
                 return 0;
 
-            // Just call pointer version
-            fixed (byte* pBytes = bytes)
-                return GetCharCount(pBytes + index, count, null);
+            ref byte refToStartOfSequence = ref Unsafe.Add(ref bytes.GetRawSzArrayData(), index);
+            ref byte refToFirstInvalidSequence = ref Utf8Utility.GetRefToFirstInvalidUtf8Sequence(ref refToStartOfSequence, count, out int utf16CodeUnitCountAdjustment, out _);
+            if (Unsafe.AreSame(ref refToFirstInvalidSequence, ref Unsafe.Add(ref refToStartOfSequence, count)))
+            {
+                Debug.Assert(utf16CodeUnitCountAdjustment <= 0 && utf16CodeUnitCountAdjustment + count >= 0, "Adjustment must never overflow or underflow.");
+                return count + utf16CodeUnitCountAdjustment;
+            }
+            else
+            {
+                // Just call pointer version
+                fixed (byte* pBytes = bytes)
+                    return GetCharCount(pBytes + index, count, null);
+            }
         }
 
         // All of our public Encodings that don't use EncodingNLS must have this (including EncodingNLS)
@@ -325,14 +337,34 @@ namespace System.Text
             if (count < 0)
                 throw new ArgumentOutOfRangeException(nameof(count), SR.ArgumentOutOfRange_NeedNonNegNum);
 
-            return GetCharCount(bytes, count, null);
+            ref byte refToFirstInvalidSequence = ref Utf8Utility.GetRefToFirstInvalidUtf8Sequence(ref *bytes, count, out int utf16CodeUnitCountAdjustment, out _);
+            if (Unsafe.AreSame(ref refToFirstInvalidSequence, ref bytes[count]))
+            {
+                Debug.Assert(utf16CodeUnitCountAdjustment <= 0 && utf16CodeUnitCountAdjustment + count >= 0, "Adjustment must never overflow or underflow.");
+                return count + utf16CodeUnitCountAdjustment;
+            }
+            else
+            {
+                // Errors found - fall back to default logic
+                return GetCharCount(bytes, count, null);
+            }
         }
 
         public override unsafe int GetCharCount(ReadOnlySpan<byte> bytes)
         {
-            fixed (byte* bytesPtr = &MemoryMarshal.GetNonNullPinnableReference(bytes))
+            ref byte refToFirstInvalidSequence = ref Utf8Utility.GetRefToFirstInvalidUtf8Sequence(ref MemoryMarshal.GetReference(bytes), bytes.Length, out int utf16CodeUnitCountAdjustment, out _);
+            if (Unsafe.AreSame(ref refToFirstInvalidSequence, ref Unsafe.Add(ref MemoryMarshal.GetReference(bytes), bytes.Length)))
             {
-                return GetCharCount(bytesPtr, bytes.Length, baseDecoder: null);
+                Debug.Assert(utf16CodeUnitCountAdjustment <= 0 && utf16CodeUnitCountAdjustment + bytes.Length >= 0, "Adjustment must never overflow or underflow.");
+                return bytes.Length + utf16CodeUnitCountAdjustment;
+            }
+            else
+            {
+                // Errors found - fall back to default logic
+                fixed (byte* bytesPtr = &MemoryMarshal.GetNonNullPinnableReference(bytes))
+                {
+                    return GetCharCount(bytesPtr, bytes.Length, baseDecoder: null);
+                }
             }
         }
 
