@@ -235,7 +235,7 @@ namespace System.Text
 
                 uint thisDWord = Unsafe.ReadUnaligned<uint>(ref inputBuffer);
 
-                AfterReadDWord:
+            AfterReadDWord:
 
 #if DEBUG
                 Debug.Assert(Unsafe.IsAddressLessThan(ref lastBufferPosProcessed, ref inputBuffer), "Algorithm should've made forward progress since last read.");
@@ -287,8 +287,7 @@ namespace System.Text
 
                             if (!DWordAllBytesAreAscii(Unsafe.Add(ref currentReadPosition, 2) | Unsafe.Add(ref currentReadPosition, 3)))
                             {
-                                inputBuffer = ref Unsafe.Add(ref inputBuffer, 2 * sizeof(uint));
-                                goto LoopTerminatedEarlyDueToNonAsciiData;
+                                goto LoopTerminatedEarlyDueToNonAsciiDataSkip8Bytes;
                             }
 
                             inputBuffer = ref Unsafe.Add(ref inputBuffer, 4 * sizeof(uint));
@@ -296,7 +295,11 @@ namespace System.Text
 
                         continue; // need to perform a bounds check because we might be running out of data
 
-                        LoopTerminatedEarlyDueToNonAsciiData:
+                    LoopTerminatedEarlyDueToNonAsciiDataSkip8Bytes:
+
+                        inputBuffer = ref Unsafe.Add(ref inputBuffer, 2 * sizeof(uint));
+
+                    LoopTerminatedEarlyDueToNonAsciiData:
 
                         // We know that there's *at least* two DWORDs of data remaining in the buffer.
                         // We also know that one of them (or both of them) contains non-ASCII data somewhere.
@@ -315,7 +318,7 @@ namespace System.Text
                     continue;
                 }
 
-                AfterReadDWordSkipAllBytesAsciiCheck:
+            AfterReadDWordSkipAllBytesAsciiCheck:
 
                 Debug.Assert(!DWordAllBytesAreAscii(thisDWord)); // this should have been handled earlier
 
@@ -346,16 +349,19 @@ namespace System.Text
 
                 // Check the 2-byte case.
 
-                BeforeProcessTwoByteSequence:
+            BeforeProcessTwoByteSequence:
 
                 if (DWordBeginsWithUtf8TwoByteMask(thisDWord))
                 {
                     // Per Table 3-7, valid sequences are:
                     // [ C2..DF ] [ 80..BF ]
 
-                    if (DWordBeginsWithOverlongUtf8TwoByteSequence(thisDWord)) { goto Error; }
+                    if (DWordBeginsWithOverlongUtf8TwoByteSequence(thisDWord))
+                    {
+                        goto Error;
+                    }
 
-                    ProcessTwoByteSequenceSkipOverlongFormCheck:
+                ProcessTwoByteSequenceSkipOverlongFormCheck:
 
                     // Optimization: If this is a two-byte-per-character language like Cyrillic or Hebrew,
                     // there's a good chance that if we see one two-byte run then there's another two-byte
@@ -368,7 +374,7 @@ namespace System.Text
                     if ((BitConverter.IsLittleEndian && DWordEndsWithValidUtf8TwoByteSequenceLittleEndian(thisDWord))
                         || (!BitConverter.IsLittleEndian && (DWordEndsWithUtf8TwoByteMask(thisDWord) && !DWordEndsWithOverlongUtf8TwoByteSequence(thisDWord))))
                     {
-                        ConsumeTwoAdjacentKnownGoodTwoByteSequences:
+                    ConsumeTwoAdjacentKnownGoodTwoByteSequences:
 
                         // We have two runs of two bytes each.
                         inputBuffer = ref Unsafe.Add(ref inputBuffer, 4);
@@ -429,7 +435,7 @@ namespace System.Text
                         }
                     }
 
-                    ConsumeSingleKnownGoodTwoByteSequence:
+                ConsumeSingleKnownGoodTwoByteSequence:
 
                     // The buffer contains a 2-byte sequence followed by 2 bytes that aren't a 2-byte sequence.
                     // Unlikely that a 3-byte sequence would follow a 2-byte sequence, so perhaps remaining
@@ -469,7 +475,7 @@ namespace System.Text
 
                 if (DWordBeginsWithUtf8ThreeByteMask(thisDWord))
                 {
-                    ProcessThreeByteSequenceWithCheck:
+                ProcessThreeByteSequenceWithCheck:
 
                     // We need to check for overlong or surrogate three-byte sequences.
                     //
@@ -497,15 +503,21 @@ namespace System.Text
                         // assembly, even with aggressive inlining.
 
                         uint comparand = thisDWord & 0x0000200FU;
-                        if ((comparand == 0U) || (comparand == 0x0000200DU)) { goto Error; }
+                        if ((comparand == 0U) || (comparand == 0x0000200DU))
+                        {
+                            goto Error;
+                        }
                     }
                     else
                     {
                         uint comparand = thisDWord & 0x0F200000U;
-                        if ((comparand == 0U) || (comparand == 0x0D200000U)) { goto Error; }
+                        if ((comparand == 0U) || (comparand == 0x0D200000U))
+                        {
+                            goto Error;
+                        }
                     }
 
-                    ProcessSingleThreeByteSequenceSkipOverlongAndSurrogateChecks:
+                ProcessSingleThreeByteSequenceSkipOverlongAndSurrogateChecks:
 
                     // Occasionally one-off ASCII characters like spaces, periods, or newlines will make their way
                     // in to the text. If this happens strip it off now before seeing if the next character
@@ -527,7 +539,7 @@ namespace System.Text
 
                     tempUtf16CodeUnitCountAdjustment -= 2; // 3 (or 4) UTF-8 bytes -> 1 (or 2) UTF-16 code unit (and 1 [or 2] scalar)
 
-                    SuccessfullyProcessedThreeByteSequence:
+                SuccessfullyProcessedThreeByteSequence:
 
                     // Optimization: A three-byte character could indicate CJK text, which makes it likely
                     // that the character following this one is also CJK. We'll try to process several
@@ -549,8 +561,14 @@ namespace System.Text
                             // Check the first character.
                             // If the first character is overlong or a surrogate, fail immediately.
 
-                            if (((uint)thisQWord & 0x200FU) == 0) { goto Error; }
-                            if ((((uint)thisQWord - 0x200DU) & 0x200FU) == 0) { goto Error; }
+                            if (((uint)thisQWord & 0x200FU) == 0)
+                            {
+                                goto Error;
+                            }
+                            if ((((uint)thisQWord - 0x200DU) & 0x200FU) == 0)
+                            {
+                                goto Error;
+                            }
 
                             // Check the second character.
                             // If this character is overlong or a surrogate, process the first character (which we
@@ -559,16 +577,28 @@ namespace System.Text
                             thisDWord = (uint)thisQWord;
 
                             thisQWord >>= 24;
-                            if (((uint)thisQWord & 0x200FU) == 0) { goto ProcessSingleThreeByteSequenceSkipOverlongAndSurrogateChecks; }
-                            if ((((uint)thisQWord - 0x200DU) & 0x200FU) == 0) { goto ProcessSingleThreeByteSequenceSkipOverlongAndSurrogateChecks; }
+                            if (((uint)thisQWord & 0x200FU) == 0)
+                            {
+                                goto ProcessSingleThreeByteSequenceSkipOverlongAndSurrogateChecks;
+                            }
+                            if ((((uint)thisQWord - 0x200DU) & 0x200FU) == 0)
+                            {
+                                goto ProcessSingleThreeByteSequenceSkipOverlongAndSurrogateChecks;
+                            }
 
                             // Check the third character (we already checked that it's followed by a continuation byte).
                             // If this character is overlong or a surrogate, process the first character (which we
                             // know to be good because the first check passed) before reporting an error.
 
                             thisQWord >>= 24;
-                            if (((uint)thisQWord & 0x200FU) == 0) { goto ProcessSingleThreeByteSequenceSkipOverlongAndSurrogateChecks; }
-                            if ((((uint)thisQWord - 0x200DU) & 0x200FU) == 0) { goto ProcessSingleThreeByteSequenceSkipOverlongAndSurrogateChecks; }
+                            if (((uint)thisQWord & 0x200FU) == 0)
+                            {
+                                goto ProcessSingleThreeByteSequenceSkipOverlongAndSurrogateChecks;
+                            }
+                            if ((((uint)thisQWord - 0x200DU) & 0x200FU) == 0)
+                            {
+                                goto ProcessSingleThreeByteSequenceSkipOverlongAndSurrogateChecks;
+                            }
 
                             inputBuffer = ref Unsafe.Add(ref inputBuffer, 9);
                             tempUtf16CodeUnitCountAdjustment -= 6; // 9 UTF-8 bytes -> 3 UTF-16 code units (and 3 scalars)
@@ -587,8 +617,14 @@ namespace System.Text
                             // Check the first character.
                             // If the first character is overlong or a surrogate, fail immediately.
 
-                            if (((uint)thisQWord & 0x200FU) == 0) { goto Error; }
-                            if ((((uint)thisQWord - 0x200DU) & 0x200FU) == 0) { goto Error; }
+                            if (((uint)thisQWord & 0x200FU) == 0)
+                            {
+                                goto Error;
+                            }
+                            if ((((uint)thisQWord - 0x200DU) & 0x200FU) == 0)
+                            {
+                                goto Error;
+                            }
 
                             // Check the second character.
                             // If this character is overlong or a surrogate, process the first character (which we
@@ -597,8 +633,14 @@ namespace System.Text
                             thisDWord = (uint)thisQWord;
 
                             thisQWord >>= 24;
-                            if (((uint)thisQWord & 0x200FU) == 0) { goto ProcessSingleThreeByteSequenceSkipOverlongAndSurrogateChecks; }
-                            if ((((uint)thisQWord - 0x200DU) & 0x200FU) == 0) { goto ProcessSingleThreeByteSequenceSkipOverlongAndSurrogateChecks; }
+                            if (((uint)thisQWord & 0x200FU) == 0)
+                            {
+                                goto ProcessSingleThreeByteSequenceSkipOverlongAndSurrogateChecks;
+                            }
+                            if ((((uint)thisQWord - 0x200DU) & 0x200FU) == 0)
+                            {
+                                goto ProcessSingleThreeByteSequenceSkipOverlongAndSurrogateChecks;
+                            }
 
                             inputBuffer = ref Unsafe.Add(ref inputBuffer, 6);
                             tempUtf16CodeUnitCountAdjustment -= 4; // 6 UTF-8 bytes -> 2 UTF-16 code units (and 2 scalars)
@@ -655,7 +697,10 @@ namespace System.Text
                     // [ F1..F3 ] [ 80..BF ] [ 80..BF ] [ 80..BF ]
                     // [   F4   ] [ 80..8F ] [ 80..BF ] [ 80..BF ]
 
-                    if (!DWordBeginsWithUtf8FourByteMask(thisDWord)) { goto Error; }
+                    if (!DWordBeginsWithUtf8FourByteMask(thisDWord))
+                    {
+                        goto Error;
+                    }
 
                     // Now check for overlong / out-of-range sequences.
 
@@ -675,11 +720,17 @@ namespace System.Text
 
                         // At this point, toCheck = [ 11110www 00000000 00000000 10zzzzzz ].
 
-                        if (!UnicodeHelpers.IsInRangeInclusive(toCheck, 0xF0000090U, 0xF400008FU)) { goto Error; }
+                        if (!UnicodeHelpers.IsInRangeInclusive(toCheck, 0xF0000090U, 0xF400008FU))
+                        {
+                            goto Error;
+                        }
                     }
                     else
                     {
-                        if (!UnicodeHelpers.IsInRangeInclusive(thisDWord, 0xF0900000U, 0xF48FFFFFU)) { goto Error; }
+                        if (!UnicodeHelpers.IsInRangeInclusive(thisDWord, 0xF0900000U, 0xF48FFFFFU))
+                        {
+                            goto Error;
+                        }
                     }
 
                     // Validation complete.
@@ -698,17 +749,17 @@ namespace System.Text
             nuint inputBufferRemainingBytes;
 #pragma warning restore 0162
 
-            ProcessInputOfLessThanDWordSize:
+        ProcessInputOfLessThanDWordSize:
 
             Debug.Assert(inputLength < 4);
             inputBufferRemainingBytes = (nuint)inputLength;
             goto ProcessSmallBufferCommon;
 
-            ProcessRemainingBytesSlow:
+        ProcessRemainingBytesSlow:
 
             inputBufferRemainingBytes = (nuint)Unsafe.ByteOffset(ref inputBuffer, ref finalPosWhereCanReadDWordFromInputBuffer) + 4;
 
-            ProcessSmallBufferCommon:
+        ProcessSmallBufferCommon:
 
             Debug.Assert(inputBufferRemainingBytes < 4);
             while (inputBufferRemainingBytes > 0)
@@ -743,15 +794,24 @@ namespace System.Text
                         {
                             if (firstByte == 0xE0U)
                             {
-                                if (!UnicodeHelpers.IsInRangeInclusive(secondByte, 0xA0U, 0xBFU)) { goto Error; }
+                                if (!UnicodeHelpers.IsInRangeInclusive(secondByte, 0xA0U, 0xBFU))
+                                {
+                                    goto Error;
+                                }
                             }
                             else if (firstByte == 0xEDU)
                             {
-                                if (!UnicodeHelpers.IsInRangeInclusive(secondByte, 0x80U, 0x9FU)) { goto Error; }
+                                if (!UnicodeHelpers.IsInRangeInclusive(secondByte, 0x80U, 0x9FU))
+                                {
+                                    goto Error;
+                                }
                             }
                             else
                             {
-                                if (!UnicodeHelpers.IsUtf8ContinuationByte(secondByte)) { goto Error; }
+                                if (!UnicodeHelpers.IsUtf8ContinuationByte(secondByte))
+                                {
+                                    goto Error;
+                                }
                             }
 
                             if (UnicodeHelpers.IsUtf8ContinuationByte(thirdByte))
@@ -772,7 +832,7 @@ namespace System.Text
 
             // If we reached this point, we're out of data, and we saw no bad UTF8 sequence.
 
-            Error:
+        Error:
 
             // Error handling logic.
             // (Also used for normal termination.)
