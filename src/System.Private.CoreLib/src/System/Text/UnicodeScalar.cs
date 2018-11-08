@@ -6,6 +6,7 @@ using System;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
+using System.Runtime.InteropServices;
 
 namespace System.Text
 {
@@ -231,7 +232,14 @@ namespace System.Text
         /// Returns <see langword="true"/> iff <paramref name="value"/> is a valid Unicode scalar
         /// value, i.e., is in [ U+0000..U+D7FF ], inclusive; or [ U+E000..U+10FFFF ], inclusive.
         /// </summary>
-        public static bool IsValid(int value) => UnicodeHelpers.IsValidUnicodeScalar((uint)value);
+        public static bool IsValid(int value) => IsValid((uint)value);
+
+        /// <summary>
+        /// Returns <see langword="true"/> iff <paramref name="value"/> is a valid Unicode scalar
+        /// value, i.e., is in [ U+0000..U+D7FF ], inclusive; or [ U+E000..U+10FFFF ], inclusive.
+        /// </summary>
+        [CLSCompliant(false)]
+        public static bool IsValid(uint value) => UnicodeHelpers.IsValidUnicodeScalar(value);
 
         /// <summary>
         /// Returns a <see cref="string"/> representation of this <see cref="UnicodeScalar"/> instance.
@@ -285,6 +293,8 @@ namespace System.Text
         /// The required length can be queried ahead of time via the <see cref="Utf8SequenceLength"/> property.
         /// </exception>
         public int ToUtf8(Span<byte> output) => ToUtf8(output, _value);
+
+        public int ToUtf8(Span<Utf8Char> output) => ToUtf8(MemoryMarshal.Cast<Utf8Char, byte>(output));
 
         private static int ToUtf8(Span<byte> output, uint value)
         {
