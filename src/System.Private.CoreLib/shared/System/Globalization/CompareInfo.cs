@@ -387,6 +387,39 @@ namespace System.Globalization
             return CompareString(string1, string2, options);
         }
 
+        internal int Compare(Rune rune1, Rune rune2, CompareOptions options)
+        {
+            Debug.Assert((options & ~CompareOptions.IgnoreCase) != 0, "Shouldn't specify any options other than IgnoreCase.");
+
+            if (GlobalizationMode.Invariant && (options & CompareOptions.IgnoreCase) == 0)
+            {
+                // If we're operating in the invariant globalization mode, we have no globalization
+                // tables to fall back to, so this is a simple ordinal culture-unaware comparison.
+                return rune1.CompareTo(rune2);
+            }
+
+            Span<char> chars1 = stackalloc char[2];
+            Span<char> chars2 = stackalloc char[2];
+
+            bool succeeded1 = rune1.TryEncode(chars1, out int charsWritten1);
+            Debug.Assert(succeeded1, "Encoding to UTF-16 failed.");
+            chars1 = chars1.Slice(0, charsWritten1);
+
+            bool succeeded2 = rune2.TryEncode(chars2, out int charsWritten2);
+            Debug.Assert(succeeded2, "Encoding to UTF-16 failed.");
+            chars2 = chars2.Slice(0, charsWritten2);
+
+            if (GlobalizationMode.Invariant)
+            {
+                // If we reached this point, we expect to be performing an ordinal case-insensitive comparison.
+                Debug.Assert((options & CompareOptions.IgnoreCase) != 0);
+                return CompareOrdinalIgnoreCase(chars1, chars2);
+            }
+
+            // In all other cases, fall back to globalization tables.
+            return CompareString(chars1, chars2, options);
+        }
+
         internal int CompareOptionNone(ReadOnlySpan<char> string1, ReadOnlySpan<char> string2)
         {
             // Check for empty span or span from a null string
@@ -590,6 +623,26 @@ namespace System.Globalization
             return CompareStringOrdinalIgnoreCase(ref charA, lengthA - range, ref charB, lengthB - range);
         }
 
+        internal static bool EqualsOrdinalIgnoreCase(Rune a, Rune b)
+        {
+            if (a.Utf16SequenceLength != b.Utf16SequenceLength)
+            {
+                // OrdinalIgnoreCase comparison uses simple folding, which requires inputs to have
+                // same UTF-16 code unit length.
+                return false;
+            }
+
+            Span<char> charsA = stackalloc char[2];
+            Span<char> charsB = stackalloc char[2];
+
+            bool succeededA = a.TryEncode(charsA, out int charsWrittenA);
+            bool succeededB = b.TryEncode(charsB, out int charsWrittenB);
+
+            Debug.Assert(succeededA && succeededB, "Encoding to UTF-16 failed.");
+            Debug.Assert(charsWrittenA == charsWrittenB, "Encoding to UTF-16 produced different sized outputs.");
+
+            return EqualsOrdinalIgnoreCase(ref charsA[0], ref charsB[0], charsWrittenB);
+        }
 
         internal static bool EqualsOrdinalIgnoreCase(ref char charA, ref char charB, int length)
         {

@@ -12,8 +12,15 @@ namespace System.Text
     /// Represents a Unicode scalar value ([ U+0000..U+D7FF ], inclusive; or [ U+E000..U+10FFFF ], inclusive).
     /// </summary>
     /// <remarks>
+    /// <para>
     /// This type's constructors and conversion operators validate the input, so consumers can call the APIs
     /// assuming that the underlying <see cref="Rune"/> instance is well-formed.
+    /// </para>
+    /// <para>
+    /// All methods on this type are ordinal case-sensitive (e.g., <see cref="Equals(Rune)"/>); except
+    /// methods which accept an explicit <see cref="StringComparison"/> or <see cref="CultureInfo"/> parameter,
+    /// and methods whose name specifies a particular comparison (e.g., <see cref="ToUpperInvariant(Rune)"/>).
+    /// </para>
     /// </remarks>
     [DebuggerDisplay("{DebuggerDisplay,nq}")]
     public readonly struct Rune : IComparable<Rune>, IEquatable<Rune>
@@ -200,7 +207,14 @@ namespace System.Text
             }
         }
 
-        public int CompareTo(Rune other) => this._value.CompareTo(other._value);
+        public int CompareTo(Rune other)
+        {
+            // We don't need to worry about integer overflow in the subtraction operation below
+            // since all Rune instances should have values which are smaller than the threshold
+            // where we need to start worrying about this.
+
+            return this.Value - other.Value;
+        }
 
         // returns the number of chars written
         private int EncodeToUtf16(Span<char> destination)
@@ -214,6 +228,29 @@ namespace System.Text
         public override bool Equals(object obj) => (obj is Rune other) && this.Equals(other);
 
         public bool Equals(Rune other) => (this == other);
+        
+        public bool Equals(Rune other, StringComparison comparisonType)
+        {
+            switch (comparisonType)
+            {
+                case StringComparison.CurrentCulture:
+                case StringComparison.CurrentCultureIgnoreCase:
+                    return (CultureInfo.CurrentCulture.CompareInfo.Compare(this, other, string.GetCaseCompareOfComparisonCulture(comparisonType)) != 0);
+
+                case StringComparison.InvariantCulture:
+                case StringComparison.InvariantCultureIgnoreCase:
+                    return (CompareInfo.Invariant.Compare(this, other, string.GetCaseCompareOfComparisonCulture(comparisonType)) != 0);
+
+                case StringComparison.Ordinal:
+                    return this.Equals(other);
+
+                case StringComparison.OrdinalIgnoreCase:
+                    return CompareInfo.EqualsOrdinalIgnoreCase(this, other);
+
+                default:
+                    throw new ArgumentException(SR.NotSupported_StringComparison, nameof(comparisonType));
+            }
+        }
 
         public override int GetHashCode() => Value;
 
