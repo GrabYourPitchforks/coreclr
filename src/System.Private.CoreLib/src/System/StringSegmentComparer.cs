@@ -109,7 +109,7 @@ namespace System
 
             public override bool Equals(StringSegment x, StringSegment y) => Compare(x, y) == 0;
 
-            public override int GetHashCode(StringSegment obj) => _compareInfo.GetHashCodeOfString(obj.AsSpan(), _options);
+            public override int GetHashCode(StringSegment obj) => _compareInfo.GetHashCode(obj.AsSpan(), _options);
         }
 
         /// <summary>

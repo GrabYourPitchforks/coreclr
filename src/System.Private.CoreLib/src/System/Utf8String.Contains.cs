@@ -53,13 +53,13 @@ namespace System
             throw new NotImplementedException();
         }
 
-        public bool Contains(UnicodeScalar value)
+        public bool Contains(Rune value)
         {
             // TODO: Replace IndexOf with Contains when extension method is made available.
             return IndexOf_Scalar_NoBoundsChecks(value, 0, Length) >= 0;
         }
 
-        public bool Contains(UnicodeScalar value, StringComparison comparisonType)
+        public bool Contains(Rune value, StringComparison comparisonType)
         {
             throw new NotImplementedException();
         }
@@ -84,7 +84,7 @@ namespace System
 
                 // TODO: Replace IndexOf with Contains when the appropriate overload is available.
                 return !IsKnownAscii()
-                    && UnicodeScalar.TryCreate(value, out var scalar)
+                    && Rune.TryCreate(value, out var scalar)
                     && IndexOf_Scalar_NoBoundsChecks(scalar, startIndex, count) >= 0;
             }
         }

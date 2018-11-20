@@ -11,11 +11,11 @@ namespace System.Text
     /// </summary>
     internal static class UnicodeReader
     {
-        public static (SequenceValidity status, UnicodeScalar scalar, int charsConsumed) PeekFirstScalarUtf16(ReadOnlySpan<char> buffer)
+        public static (SequenceValidity status, Rune scalar, int charsConsumed) PeekFirstScalarUtf16(ReadOnlySpan<char> buffer)
         {
             if (buffer.IsEmpty)
             {
-                return (SequenceValidity.Incomplete, UnicodeScalar.ReplacementChar, charsConsumed: 0);
+                return (SequenceValidity.Incomplete, Rune.ReplacementChar, charsConsumed: 0);
             }
 
             // First, check for a single UTF-16 code unit (non-surrogate).
@@ -23,7 +23,7 @@ namespace System.Text
             uint firstChar = buffer[0];
             if (!UnicodeHelpers.IsSurrogateCodePoint(firstChar))
             {
-                return (SequenceValidity.Valid, UnicodeScalar.DangerousCreateWithoutValidation(firstChar), charsConsumed: 1);
+                return (SequenceValidity.Valid, Rune.UnsafeCreate(firstChar), charsConsumed: 1);
             }
 
             // The first code unit is a surrogate (hasn't yet been determined if high or low).
@@ -42,7 +42,7 @@ namespace System.Text
 
             // Valid surrogate pair!
 
-            return (SequenceValidity.Valid, UnicodeScalar.DangerousCreateWithoutValidation(UnicodeHelpers.GetScalarFromUtf16SurrogatePair(firstChar, secondChar)), charsConsumed: 2);
+            return (SequenceValidity.Valid, Rune.UnsafeCreate(UnicodeHelpers.GetScalarFromUtf16SurrogatePair(firstChar, secondChar)), charsConsumed: 2);
 
         BufferContainsOnlySingleChar:
 
@@ -50,7 +50,7 @@ namespace System.Text
 
             if (UnicodeHelpers.IsHighSurrogateCodePoint(firstChar))
             {
-                return (SequenceValidity.Incomplete, UnicodeScalar.ReplacementChar, charsConsumed: 1);
+                return (SequenceValidity.Incomplete, Rune.ReplacementChar, charsConsumed: 1);
             }
 
         InvalidSurrogateSequence:
@@ -58,10 +58,10 @@ namespace System.Text
             // At this point, we have either a high surrogate followed by something other than a low surrogate, or we have
             // a low surrogate not preceded by a high surrogate. In either case this is an invalid sequence of length 1.
 
-            return (SequenceValidity.Invalid, UnicodeScalar.ReplacementChar, charsConsumed: 1);
+            return (SequenceValidity.Invalid, Rune.ReplacementChar, charsConsumed: 1);
         }
 
-        public static (SequenceValidity status, UnicodeScalar scalar, int charsConsumed) PeekFirstScalarUtf8(ReadOnlySpan<byte> buffer)
+        public static (SequenceValidity status, Rune scalar, int charsConsumed) PeekFirstScalarUtf8(ReadOnlySpan<byte> buffer)
         {
             // This method is implemented to match the behavior of System.Text.Encoding.UTF8 in terms of
             // how many bytes it consumes when reporting invalid sequences. The behavior is as follows:
@@ -81,7 +81,7 @@ namespace System.Text
 
             if (buffer.Length == 0)
             {
-                return (SequenceValidity.Incomplete, UnicodeScalar.ReplacementChar, charsConsumed: 0);
+                return (SequenceValidity.Incomplete, Rune.ReplacementChar, charsConsumed: 0);
             }
 
             // First, check for ASCII.
@@ -90,7 +90,7 @@ namespace System.Text
 
             if (UnicodeHelpers.IsAsciiCodePoint(currentScalar))
             {
-                return (SequenceValidity.Valid, UnicodeScalar.DangerousCreateWithoutValidation(currentScalar), charsConsumed: 1);
+                return (SequenceValidity.Valid, Rune.UnsafeCreate(currentScalar), charsConsumed: 1);
             }
 
             // Not ASCII, go down multi-byte sequence path.
@@ -109,7 +109,7 @@ namespace System.Text
             if (UnicodeHelpers.IsInRangeInclusive(currentScalar, 0x80U, 0x7FFU) && UnicodeHelpers.IsUtf8ContinuationByte(nextByte))
             {
                 // Valid 2-byte sequence.
-                return (SequenceValidity.Valid, UnicodeScalar.DangerousCreateWithoutValidation(currentScalar), charsConsumed: 2);
+                return (SequenceValidity.Valid, Rune.UnsafeCreate(currentScalar), charsConsumed: 2);
             }
 
             // Check for 3-byte sequence.
@@ -127,7 +127,7 @@ namespace System.Text
             if (UnicodeHelpers.IsInRangeInclusive(currentScalar, 0x800U, 0xFFFFU) && !UnicodeHelpers.IsSurrogateCodePoint(currentScalar) && ((continuationByteAccumulator & 0xC0U) == 0))
             {
                 // Valid 3-byte sequence.
-                return (SequenceValidity.Valid, UnicodeScalar.DangerousCreateWithoutValidation(currentScalar), charsConsumed: 3);
+                return (SequenceValidity.Valid, Rune.UnsafeCreate(currentScalar), charsConsumed: 3);
             }
 
             // Check for 4-byte sequence.
@@ -144,7 +144,7 @@ namespace System.Text
             if (UnicodeHelpers.IsInRangeInclusive(currentScalar, 0x10000U, 0x10FFFFU) && ((continuationByteAccumulator & 0xC0U) == 0))
             {
                 // Valid 4-byte sequence.
-                return (SequenceValidity.Valid, UnicodeScalar.DangerousCreateWithoutValidation(currentScalar), charsConsumed: 4);
+                return (SequenceValidity.Valid, Rune.UnsafeCreate(currentScalar), charsConsumed: 4);
             }
 
         Error:
@@ -161,7 +161,7 @@ namespace System.Text
 
             if (!UnicodeHelpers.IsInRangeInclusive(buffer[0], 0xC2U, 0xF4U))
             {
-                return (SequenceValidity.Invalid, UnicodeScalar.ReplacementChar, charsConsumed: 1);
+                return (SequenceValidity.Invalid, Rune.ReplacementChar, charsConsumed: 1);
             }
 
             // First byte is fine, are we simply lacking further data?
@@ -169,7 +169,7 @@ namespace System.Text
 
             if (buffer.Length < 2)
             {
-                return (SequenceValidity.Incomplete, UnicodeScalar.ReplacementChar, charsConsumed: 1);
+                return (SequenceValidity.Incomplete, Rune.ReplacementChar, charsConsumed: 1);
             }
 
             // Is the second byte a continuation byte?
@@ -178,7 +178,7 @@ namespace System.Text
 
             if ((buffer[1] & 0xC0U) != 0x80U)
             {
-                return (SequenceValidity.Invalid, UnicodeScalar.ReplacementChar, charsConsumed: 1);
+                return (SequenceValidity.Invalid, Rune.ReplacementChar, charsConsumed: 1);
             }
 
             // Did the second byte result in an overlong, surrogate, or out-of-range sequence?
@@ -190,7 +190,7 @@ namespace System.Text
                 && !UnicodeHelpers.IsInRangeInclusive(firstTwoBytes, 0xEE80U, 0xEFBFU)
                 && !UnicodeHelpers.IsInRangeInclusive(firstTwoBytes, 0xF090U, 0xF48FU))
             {
-                return (SequenceValidity.Invalid, UnicodeScalar.ReplacementChar, charsConsumed: 2);
+                return (SequenceValidity.Invalid, Rune.ReplacementChar, charsConsumed: 2);
             }
 
             // First two bytes are fine, are we simply lacking further data?
@@ -198,7 +198,7 @@ namespace System.Text
 
             if (buffer.Length < 3)
             {
-                return (SequenceValidity.Incomplete, UnicodeScalar.ReplacementChar, charsConsumed: 2);
+                return (SequenceValidity.Incomplete, Rune.ReplacementChar, charsConsumed: 2);
             }
 
             // Is the third byte a continuation byte?
@@ -206,7 +206,7 @@ namespace System.Text
 
             if ((buffer[2] & 0xC0U) != 0x80U)
             {
-                return (SequenceValidity.Invalid, UnicodeScalar.ReplacementChar, charsConsumed: 2);
+                return (SequenceValidity.Invalid, Rune.ReplacementChar, charsConsumed: 2);
             }
 
             // First three bytes are fine, are we simply lacking further data?
@@ -214,16 +214,16 @@ namespace System.Text
 
             if (buffer.Length < 4)
             {
-                return (SequenceValidity.Incomplete, UnicodeScalar.ReplacementChar, charsConsumed: 3);
+                return (SequenceValidity.Incomplete, Rune.ReplacementChar, charsConsumed: 3);
             }
 
             // Only possible remaining option is that the last byte isn't a continuation byte as expected.
             // And so we have an invalid sequence of length 3.
 
-            return (SequenceValidity.Invalid, UnicodeScalar.ReplacementChar, charsConsumed: 3);
+            return (SequenceValidity.Invalid, Rune.ReplacementChar, charsConsumed: 3);
         }
 
-        public static (SequenceValidity status, UnicodeScalar scalar, int charsConsumed) PeekLastScalarUtf8(ReadOnlySpan<byte> buffer)
+        public static (SequenceValidity status, Rune scalar, int charsConsumed) PeekLastScalarUtf8(ReadOnlySpan<byte> buffer)
         {
             // See comments in PeekFirstScalarUtf8 for full details of how this works. In short, we look for
             // the last byte that's not a continuation character, and we slice the buffer from that point forward
@@ -231,7 +231,7 @@ namespace System.Text
 
             if (buffer.Length < 1)
             {
-                return (SequenceValidity.Incomplete, UnicodeScalar.ReplacementChar, charsConsumed: 0);
+                return (SequenceValidity.Incomplete, Rune.ReplacementChar, charsConsumed: 0);
             }
 
             if (buffer.Length < 2 || !UnicodeHelpers.IsUtf8ContinuationByte(in buffer[buffer.Length - 1]))
@@ -279,7 +279,7 @@ namespace System.Text
             }
             else
             {
-                return (SequenceValidity.Invalid, UnicodeScalar.ReplacementChar, charsConsumed: 1);
+                return (SequenceValidity.Invalid, Rune.ReplacementChar, charsConsumed: 1);
             }
         }
     }

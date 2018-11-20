@@ -239,7 +239,9 @@ namespace System
                     // Valid UTF-8 encoded scalar.
                     // Convert to UTF-16, copy to output, bump both buffers, and loop.
 
-                    int utf16CharsWritten = result.scalar.ToUtf16(utf16);
+                    bool succeeded = result.scalar.TryEncode(utf16, out int utf16CharsWritten);
+                    Debug.Assert(succeeded);
+
                     utf16 = utf16.Slice(utf16CharsWritten);
                     utf8 = utf8.Slice(result.charsConsumed);
                 }
@@ -279,10 +281,10 @@ namespace System
         internal ref byte GetRawStringData() => ref Unsafe.AsRef(in _firstByte);
 
         // Ordinal comparison - returns false if input char is a standalone surrogate code unit
-        public bool EndsWith(char value) => UnicodeScalar.TryCreate(value, out UnicodeScalar scalar) && EndsWith(scalar);
+        public bool EndsWith(char value) => Rune.TryCreate(value, out Rune scalar) && EndsWith(scalar);
 
         // Ordinal comparison
-        public bool EndsWith(UnicodeScalar value)
+        public bool EndsWith(Rune value)
         {
             if (Length == 0)
             {
@@ -307,7 +309,10 @@ namespace System
             // TODO: This can be optimized if the input UnicodeScalar is a compile-time constant.
 
             Span<byte> valueAsUtf8 = stackalloc byte[4]; // longest sequence is 4 bytes
-            int actualSequenceLength = value.ToUtf8(valueAsUtf8);
+
+            bool succeededEncoding = value.TryEncodeToUtf8Bytes(valueAsUtf8, out int actualSequenceLength);
+            Debug.Assert(succeededEncoding);
+
             return AsSpanFast().EndsWith(valueAsUtf8.Slice(0, actualSequenceLength));
         }
 
@@ -609,7 +614,7 @@ namespace System
         public ref readonly byte GetPinnableReference() => ref _firstByte;
 
         // TODO: Replace exception message below
-        public UnicodeScalar GetScalarAt(int index) => (TryGetScalarAt(index, out UnicodeScalar scalar)) ? scalar : throw new Exception("Invalid data.");
+        public Rune GetScalarAt(int index) => (TryGetScalarAt(index, out Rune scalar)) ? scalar : throw new Exception("Invalid data.");
 
         [EditorBrowsable(EditorBrowsableState.Never)]
         public Stream GetStream() => new Utf8StringStream(this);
@@ -644,12 +649,12 @@ namespace System
             return IndexOf_Char_NoBoundsChecks(value, startIndex, count);
         }
 
-        public int IndexOf(UnicodeScalar value)
+        public int IndexOf(Rune value)
         {
             return IndexOf_Scalar_NoBoundsChecks(value, 0, Length);
         }
 
-        public int IndexOf(UnicodeScalar value, int startIndex)
+        public int IndexOf(Rune value, int startIndex)
         {
             if ((uint)startIndex > (uint)Length)
             {
@@ -659,7 +664,7 @@ namespace System
             return IndexOf_Scalar_NoBoundsChecks(value, startIndex, Length - startIndex);
         }
 
-        public int IndexOf(UnicodeScalar value, int startIndex, int count)
+        public int IndexOf(Rune value, int startIndex, int count)
         {
             if ((uint)startIndex > (uint)Length)
             {
@@ -686,7 +691,7 @@ namespace System
                 // ASCII
                 return IndexOf_Ascii_NoBoundsChecks((byte)value, startIndex, count);
             }
-            else if (!IsKnownAscii() && UnicodeScalar.TryCreate(value, out var scalar))
+            else if (!IsKnownAscii() && Rune.TryCreate(value, out var scalar))
             {
                 // Search character is not ASCII (but is still a valid scalar),
                 // and the search space may contain non-ASCII data.
@@ -701,10 +706,13 @@ namespace System
             return -1;
         }
 
-        private int IndexOf_Scalar_NoBoundsChecks(UnicodeScalar value, int startIndex, int count)
+        private int IndexOf_Scalar_NoBoundsChecks(Rune value, int startIndex, int count)
         {
             Span<byte> valueAsUtf8 = stackalloc byte[4]; // worst possible output case
-            int utf8CodeUnitCount = value.ToUtf8(valueAsUtf8);
+
+            bool succeededEncoding = value.TryEncodeToUtf8Bytes(valueAsUtf8, out int utf8CodeUnitCount);
+            Debug.Assert(succeededEncoding);
+
             return SpanHelpers.IndexOf(ref Unsafe.Add(ref GetRawStringData(), startIndex), count, ref MemoryMarshal.GetReference(valueAsUtf8), utf8CodeUnitCount);
         }
 
@@ -828,10 +836,10 @@ namespace System
         }
 
         // Ordinal comparison - returns false if input char is a standalone surrogate code unit
-        public bool StartsWith(char value) => UnicodeScalar.TryCreate(value, out UnicodeScalar scalar) && StartsWith(scalar);
+        public bool StartsWith(char value) => Rune.TryCreate(value, out Rune scalar) && StartsWith(scalar);
 
         // Ordinal comparison
-        public bool StartsWith(UnicodeScalar value)
+        public bool StartsWith(Rune value)
         {
             if (Length == 0)
             {
@@ -856,7 +864,10 @@ namespace System
             // TODO: This can be optimized if the input UnicodeScalar is a compile-time constant.
 
             Span<byte> valueAsUtf8 = stackalloc byte[4]; // longest sequence is 4 bytes
-            int actualSequenceLength = value.ToUtf8(valueAsUtf8);
+
+            bool succeededEncoding = value.TryEncodeToUtf8Bytes(valueAsUtf8, out int actualSequenceLength);
+            Debug.Assert(succeededEncoding);
+
             return AsSpanFast().StartsWith(valueAsUtf8.Slice(0, actualSequenceLength));
         }
 
@@ -1074,7 +1085,7 @@ namespace System
         /// </summary>
         public Utf8String TrimStart() => TrimHelper(TrimType.Head);
 
-        public bool TryGetScalarAt(int index, out UnicodeScalar scalar)
+        public bool TryGetScalarAt(int index, out Rune scalar)
         {
             if ((uint)index >= Length)
             {

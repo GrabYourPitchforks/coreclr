@@ -1046,7 +1046,7 @@ namespace System.Runtime.InteropServices
                 // against zero.
 
                 nuint offset = (nuint)pStringData & (nuint)15;
-                uint cmpMask = (uint)Sse2.MoveMask(Sse2.StaticCast<ushort, byte>(Sse2.CompareEqual(Sse2.LoadAlignedVector128((ushort*)((nuint)pStringData & ~(nuint)15)), default(Vector128<ushort>))));
+                uint cmpMask = (uint)Sse2.MoveMask(Sse2.CompareEqual(Sse2.LoadAlignedVector128((ushort*)((nuint)pStringData & ~(nuint)15)), default(Vector128<ushort>)).AsByte());
                 cmpMask &= (uint)((-1) << (int)offset);
                 offset = (nuint)(-(nint)offset);
 
@@ -1057,7 +1057,7 @@ namespace System.Runtime.InteropServices
                     {
                         // No match - increment and iterate
                         offset += 16;
-                        cmpMask = (uint)Sse2.MoveMask(Sse2.StaticCast<ushort, byte>(Sse2.CompareEqual(Sse2.LoadAlignedVector128((ushort*)&pStringData[offset]), default(Vector128<ushort>))));
+                        cmpMask = (uint)Sse2.MoveMask(Sse2.CompareEqual(Sse2.LoadAlignedVector128((ushort*)&pStringData[offset]), default(Vector128<ushort>)).AsByte());
                     }
                     else
                     {

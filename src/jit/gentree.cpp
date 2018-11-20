@@ -16441,8 +16441,8 @@ CORINFO_CLASS_HANDLE Compiler::gtGetClassHandle(GenTree* tree, bool* pIsExact, b
             // For literal strings, we know the class and that the
             // value is not null.
             objClass   = tree->gtUtf8StrCon.gtStringClass;
-            *isExact   = true;
-            *isNonNull = true;
+            *pIsExact   = true;
+            *pIsNonNull = true;
             break;
         }
 

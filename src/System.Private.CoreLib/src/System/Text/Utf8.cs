@@ -3,6 +3,7 @@
 // See the LICENSE file in the project root for more information.
 
 using System.Buffers;
+using System.Diagnostics;
 using System.Globalization;
 
 namespace System.Text
@@ -35,16 +36,19 @@ namespace System.Text
                 if (result.status == SequenceValidity.Valid)
                 {
                     // Found a good UTF-8 sequence - perform the conversion and write it to the output buffer
-                    UnicodeScalar changeCaseScalar;
+                    Rune changeCaseScalar;
                     if (toUpper)
                     {
-                        changeCaseScalar = UnicodeScalar.ToUpper(result.scalar, culture);
+                        changeCaseScalar = Rune.ToUpper(result.scalar, culture);
                     }
                     else
                     {
-                        changeCaseScalar = UnicodeScalar.ToLower(result.scalar, culture);
+                        changeCaseScalar = Rune.ToLower(result.scalar, culture);
                     }
-                    int changeCaseScalarSequenceLength = changeCaseScalar.ToUtf8(changeCaseBuffer);
+
+                    bool changeCaseSuccess = changeCaseScalar.TryEncodeToUtf8Bytes(changeCaseBuffer, out int changeCaseScalarSequenceLength);
+                    Debug.Assert(changeCaseSuccess);
+
                     if (!changeCaseBuffer.Slice(0, changeCaseScalarSequenceLength).TryCopyTo(destination))
                     {
                         goto ReturnDestinationTooSmall;
@@ -145,27 +149,30 @@ namespace System.Text
         }
 
         // Ordinal
-        public static bool Contains(ReadOnlySpan<byte> source, UnicodeScalar scalar)
+        public static bool Contains(ReadOnlySpan<byte> source, Rune scalar)
         {
             return IndexOf(source, scalar) >= 0;
         }
 
-        public static bool Contains(ReadOnlySpan<byte> source, UnicodeScalar scalar, StringComparison comparison)
+        public static bool Contains(ReadOnlySpan<byte> source, Rune scalar, StringComparison comparison)
         {
             // TODO: Implement me
             throw new NotImplementedException();
         }
 
         // Ordinal; returns -1 if not found
-        public static int IndexOf(ReadOnlySpan<byte> source, UnicodeScalar scalar)
+        public static int IndexOf(ReadOnlySpan<byte> source, Rune scalar)
         {
             Span<byte> scalarAsUtf8 = stackalloc byte[4];
-            int scalarUtf8CodeUnitCount = scalar.ToUtf8(scalarAsUtf8);
-            return source.IndexOf(scalarAsUtf8.Slice(0, scalarUtf8CodeUnitCount));
+
+            bool success = scalar.TryEncodeToUtf8Bytes(scalarAsUtf8, out int utf8SequenceLength);
+            Debug.Assert(success);
+
+            return source.IndexOf(scalarAsUtf8.Slice(0, utf8SequenceLength));
         }
 
         // Returns -1 if not found
-        public static int IndexOf(ReadOnlySpan<byte> source, UnicodeScalar scalar, StringComparison comparison, out int matchLength)
+        public static int IndexOf(ReadOnlySpan<byte> source, Rune scalar, StringComparison comparison, out int matchLength)
         {
             // TODO: Implement me
             throw new NotImplementedException();

@@ -37,7 +37,7 @@ namespace System.Text.Unicode
                     int utf16SequenceLength = result.scalar.Utf16SequenceLength;
                     if (destination.Length >= utf16SequenceLength)
                     {
-                        int numCharsWrittenToDest = result.scalar.ToUtf16(destination);
+                        result.scalar.TryEncode(destination, out int numCharsWrittenToDest);
                         Debug.Assert(utf16SequenceLength == numCharsWrittenToDest);
 
                         bytesConsumed += result.charsConsumed;
