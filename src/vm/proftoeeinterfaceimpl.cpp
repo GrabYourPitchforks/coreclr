@@ -2882,7 +2882,7 @@ HRESULT ProfToEEInterfaceImpl::GetArrayObjectInfoHelper(Object * pObj,
     CONTRACTL_END;
 
     // Must have an array.
-    MethodTable * pMT = pObj->GetTrueMethodTable();
+    MethodTable * pMT = pObj->GetMethodTable();
     if (!pMT->IsArray())
     {
         return E_INVALIDARG;
@@ -3513,7 +3513,7 @@ HRESULT ProfToEEInterfaceImpl::GetThreadStaticAddress2(ClassID classId,
     //
     // Store the result and return
     //
-    PTR_VOID pAddress = (void *)(((Thread *)threadId)->GetStaticFieldAddrNoCreate(pFieldDesc, pAppDomain));
+    PTR_VOID pAddress = (void *)(((Thread *)threadId)->GetStaticFieldAddrNoCreate(pFieldDesc));
     if (pAddress == NULL)
     {
         return E_INVALIDARG;

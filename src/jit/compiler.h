@@ -2440,7 +2440,11 @@ public:
 
     GenTree* gtNewAssignNode(GenTree* dst, GenTree* src);
 
-    GenTree* gtNewTempAssign(unsigned tmp, GenTree* val);
+    GenTree* gtNewTempAssign(unsigned    tmp,
+                             GenTree*    val,
+                             GenTree**   pAfterStmt = nullptr,
+                             IL_OFFSETX  ilOffset   = BAD_IL_OFFSET,
+                             BasicBlock* block      = nullptr);
 
     GenTree* gtNewRefCOMfield(GenTree*                objPtr,
                               CORINFO_RESOLVED_TOKEN* pResolvedToken,
@@ -2581,6 +2585,10 @@ public:
         gtFoldExprConst(GenTree* tree);
     GenTree* gtFoldExprSpecial(GenTree* tree);
     GenTree* gtFoldExprCompare(GenTree* tree);
+    GenTree* gtCreateHandleCompare(genTreeOps             oper,
+                                   GenTree*               op1,
+                                   GenTree*               op2,
+                                   CorInfoInlineTypeCheck typeCheckInliningResult);
     GenTree* gtFoldExprCall(GenTreeCall* call);
     GenTree* gtFoldTypeCompare(GenTree* tree);
     GenTree* gtFoldTypeEqualityCall(CorInfoIntrinsics methodID, GenTree* op1, GenTree* op2);
@@ -2605,15 +2613,17 @@ public:
     // Get the handle, and assert if not found.
     CORINFO_CLASS_HANDLE gtGetStructHandle(GenTree* tree);
     // Get the handle for a ref type.
-    CORINFO_CLASS_HANDLE gtGetClassHandle(GenTree* tree, bool* isExact, bool* isNonNull);
+    CORINFO_CLASS_HANDLE gtGetClassHandle(GenTree* tree, bool* pIsExact, bool* pIsNonNull);
     // Get the class handle for an helper call
-    CORINFO_CLASS_HANDLE gtGetHelperCallClassHandle(GenTreeCall* call, bool* isExact, bool* isNonNull);
+    CORINFO_CLASS_HANDLE gtGetHelperCallClassHandle(GenTreeCall* call, bool* pIsExact, bool* pIsNonNull);
     // Get the element handle for an array of ref type.
     CORINFO_CLASS_HANDLE gtGetArrayElementClassHandle(GenTree* array);
     // Get a class handle from a helper call argument
     CORINFO_CLASS_HANDLE gtGetHelperArgClassHandle(GenTree*  array,
                                                    unsigned* runtimeLookupCount = nullptr,
                                                    GenTree** handleTree         = nullptr);
+    // Get the class handle for a field
+    CORINFO_CLASS_HANDLE gtGetFieldClassHandle(CORINFO_FIELD_HANDLE fieldHnd, bool* pIsExact, bool* pIsNonNull);
     // Check if this tree is a gc static base helper call
     bool gtIsStaticGCBaseHelperCall(GenTree* tree);
 
@@ -3409,6 +3419,8 @@ protected:
                                        bool                  mustExpand);
 
 protected:
+    bool compSupportsHWIntrinsic(InstructionSet isa);
+
 #ifdef _TARGET_XARCH_
     GenTree* impSSEIntrinsic(NamedIntrinsic        intrinsic,
                              CORINFO_METHOD_HANDLE method,
@@ -3454,7 +3466,6 @@ protected:
                                 CORINFO_METHOD_HANDLE method,
                                 CORINFO_SIG_INFO*     sig,
                                 bool                  mustExpand);
-    bool compSupportsHWIntrinsic(InstructionSet isa);
 
 protected:
     GenTree* getArgForHWIntrinsic(var_types argType, CORINFO_CLASS_HANDLE argClass);
@@ -3524,12 +3535,14 @@ public:
                              CORINFO_CLASS_HANDLE structHnd,
                              unsigned             curLevel,
                              GenTree**            pAfterStmt = nullptr,
+                             IL_OFFSETX           ilOffset   = BAD_IL_OFFSET,
                              BasicBlock*          block      = nullptr);
     GenTree* impAssignStructPtr(GenTree*             dest,
                                 GenTree*             src,
                                 CORINFO_CLASS_HANDLE structHnd,
                                 unsigned             curLevel,
                                 GenTree**            pAfterStmt = nullptr,
+                                IL_OFFSETX           ilOffset   = BAD_IL_OFFSET,
                                 BasicBlock*          block      = nullptr);
 
     GenTree* impGetStructAddr(GenTree* structVal, CORINFO_CLASS_HANDLE structHnd, unsigned curLevel, bool willDeref);
@@ -5385,6 +5398,7 @@ private:
 
     TypeProducerKind gtGetTypeProducerKind(GenTree* tree);
     bool gtIsTypeHandleToRuntimeTypeHelper(GenTreeCall* call);
+    bool gtIsTypeHandleToRuntimeTypeHandleHelper(GenTreeCall* call, CorInfoHelpFunc* pHelper = nullptr);
     bool gtIsActiveCSE_Candidate(GenTree* tree);
 
 #ifdef DEBUG
@@ -6116,12 +6130,13 @@ public:
         }
     };
 
-#define OMF_HAS_NEWARRAY 0x00000001   // Method contains 'new' of an array
-#define OMF_HAS_NEWOBJ 0x00000002     // Method contains 'new' of an object type.
-#define OMF_HAS_ARRAYREF 0x00000004   // Method contains array element loads or stores.
-#define OMF_HAS_VTABLEREF 0x00000008  // Method contains method table reference.
-#define OMF_HAS_NULLCHECK 0x00000010  // Method contains null check.
-#define OMF_HAS_FATPOINTER 0x00000020 // Method contains call, that needs fat pointer transformation.
+#define OMF_HAS_NEWARRAY 0x00000001      // Method contains 'new' of an array
+#define OMF_HAS_NEWOBJ 0x00000002        // Method contains 'new' of an object type.
+#define OMF_HAS_ARRAYREF 0x00000004      // Method contains array element loads or stores.
+#define OMF_HAS_VTABLEREF 0x00000008     // Method contains method table reference.
+#define OMF_HAS_NULLCHECK 0x00000010     // Method contains null check.
+#define OMF_HAS_FATPOINTER 0x00000020    // Method contains call, that needs fat pointer transformation.
+#define OMF_HAS_OBJSTACKALLOC 0x00000040 // Method contains an object allocated on the stack.
 
     bool doesMethodHaveFatPointer()
     {
@@ -8406,6 +8421,10 @@ public:
 #endif // DEBUG
 
 #ifdef DEBUG
+// silence warning of cast to greater size. It is easier to silence than construct code the compiler is happy with, and
+// it is safe in this case
+#pragma warning(push)
+#pragma warning(disable : 4312)
 
     template <typename T>
     T dspPtr(T p)
@@ -8418,6 +8437,7 @@ public:
     {
         return (o == ZERO) ? ZERO : (opts.dspDiffable ? T(0xD1FFAB1E) : o);
     }
+#pragma warning(pop)
 
     static int dspTreeID(GenTree* tree)
     {

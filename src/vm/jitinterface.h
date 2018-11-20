@@ -484,6 +484,7 @@ public:
                                   BOOL fFullInst,
                                   BOOL fAssembly);
     BOOL isValueClass (CORINFO_CLASS_HANDLE cls);
+    CorInfoInlineTypeCheck canInlineTypeCheck (CORINFO_CLASS_HANDLE cls, CorInfoInlineTypeCheckSource source);
     BOOL canInlineTypeCheckWithObjectVTable (CORINFO_CLASS_HANDLE cls);
 
     DWORD getClassAttribs (CORINFO_CLASS_HANDLE cls);
@@ -855,6 +856,8 @@ public:
     bool isWriteBarrierHelperRequired(CORINFO_FIELD_HANDLE field);
 
     void* getFieldAddress(CORINFO_FIELD_HANDLE field, void **ppIndirection);
+
+    CORINFO_CLASS_HANDLE getStaticFieldCurrentClass(CORINFO_FIELD_HANDLE field, bool* pIsSpeculative);
 
     // ICorDebugInfo stuff
     void * allocateArray(ULONG cBytes);
@@ -1495,6 +1498,7 @@ public:
     InfoAccessType constructStringLiteral(CORINFO_MODULE_HANDLE scopeHnd, mdToken metaTok, void **ppValue);
     InfoAccessType emptyStringLiteral(void ** ppValue);
     void* getFieldAddress(CORINFO_FIELD_HANDLE field, void **ppIndirection);
+    CORINFO_CLASS_HANDLE getStaticFieldCurrentClass(CORINFO_FIELD_HANDLE field, bool* pIsSpeculative);
     void* getMethodSync(CORINFO_METHOD_HANDLE ftnHnd, void **ppIndirection);
 
     void BackoutJitData(EEJitManager * jitMgr);

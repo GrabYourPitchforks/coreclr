@@ -17,6 +17,39 @@ namespace System.Runtime.Intrinsics.X86
 
         public new static bool IsSupported { get { return false; } }
 
+        public new abstract class X64 : Sse2.X64
+        {
+            internal X64() { }
+
+            public new static bool IsSupported { get { return false; } }
+
+            /// <summary>
+            /// __int64 _mm_extract_epi64 (__m128i a, const int imm8)
+            ///   PEXTRQ reg/m64, xmm, imm8
+            /// This intrinisc is only available on 64-bit processes
+            /// </summary>
+            public static long Extract(Vector128<long> value, byte index) { throw new PlatformNotSupportedException(); }
+            /// <summary>
+            /// __int64 _mm_extract_epi64 (__m128i a, const int imm8)
+            ///   PEXTRQ reg/m64, xmm, imm8
+            /// This intrinisc is only available on 64-bit processes
+            /// </summary>
+            public static ulong Extract(Vector128<ulong> value, byte index) { throw new PlatformNotSupportedException(); }
+
+            /// <summary>
+            /// __m128i _mm_insert_epi64 (__m128i a, __int64 i, const int imm8)
+            ///   PINSRQ xmm, reg/m64, imm8
+            /// This intrinisc is only available on 64-bit processes
+            /// </summary>
+            public static Vector128<long> Insert(Vector128<long> value, long data, byte index) { throw new PlatformNotSupportedException(); }
+            /// <summary>
+            /// __m128i _mm_insert_epi64 (__m128i a, __int64 i, const int imm8)
+            ///   PINSRQ xmm, reg/m64, imm8
+            /// This intrinisc is only available on 64-bit processes
+            /// </summary>
+            public static Vector128<ulong> Insert(Vector128<ulong> value, ulong data, byte index) { throw new PlatformNotSupportedException(); }
+        }
+
         /// <summary>
         /// __m128i _mm_blend_epi16 (__m128i a, __m128i b, const int imm8)
         ///   PBLENDW xmm, xmm/m128 imm8
@@ -598,7 +631,8 @@ namespace System.Runtime.Intrinsics.X86
 
         /// <summary>
         /// int _mm_test_all_ones (__m128i a)
-        ///   HELPER
+        ///   PCMPEQD xmm, xmm/m128
+        ///   PTEST xmm, xmm/m128
         /// </summary>
         public static bool TestAllOnes(Vector128<sbyte> value) { throw new PlatformNotSupportedException(); }
         public static bool TestAllOnes(Vector128<byte> value) { throw new PlatformNotSupportedException(); }

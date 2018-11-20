@@ -95,7 +95,7 @@ DEFINE_METHOD(APP_DOMAIN,           ON_DESIGNER_NAMESPACE_RESOLVE, OnDesignerNam
 DEFINE_METHOD(APP_DOMAIN,           SETUP_DOMAIN,           SetupDomain,                IM_Bool_Str_Str_ArrStr_ArrStr_RetVoid)
 DEFINE_METHOD(APP_DOMAIN,           INITIALIZE_COMPATIBILITY_FLAGS, InitializeCompatibilityFlags,  IM_RetVoid)
 
-DEFINE_CLASS(CLEANUP_WORK_LIST,     StubHelpers,            CleanupWorkList)
+DEFINE_CLASS(CLEANUP_WORK_LIST_ELEMENT,     StubHelpers,            CleanupWorkListElement)
 
 #ifdef FEATURE_COMINTEROP
 // Define earlier in mscorlib.h to avoid BinderClassID to const BYTE truncation warning
@@ -603,9 +603,9 @@ DEFINE_CLASS(NULLABLE,              System,                 Nullable`1)
 
 DEFINE_CLASS(BYREFERENCE,           System,                 ByReference`1)
 DEFINE_CLASS(SPAN,                  System,                 Span`1)
-DEFINE_METHOD(SPAN,                 GET_ITEM,               get_Item, NoSig)
+DEFINE_METHOD(SPAN,                 GET_ITEM,               get_Item, IM_Int_RetRefT)
 DEFINE_CLASS(READONLY_SPAN,         System,                 ReadOnlySpan`1)
-DEFINE_METHOD(READONLY_SPAN,        GET_ITEM,               get_Item, NoSig)
+DEFINE_METHOD(READONLY_SPAN,        GET_ITEM,               get_Item, IM_Int_RetReadOnlyRefT)
 
 // Keep this in sync with System.Globalization.NumberFormatInfo
 DEFINE_CLASS_U(Globalization,       NumberFormatInfo,   NumberFormatInfo)
@@ -1027,14 +1027,15 @@ DEFINE_METHOD(STUBHELPERS,          SET_LAST_ERROR,         SetLastError,       
 DEFINE_METHOD(STUBHELPERS,          CLEAR_LAST_ERROR,       ClearLastError,             SM_RetVoid)
 
 DEFINE_METHOD(STUBHELPERS,          THROW_INTEROP_PARAM_EXCEPTION, ThrowInteropParamException,   SM_Int_Int_RetVoid)
-DEFINE_METHOD(STUBHELPERS,          ADD_TO_CLEANUP_LIST,    AddToCleanupList,           SM_RefCleanupWorkList_SafeHandle_RetIntPtr)
-DEFINE_METHOD(STUBHELPERS,          DESTROY_CLEANUP_LIST,   DestroyCleanupList,         SM_RefCleanupWorkList_RetVoid)
+DEFINE_METHOD(STUBHELPERS,          ADD_TO_CLEANUP_LIST_SAFEHANDLE,    AddToCleanupList,           SM_RefCleanupWorkListElement_SafeHandle_RetIntPtr)
+DEFINE_METHOD(STUBHELPERS,          ADD_TO_CLEANUP_LIST_DELEGATE,    AddToCleanupList,             SM_RefCleanupWorkListElement_Delegate_RetVoid)
+DEFINE_METHOD(STUBHELPERS,          DESTROY_CLEANUP_LIST,   DestroyCleanupList,         SM_RefCleanupWorkListElement_RetVoid)
 DEFINE_METHOD(STUBHELPERS,          GET_HR_EXCEPTION_OBJECT, GetHRExceptionObject,      SM_Int_RetException)
 DEFINE_METHOD(STUBHELPERS,          CREATE_CUSTOM_MARSHALER_HELPER, CreateCustomMarshalerHelper, SM_IntPtr_Int_IntPtr_RetIntPtr)
 
 DEFINE_METHOD(STUBHELPERS,          CHECK_STRING_LENGTH,    CheckStringLength,          SM_Int_RetVoid)
 
-DEFINE_METHOD(STUBHELPERS,          FMT_CLASS_UPDATE_NATIVE_INTERNAL,   FmtClassUpdateNativeInternal,   SM_Obj_PtrByte_RefCleanupWorkList_RetVoid)
+DEFINE_METHOD(STUBHELPERS,          FMT_CLASS_UPDATE_NATIVE_INTERNAL,   FmtClassUpdateNativeInternal,   SM_Obj_PtrByte_RefCleanupWorkListElement_RetVoid)
 DEFINE_METHOD(STUBHELPERS,          FMT_CLASS_UPDATE_CLR_INTERNAL,      FmtClassUpdateCLRInternal,      SM_Obj_PtrByte_RetVoid)
 DEFINE_METHOD(STUBHELPERS,          LAYOUT_DESTROY_NATIVE_INTERNAL,     LayoutDestroyNativeInternal,    SM_PtrByte_IntPtr_RetVoid)
 DEFINE_METHOD(STUBHELPERS,          ALLOCATE_INTERNAL,                  AllocateInternal,               SM_IntPtr_RetObj)
@@ -1088,12 +1089,12 @@ DEFINE_METHOD(BSTRMARSHALER,        CONVERT_TO_NATIVE,      ConvertToNative,    
 DEFINE_METHOD(BSTRMARSHALER,        CONVERT_TO_MANAGED,     ConvertToManaged,           SM_IntPtr_RetStr)
 DEFINE_METHOD(BSTRMARSHALER,        CLEAR_NATIVE,           ClearNative,                SM_IntPtr_RetVoid)
 
-#ifdef FEATURE_COMINTEROP
 DEFINE_CLASS(ANSIBSTRMARSHALER,     StubHelpers,            AnsiBSTRMarshaler)
 DEFINE_METHOD(ANSIBSTRMARSHALER,    CONVERT_TO_NATIVE,      ConvertToNative,            SM_Int_Str_RetIntPtr)
 DEFINE_METHOD(ANSIBSTRMARSHALER,    CONVERT_TO_MANAGED,     ConvertToManaged,           SM_IntPtr_RetStr)
 DEFINE_METHOD(ANSIBSTRMARSHALER,    CLEAR_NATIVE,           ClearNative,                SM_IntPtr_RetVoid)
 
+#ifdef FEATURE_COMINTEROP
 DEFINE_CLASS(OBJECTMARSHALER,       StubHelpers,            ObjectMarshaler)
 DEFINE_METHOD(OBJECTMARSHALER,      CONVERT_TO_NATIVE,      ConvertToNative,            SM_ObjIntPtr_RetVoid)
 DEFINE_METHOD(OBJECTMARSHALER,      CONVERT_TO_MANAGED,     ConvertToManaged,           SM_IntPtr_RetObj)
@@ -1171,7 +1172,7 @@ DEFINE_METHOD(HRESULTEXCEPTIONMARSHALER,  CONVERT_TO_MANAGED,    ConvertToManage
 #endif // FEATURE_COMINTEROP
 
 DEFINE_CLASS(VALUECLASSMARSHALER,   StubHelpers,            ValueClassMarshaler)
-DEFINE_METHOD(VALUECLASSMARSHALER,  CONVERT_TO_NATIVE,      ConvertToNative,            SM_IntPtrIntPtrIntPtr_RefCleanupWorkList_RetVoid)
+DEFINE_METHOD(VALUECLASSMARSHALER,  CONVERT_TO_NATIVE,      ConvertToNative,            SM_IntPtrIntPtrIntPtr_RefCleanupWorkListElement_RetVoid)
 DEFINE_METHOD(VALUECLASSMARSHALER,  CONVERT_TO_MANAGED,     ConvertToManaged,           SM_IntPtrIntPtrIntPtr_RetVoid)
 DEFINE_METHOD(VALUECLASSMARSHALER,  CLEAR_NATIVE,           ClearNative,                SM_IntPtr_IntPtr_RetVoid)
 
@@ -1454,6 +1455,8 @@ DEFINE_CLASS(LONG_ENUM_EQUALITYCOMPARER, CollectionsGeneric, LongEnumEqualityCom
 DEFINE_CLASS(NULLABLE_EQUALITYCOMPARER, CollectionsGeneric, NullableEqualityComparer`1)
 DEFINE_CLASS(GENERIC_EQUALITYCOMPARER, CollectionsGeneric, GenericEqualityComparer`1)
 DEFINE_CLASS(OBJECT_EQUALITYCOMPARER, CollectionsGeneric, ObjectEqualityComparer`1)
+
+DEFINE_CLASS(INATTRIBUTE, Interop, InAttribute)
 
 #undef DEFINE_CLASS
 #undef DEFINE_METHOD

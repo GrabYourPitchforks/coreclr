@@ -77,17 +77,7 @@ extern INT64 g_PauseTime;  // Total time in millisecond the CLR has been paused
 #ifdef FEATURE_COMINTEROP
 class ComCallWrapperCache;
 struct SimpleComCallWrapper;
-
 class RCWRefCache;
-
-// This enum is used to specify whether user want COM or remoting
-enum COMorRemotingFlag {
-    COMorRemoting_NotInitialized = 0,
-    COMorRemoting_COM            = 1, // COM will be used both cross-domain and cross-runtime
-    COMorRemoting_Remoting       = 2, // Remoting will be used cross-domain; cross-runtime will use Remoting only if it looks like it's expected (default)
-    COMorRemoting_LegacyMode     = 3  // Remoting will be used both cross-domain and cross-runtime
-};
-
 #endif // FEATURE_COMINTEROP
 
 #ifdef _MSC_VER
@@ -1910,16 +1900,16 @@ public:
 #ifndef DACCESS_COMPILE
     AppDomain();
     virtual ~AppDomain();
+    static void Create();
 #endif
+
     DomainAssembly* FindDomainAssembly(Assembly*);
     void EnterContext(Thread* pThread, Context* pCtx,ContextTransitionFrame *pFrame);
 
-#ifndef DACCESS_COMPILE
     //-----------------------------------------------------------------------------------------------------------------
     // Convenience wrapper for ::GetAppDomain to provide better encapsulation.
     static AppDomain * GetCurrentDomain()
-    { return ::GetAppDomain(); }
-#endif //!DACCESS_COMPILE
+    { return m_pTheAppDomain; }
     
     //-----------------------------------------------------------------------------------------------------------------
     // Initializes an AppDomain. (this functions is not called from the SystemDomain)
@@ -2578,8 +2568,6 @@ public:
     void RemoveWinRTFactoryObjects(LPVOID pCtxCookie);
 
     MethodTable *LoadCOMClass(GUID clsid, BOOL bLoadRecord = FALSE, BOOL* pfAssemblyInReg = NULL);
-    COMorRemotingFlag GetComOrRemotingFlag();
-    BOOL GetPreferComInsteadOfManagedRemoting();
     OBJECTREF GetMissingObject();    // DispatchInfo will call function to retrieve the Missing.Value object.
 #endif // FEATURE_COMINTEROP
 
@@ -3023,7 +3011,6 @@ private:
     EEClassFactoryInfoHashTable *m_pRefClassFactHash;   // Hash table that maps a class factory info to a COM comp.
 #ifdef FEATURE_COMINTEROP
     DispIDCache *m_pRefDispIDCache;
-    COMorRemotingFlag m_COMorRemotingFlag;
     OBJECTHANDLE  m_hndMissing;     //Handle points to Missing.Value Object which is used for [Optional] arg scenario during IDispatch CCW Call
 
     MethodTable* m_rpCLRTypes[WinMDAdapter::RedirectedTypeIndex_Count];
@@ -3179,7 +3166,6 @@ private:
     EEClassFactoryInfoHashTable* SetupClassFactHash();
 #ifdef FEATURE_COMINTEROP
     DispIDCache* SetupRefDispIDCache();
-    COMorRemotingFlag GetPreferComInsteadOfManagedRemotingFromConfigFile();
 #endif // FEATURE_COMINTEROP
 
     void InitializeDefaultDomainManager ();
@@ -3259,7 +3245,6 @@ private:
         while (lastStage !=stage) 
             lastStage = (Stage)FastInterlockCompareExchange((LONG*)&m_Stage,stage,lastStage);
     };
-    void ClearGCRoots();
     void UnwindThreads();
     // Return TRUE if EE is stopped
     // Return FALSE if more work is needed
@@ -3316,6 +3301,9 @@ public:
 #endif
 
 private:
+    // The one and only AppDomain
+    static AppDomain* m_pTheAppDomain;
+
     SString         m_friendlyName;
     PTR_Assembly    m_pRootAssembly;
 
@@ -3873,7 +3861,7 @@ public:
     {
         LIMITED_METHOD_DAC_CONTRACT;
 
-        return m_pDefaultDomain;
+        return AppDomain::GetCurrentDomain();
     }
 
     // Notification when an assembly is loaded into the system domain
@@ -4215,7 +4203,6 @@ private:
     {
         STANDARD_VM_CONTRACT;
 
-        m_pDefaultDomain = NULL;
         m_pDelayedUnloadListOfLoaderAllocators=NULL;
 
         m_GlobalAllocator.Init(this);
@@ -4224,7 +4211,6 @@ private:
 
     PTR_PEAssembly  m_pSystemFile;      // Single assembly (here for quicker reference);
     PTR_Assembly    m_pSystemAssembly;  // Single assembly (here for quicker reference);
-    PTR_AppDomain   m_pDefaultDomain;   // Default domain for COM+ classes exposed through IClassFactory.
 
     GlobalLoaderAllocator m_GlobalAllocator;
 

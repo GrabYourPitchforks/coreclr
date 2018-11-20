@@ -57,7 +57,7 @@
 //   G  --      -- Generic type variable
 //   M  --      -- Generic method variable
 //   GI --      -- Generic type instantiation
-//
+//   Q          -- modreq
 
 //#DEFINE_METASIG
 // Use DEFINE_METASIG for signatures that does not reference other types
@@ -138,6 +138,9 @@
 #ifndef g
 #define g(x) METASIG_ATOM(ELEMENT_TYPE_VALUETYPE) METASIG_ATOM(CLASS__ ## x % 0x100) METASIG_ATOM(CLASS__ ## x / 0x100)
 #endif
+#ifndef Q
+#define Q(x) METASIG_ATOM(ELEMENT_TYPE_CMOD_REQD) METASIG_ATOM(CLASS__ ## x % 0x100) METASIG_ATOM(CLASS__ ## x / 0x100)
+#endif
 
 #else
 
@@ -157,6 +160,8 @@
 #ifndef g
 #define g(x) METASIG_ATOM(ELEMENT_TYPE_VALUETYPE)
 #endif
+
+#define Q(x)
 
 #endif
 
@@ -212,7 +217,7 @@ DEFINE_METASIG(SM(RetBool, _, F))
 DEFINE_METASIG(SM(IntPtr_RetStr, I, s))
 DEFINE_METASIG(SM(IntPtr_RetBool, I, F))
 DEFINE_METASIG(SM(IntPtrIntPtrIntPtr_RetVoid, I I I, v))
-DEFINE_METASIG_T(SM(IntPtrIntPtrIntPtr_RefCleanupWorkList_RetVoid, I I I r(C(CLEANUP_WORK_LIST)), v))
+DEFINE_METASIG_T(SM(IntPtrIntPtrIntPtr_RefCleanupWorkListElement_RetVoid, I I I r(C(CLEANUP_WORK_LIST_ELEMENT)), v))
 DEFINE_METASIG_T(SM(RuntimeType_RuntimeMethodHandleInternal_RetMethodBase, C(CLASS) g(METHOD_HANDLE_INTERNAL), C(METHOD_BASE) ))
 DEFINE_METASIG_T(SM(RuntimeType_IRuntimeFieldInfo_RetFieldInfo, C(CLASS) C(I_RT_FIELD_INFO), C(FIELD_INFO) ))
 DEFINE_METASIG_T(SM(RuntimeType_Int_RetPropertyInfo, C(CLASS) i, C(PROPERTY_INFO) ))
@@ -220,7 +225,7 @@ DEFINE_METASIG(SM(Char_Bool_Bool_RetByte, u F F, b))
 DEFINE_METASIG(SM(Byte_RetChar, b, u))
 DEFINE_METASIG(SM(Str_Bool_Bool_RefInt_RetIntPtr, s F F r(i), I))
 DEFINE_METASIG(SM(IntPtr_Int_RetStr, I i, s))
-DEFINE_METASIG_T(SM(Obj_PtrByte_RefCleanupWorkList_RetVoid, j P(b) r(C(CLEANUP_WORK_LIST)), v))
+DEFINE_METASIG_T(SM(Obj_PtrByte_RefCleanupWorkListElement_RetVoid, j P(b) r(C(CLEANUP_WORK_LIST_ELEMENT)), v))
 DEFINE_METASIG(SM(Obj_PtrByte_RetVoid, j P(b), v))
 DEFINE_METASIG(SM(PtrByte_IntPtr_RetVoid, P(b) I, v))
 DEFINE_METASIG(SM(Str_Bool_Bool_RefInt_RetArrByte, s F F r(i), a(b) ))
@@ -592,8 +597,9 @@ DEFINE_METASIG_T(SM(RefDec_RetVoid, r(g(DECIMAL)), v))
 DEFINE_METASIG(GM(RefT_T_T_RetT, IMAGE_CEE_CS_CALLCONV_DEFAULT, 1, r(M(0)) M(0) M(0), M(0)))
 DEFINE_METASIG(SM(RefObject_Object_Object_RetObject, r(j) j j, j))
 
-DEFINE_METASIG_T(SM(RefCleanupWorkList_RetVoid, r(C(CLEANUP_WORK_LIST)), v))
-DEFINE_METASIG_T(SM(RefCleanupWorkList_SafeHandle_RetIntPtr, r(C(CLEANUP_WORK_LIST)) C(SAFE_HANDLE), I))
+DEFINE_METASIG_T(SM(RefCleanupWorkListElement_RetVoid, r(C(CLEANUP_WORK_LIST_ELEMENT)), v))
+DEFINE_METASIG_T(SM(RefCleanupWorkListElement_SafeHandle_RetIntPtr, r(C(CLEANUP_WORK_LIST_ELEMENT)) C(SAFE_HANDLE), I))
+DEFINE_METASIG_T(SM(RefCleanupWorkListElement_Delegate_RetVoid, r(C(CLEANUP_WORK_LIST_ELEMENT)) C(DELEGATE), v))
 
 #ifdef FEATURE_ICASTABLE
 DEFINE_METASIG_T(SM(ICastable_RtType_RefException_RetBool, C(ICASTABLE) C(CLASS) r(C(EXCEPTION)), F))
@@ -603,6 +609,9 @@ DEFINE_METASIG_T(SM(ICastable_RtType_RetRtType, C(ICASTABLE) C(CLASS), C(CLASS))
 DEFINE_METASIG_T(IM(ArrByte_Int_Int_AsyncCallback_Object_RetIAsyncResult, a(b) i i C(ASYNCCALLBACK) j, C(IASYNCRESULT)))
 DEFINE_METASIG_T(IM(IAsyncResult_RetInt, C(IASYNCRESULT), i))
 DEFINE_METASIG_T(IM(IAsyncResult_RetVoid, C(IASYNCRESULT), v))
+
+DEFINE_METASIG(IM(Int_RetRefT, i, r(G(0))))
+DEFINE_METASIG_T(IM(Int_RetReadOnlyRefT, i, Q(INATTRIBUTE) r(G(0))))
 
 // Undefine macros in case we include the file again in the compilation unit
 
@@ -645,6 +654,7 @@ DEFINE_METASIG_T(IM(IAsyncResult_RetVoid, C(IASYNCRESULT), v))
 #undef G
 #undef M
 #undef GI
+#undef Q
 
 #undef _
 

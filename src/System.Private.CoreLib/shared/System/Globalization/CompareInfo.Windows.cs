@@ -16,7 +16,7 @@ namespace System.Globalization
         {
             _sortName = culture.SortName;
 
-            if (_invariantMode)
+            if (GlobalizationMode.Invariant)
             {
                 _sortHandle = IntPtr.Zero;
             }
@@ -111,10 +111,10 @@ namespace System.Globalization
 
             return FindStringOrdinal(FIND_FROMEND, source, startIndex - count + 1, count, value, value.Length, ignoreCase);
         }
-
+        
         private unsafe int GetHashCodeOfStringCore(ReadOnlySpan<char> source, CompareOptions options)
         {
-            Debug.Assert(!_invariantMode);
+            Debug.Assert(!GlobalizationMode.Invariant);
             Debug.Assert((options & (CompareOptions.Ordinal | CompareOptions.OrdinalIgnoreCase)) == 0);
 
             if (source.Length == 0)
@@ -128,7 +128,7 @@ namespace System.Globalization
             {
                 int sortKeyLength = Interop.Kernel32.LCMapStringEx(_sortHandle != IntPtr.Zero ? null : _sortName,
                                                   flags,
-                                                  pSource, source.Length,
+                                                  pSource, source.Length /* in chars */,
                                                   null, 0,
                                                   null, null, _sortHandle);
                 if (sortKeyLength == 0)
@@ -150,7 +150,7 @@ namespace System.Globalization
                 {
                     if (Interop.Kernel32.LCMapStringEx(_sortHandle != IntPtr.Zero ? null : _sortName,
                                                       flags,
-                                                      pSource, source.Length,
+                                                      pSource, source.Length /* in chars */,
                                                       pSortKey, sortKeyLength,
                                                       null, null, _sortHandle) != sortKeyLength)
                     {
@@ -188,7 +188,7 @@ namespace System.Globalization
         private unsafe int CompareString(ReadOnlySpan<char> string1, string string2, CompareOptions options)
         {
             Debug.Assert(string2 != null);
-            Debug.Assert(!_invariantMode);
+            Debug.Assert(!GlobalizationMode.Invariant);
             Debug.Assert((options & (CompareOptions.Ordinal | CompareOptions.OrdinalIgnoreCase)) == 0);
 
             string localeName = _sortHandle != IntPtr.Zero ? null : _sortName;
@@ -221,7 +221,7 @@ namespace System.Globalization
 
         private unsafe int CompareString(ReadOnlySpan<char> string1, ReadOnlySpan<char> string2, CompareOptions options)
         {
-            Debug.Assert(!_invariantMode);
+            Debug.Assert(!GlobalizationMode.Invariant);
             Debug.Assert((options & (CompareOptions.Ordinal | CompareOptions.OrdinalIgnoreCase)) == 0);
 
             string localeName = _sortHandle != IntPtr.Zero ? null : _sortName;
@@ -259,7 +259,7 @@ namespace System.Globalization
                     ReadOnlySpan<char> lpStringValue,
                     int* pcchFound)
         {
-            Debug.Assert(!_invariantMode);
+            Debug.Assert(!GlobalizationMode.Invariant);
             Debug.Assert(!lpStringSource.IsEmpty);
             Debug.Assert(!lpStringValue.IsEmpty);
 
@@ -293,7 +293,7 @@ namespace System.Globalization
             int cchValue,
             int* pcchFound)
         {
-            Debug.Assert(!_invariantMode);
+            Debug.Assert(!GlobalizationMode.Invariant);
             Debug.Assert(lpStringSource != null);
             Debug.Assert(lpStringValue != null);
 
@@ -322,7 +322,7 @@ namespace System.Globalization
 
         internal unsafe int IndexOfCore(string source, string target, int startIndex, int count, CompareOptions options, int* matchLengthPtr)
         {
-            Debug.Assert(!_invariantMode);
+            Debug.Assert(!GlobalizationMode.Invariant);
 
             Debug.Assert(source != null);
             Debug.Assert(target != null);
@@ -365,7 +365,7 @@ namespace System.Globalization
 
         internal unsafe int IndexOfCore(ReadOnlySpan<char> source, ReadOnlySpan<char> target, CompareOptions options, int* matchLengthPtr, bool fromBeginning)
         {
-            Debug.Assert(!_invariantMode);
+            Debug.Assert(!GlobalizationMode.Invariant);
 
             Debug.Assert(source.Length != 0);
             Debug.Assert(target.Length != 0);
@@ -377,7 +377,7 @@ namespace System.Globalization
 
         private unsafe int LastIndexOfCore(string source, string target, int startIndex, int count, CompareOptions options)
         {
-            Debug.Assert(!_invariantMode);
+            Debug.Assert(!GlobalizationMode.Invariant);
 
             Debug.Assert(!string.IsNullOrEmpty(source));
             Debug.Assert(target != null);
@@ -406,7 +406,7 @@ namespace System.Globalization
 
         private unsafe bool StartsWith(string source, string prefix, CompareOptions options)
         {
-            Debug.Assert(!_invariantMode);
+            Debug.Assert(!GlobalizationMode.Invariant);
 
             Debug.Assert(!string.IsNullOrEmpty(source));
             Debug.Assert(!string.IsNullOrEmpty(prefix));
@@ -418,7 +418,7 @@ namespace System.Globalization
 
         private unsafe bool StartsWith(ReadOnlySpan<char> source, ReadOnlySpan<char> prefix, CompareOptions options)
         {
-            Debug.Assert(!_invariantMode);
+            Debug.Assert(!GlobalizationMode.Invariant);
 
             Debug.Assert(!source.IsEmpty);
             Debug.Assert(!prefix.IsEmpty);
@@ -429,7 +429,7 @@ namespace System.Globalization
 
         private unsafe bool EndsWith(string source, string suffix, CompareOptions options)
         {
-            Debug.Assert(!_invariantMode);
+            Debug.Assert(!GlobalizationMode.Invariant);
 
             Debug.Assert(!string.IsNullOrEmpty(source));
             Debug.Assert(!string.IsNullOrEmpty(suffix));
@@ -441,7 +441,7 @@ namespace System.Globalization
 
         private unsafe bool EndsWith(ReadOnlySpan<char> source, ReadOnlySpan<char> suffix, CompareOptions options)
         {
-            Debug.Assert(!_invariantMode);
+            Debug.Assert(!GlobalizationMode.Invariant);
 
             Debug.Assert(!source.IsEmpty);
             Debug.Assert(!suffix.IsEmpty);
@@ -539,7 +539,7 @@ namespace System.Globalization
 
         private unsafe SortKey CreateSortKey(string source, CompareOptions options)
         {
-            Debug.Assert(!_invariantMode);
+            Debug.Assert(!GlobalizationMode.Invariant);
 
             if (source == null) { throw new ArgumentNullException(nameof(source)); }
 
@@ -636,7 +636,7 @@ namespace System.Globalization
 
         private unsafe SortVersion GetSortVersion()
         {
-            Debug.Assert(!_invariantMode);
+            Debug.Assert(!GlobalizationMode.Invariant);
 
             Interop.Kernel32.NlsVersionInfoEx nlsVersion = new Interop.Kernel32.NlsVersionInfoEx();
             nlsVersion.dwNLSVersionInfoSize = sizeof(Interop.Kernel32.NlsVersionInfoEx);
