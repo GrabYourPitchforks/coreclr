@@ -6,6 +6,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Text;
 
 using Internal.Runtime.CompilerServices;
 
@@ -918,6 +919,48 @@ namespace System
         }
 
         public bool StartsWith(char value) => Length != 0 && _firstChar == value;
+
+        public bool StartsWith(char value, StringComparison comparisonType)
+        {
+            if (comparisonType == StringComparison.Ordinal)
+            {
+                return StartsWith(value);
+            }
+            else
+            {
+                Span<char> chars = stackalloc char[1] { value };
+                return this.AsSpan().StartsWith(chars, comparisonType);
+            }
+        }
+
+        public bool StartsWith(Rune value)
+        {
+            if (value.IsBmp)
+            {
+                return StartsWith((char)value.Value);
+            }
+            else
+            {
+                // Since strings are null-terminated, we can avoid checking the string length. If this is an undersized
+                // string we'll eventually hit the null terminator, fail the surrogate comparison check, and return false.
+
+                return _firstChar == (char)UnicodeUtility.GetUtf16HighSurrogateCodePointFromSupplementaryPlaneScalar((uint)value.Value)
+                    && Unsafe.Add(ref _firstChar, 1) == (char)UnicodeUtility.GetUtf16LowSurrogateCodePointFromSupplementaryPlaneScalar((uint)value.Value);
+            }
+        }
+
+        public bool StartsWith(Rune value, StringComparison comparisonType)
+        {
+            if (comparisonType == StringComparison.Ordinal)
+            {
+                return StartsWith(value);
+            }
+            else
+            {
+                Span<char> chars = stackalloc char[Rune.MaxUtf16SequenceLength];
+                return this.AsSpan().StartsWith(value.EncodeToUtf16(chars), comparisonType);
+            }
+        }
 
         internal static void CheckStringComparison(StringComparison comparisonType)
         {
