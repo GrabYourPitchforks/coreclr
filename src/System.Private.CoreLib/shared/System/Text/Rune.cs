@@ -25,6 +25,8 @@ namespace System.Text
     [DebuggerDisplay("{DebuggerDisplay,nq}")]
     public readonly struct Rune : IComparable<Rune>, IEquatable<Rune>
     {
+        internal const int MaxUtf16SequenceLength = 2; // no scalar is more than 2 UTF-16 code units in length
+
         private const byte IsWhiteSpaceFlag = 0x80;
         private const byte IsLetterOrDigitFlag = 0x40;
         private const byte UnicodeCategoryMask = 0x1F;
@@ -177,12 +179,11 @@ namespace System.Text
 
             var textInfo = culture.TextInfo;
 
-            Span<char> original = stackalloc char[2]; // worst case scenario = 2 code units (for a surrogate pair)
-            Span<char> modified = stackalloc char[2]; // case change should preserve UTF-16 code unit count
+            Span<char> original = stackalloc char[MaxUtf16SequenceLength]; // worst case scenario = 2 code units (for a surrogate pair)
+            Span<char> modified = stackalloc char[MaxUtf16SequenceLength]; // case change should preserve UTF-16 code unit count
 
-            int charCount = rune.EncodeToUtf16(original);
-            original = original.Slice(0, charCount);
-            modified = modified.Slice(0, charCount);
+            original = rune.EncodeToUtf16(original);
+            modified = modified.Slice(0, original.Length);
 
             if (toUpper)
             {
@@ -215,20 +216,36 @@ namespace System.Text
 
             return this.Value - other.Value;
         }
-
-        // returns the number of chars written
-        private int EncodeToUtf16(Span<char> destination)
+        
+        // Encodes this scalar value to a UTF-16 destination buffer, then returns the sliced buffer.
+        // The buffer should already be large enough to hold the encoded output.
+        // This method is marked aggressive inlining because the caller is expected to stackalloc a buffer
+        // large enough to hold the result, causing the JIT to elide the bounds checking.
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal Span<char> EncodeToUtf16(Span<char> destination)
         {
-            Debug.Assert(destination.Length >= Utf16SequenceLength, "Caller should've provided a large enough buffer.");
-            bool success = TryEncode(destination, out int charsWritten);
-            Debug.Assert(success, "TryEncode should never fail given a large enough buffer.");
-            return charsWritten;
+            Debug.Assert(destination.Length >= Utf16SequenceLength);
+
+            int length;
+
+            if (IsBmp)
+            {
+                destination[0] = (char)_value;
+                length = 1;
+            }
+            else
+            {
+                UnicodeUtility.GetUtf16SurrogatesFromSupplementaryPlaneScalar(_value, out destination[0], out destination[1]);
+                length = 2;
+            }
+
+            return new Span<char>(ref destination[0], length);
         }
 
         public override bool Equals(object obj) => (obj is Rune other) && this.Equals(other);
 
         public bool Equals(Rune other) => (this == other);
-        
+
         public bool Equals(Rune other, StringComparison comparisonType)
         {
             switch (comparisonType)
@@ -376,8 +393,8 @@ namespace System.Text
         /// </summary>
         public override string ToString()
         {
-            Span<char> chars = stackalloc char[2]; // worst case
-            return new string(chars.Slice(0, EncodeToUtf16(chars)));
+            Span<char> chars = stackalloc char[MaxUtf16SequenceLength]; // worst case
+            return new string(EncodeToUtf16(chars));
         }
 
         /// <summary>

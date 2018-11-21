@@ -398,16 +398,11 @@ namespace System.Globalization
                 return rune1.CompareTo(rune2);
             }
 
-            Span<char> chars1 = stackalloc char[2];
-            Span<char> chars2 = stackalloc char[2];
+            Span<char> chars1 = stackalloc char[Rune.MaxUtf16SequenceLength];
+            Span<char> chars2 = stackalloc char[Rune.MaxUtf16SequenceLength];
 
-            bool succeeded1 = rune1.TryEncode(chars1, out int charsWritten1);
-            Debug.Assert(succeeded1, "Encoding to UTF-16 failed.");
-            chars1 = chars1.Slice(0, charsWritten1);
-
-            bool succeeded2 = rune2.TryEncode(chars2, out int charsWritten2);
-            Debug.Assert(succeeded2, "Encoding to UTF-16 failed.");
-            chars2 = chars2.Slice(0, charsWritten2);
+            chars1 = rune1.EncodeToUtf16(chars1);
+            chars2 = rune2.EncodeToUtf16(chars2);
 
             if (GlobalizationMode.Invariant)
             {
@@ -632,16 +627,15 @@ namespace System.Globalization
                 return false;
             }
 
-            Span<char> charsA = stackalloc char[2];
-            Span<char> charsB = stackalloc char[2];
+            Span<char> charsA = stackalloc char[Rune.MaxUtf16SequenceLength];
+            Span<char> charsB = stackalloc char[Rune.MaxUtf16SequenceLength];
 
-            bool succeededA = a.TryEncode(charsA, out int charsWrittenA);
-            bool succeededB = b.TryEncode(charsB, out int charsWrittenB);
+            charsA = a.EncodeToUtf16(charsA);
+            charsB = b.EncodeToUtf16(charsB);
 
-            Debug.Assert(succeededA && succeededB, "Encoding to UTF-16 failed.");
-            Debug.Assert(charsWrittenA == charsWrittenB, "Encoding to UTF-16 produced different sized outputs.");
+            Debug.Assert(charsA.Length == charsB.Length, "Encoding to UTF-16 produced different sized outputs.");
 
-            return EqualsOrdinalIgnoreCase(ref charsA[0], ref charsB[0], charsWrittenB);
+            return EqualsOrdinalIgnoreCase(ref charsA[0], ref charsB[0], charsB.Length);
         }
 
         internal static bool EqualsOrdinalIgnoreCase(ref char charA, ref char charB, int length)

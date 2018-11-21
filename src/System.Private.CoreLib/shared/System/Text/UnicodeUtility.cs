@@ -40,6 +40,30 @@ namespace System.Text
         }
 
         /// <summary>
+        /// Given an astral Unicode scalar, retrieves the UTF-16 high surrogate code point.
+        /// </summary>
+        public static uint GetUtf16HighSurrogateCodePointFromSupplementaryPlaneScalar(uint value)
+        {
+            UnicodeDebug.AssertIsValidSupplementaryPlaneScalar(value);
+
+            // This calculation comes from the Unicode specification, Table 3-5.
+            // On x86, this is two instructions: add / shr
+            return (value + ((0xD800u - 0x40u) << 10)) >> 10;
+        }
+
+        /// <summary>
+        /// Given an astral Unicode scalar, retrieves the UTF-16 low surrogate code point.
+        /// </summary>
+        public static uint GetUtf16LowSurrogateCodePointFromSupplementaryPlaneScalar(uint value)
+        {
+            UnicodeDebug.AssertIsValidSupplementaryPlaneScalar(value);
+
+            // This calculation comes from the Unicode specification, Table 3-5.
+            // On x86, this is two instructions: and / add
+            return (value & 0x3FFu) + 0xDC00u;
+        }
+
+        /// <summary>
         /// Given a Unicode scalar value, gets the number of UTF-16 code units required to represent this value.
         /// </summary>
         public static int GetUtf16SequenceLength(uint value)
@@ -58,12 +82,8 @@ namespace System.Text
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void GetUtf16SurrogatesFromSupplementaryPlaneScalar(uint value, out char highSurrogateCodePoint, out char lowSurrogateCodePoint)
         {
-            UnicodeDebug.AssertIsValidSupplementaryPlaneScalar(value);
-
-            // This calculation comes from the Unicode specification, Table 3-5.
-
-            highSurrogateCodePoint = (char)((value + ((0xD800u - 0x40u) << 10)) >> 10);
-            lowSurrogateCodePoint = (char)((value & 0x3FFu) + 0xDC00u);
+            highSurrogateCodePoint = (char)GetUtf16HighSurrogateCodePointFromSupplementaryPlaneScalar(value);
+            lowSurrogateCodePoint = (char)GetUtf16LowSurrogateCodePointFromSupplementaryPlaneScalar(value);
         }
 
         /// <summary>
