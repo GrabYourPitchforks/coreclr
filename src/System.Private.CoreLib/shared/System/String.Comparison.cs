@@ -944,8 +944,8 @@ namespace System
                 // Since strings are null-terminated, we can avoid checking the string length. If this is an undersized
                 // string we'll eventually hit the null terminator, fail the surrogate comparison check, and return false.
 
-                return _firstChar == (char)UnicodeUtility.GetUtf16HighSurrogateCodePointFromSupplementaryPlaneScalar((uint)value.Value)
-                    && Unsafe.Add(ref _firstChar, 1) == (char)UnicodeUtility.GetUtf16LowSurrogateCodePointFromSupplementaryPlaneScalar((uint)value.Value);
+                return _firstChar == value.GetHighSurrogateComponent()
+                    && Unsafe.Add(ref _firstChar, 1) == value.GetLowSurrogateComponent();
             }
         }
 
