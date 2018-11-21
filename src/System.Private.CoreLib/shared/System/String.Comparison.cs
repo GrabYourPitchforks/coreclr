@@ -601,6 +601,49 @@ namespace System
             return thisLen != 0 && this[thisLen - 1] == value;
         }
 
+        public bool EndsWith(char value, StringComparison comparisonType)
+        {
+            if (comparisonType == StringComparison.Ordinal)
+            {
+                return EndsWith(value);
+            }
+            else
+            {
+                Span<char> chars = stackalloc char[1] { value };
+                return this.AsSpan().EndsWith(chars, comparisonType);
+            }
+        }
+
+        public bool EndsWith(Rune value)
+        {
+            if (value.IsBmp)
+            {
+                return EndsWith((char)value.Value);
+            }
+            else
+            {
+                // Unlike StartsWith, EndsWith needs to perform the Length check. Since we're reading backward from the
+                // end we'll never run into the null terminator to signal the end of the search space.
+
+                return Length >= 2
+                    && this[Length - 2] == value.GetHighSurrogateComponent()
+                    && this[Length - 1] == value.GetLowSurrogateComponent();
+            }
+        }
+
+        public bool EndsWith(Rune value, StringComparison comparisonType)
+        {
+            if (comparisonType == StringComparison.Ordinal)
+            {
+                return EndsWith(value);
+            }
+            else
+            {
+                Span<char> chars = stackalloc char[Rune.MaxUtf16SequenceLength];
+                return this.AsSpan().EndsWith(value.EncodeToUtf16(chars), comparisonType);
+            }
+        }
+
         // Determines whether two strings match.
         public override bool Equals(object obj)
         {
