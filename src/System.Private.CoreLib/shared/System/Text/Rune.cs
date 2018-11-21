@@ -235,7 +235,8 @@ namespace System.Text
             }
             else
             {
-                UnicodeUtility.GetUtf16SurrogatesFromSupplementaryPlaneScalar(_value, out destination[0], out destination[1]);
+                destination[0] = GetHighSurrogateComponent();
+                destination[1] = GetLowSurrogateComponent();
                 length = 2;
             }
 
@@ -270,6 +271,24 @@ namespace System.Text
         }
 
         public override int GetHashCode() => Value;
+
+        /// <summary>
+        /// Returns the high surrogate UTF-16 code unit of this supplementary scalar value.
+        /// Behavior is undefined if this is a BMP scalar value.
+        /// </summary>
+        internal char GetHighSurrogateComponent()
+        {
+            return (char)UnicodeUtility.GetUtf16HighSurrogateCodePointFromSupplementaryPlaneScalar(_value);
+        }
+
+        /// <summary>
+        /// Returns the low surrogate UTF-16 code unit of this supplementary scalar value.
+        /// Behavior is undefined if this is a BMP scalar value.
+        /// </summary>
+        internal char GetLowSurrogateComponent()
+        {
+            return (char)UnicodeUtility.GetUtf16LowSurrogateCodePointFromSupplementaryPlaneScalar(_value);
+        }
 
         /// <summary>
         /// Gets the <see cref="Rune"/> which begins at index <paramref name="index"/> in
@@ -462,7 +481,8 @@ namespace System.Text
                 }
                 else if (destination.Length >= 2)
                 {
-                    UnicodeUtility.GetUtf16SurrogatesFromSupplementaryPlaneScalar(_value, out destination[0], out destination[1]);
+                    destination[0] = GetHighSurrogateComponent();
+                    destination[1] = GetLowSurrogateComponent();
                     charsWritten = 2;
                     return true;
                 }

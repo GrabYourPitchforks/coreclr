@@ -6,6 +6,7 @@ using System.Globalization;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Text;
 using Internal.Runtime.CompilerServices;
 
 namespace System
@@ -27,6 +28,25 @@ namespace System
         public bool Contains(char value, StringComparison comparisonType)
         {
             return IndexOf(value, comparisonType) != -1;
+        }
+
+        public bool Contains(Rune value)
+        {
+            if (value.IsBmp)
+            {
+                return Contains((char)value.Value);
+            }
+            else
+            {
+                ReadOnlySpan<char> chars = stackalloc char[] { value.GetHighSurrogateComponent(), value.GetLowSurrogateComponent() };
+                return this.AsSpan().Contains(chars, StringComparison.Ordinal);
+            }
+        }
+
+        public bool Contains(Rune value, StringComparison comparisonType)
+        {
+            Span<char> chars = stackalloc char[Rune.MaxUtf16SequenceLength];
+            return this.AsSpan().Contains(value.EncodeToUtf16(chars), comparisonType);
         }
 
         // Returns the index of the first occurrence of a specified character in the current instance.
