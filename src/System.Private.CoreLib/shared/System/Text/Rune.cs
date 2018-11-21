@@ -412,8 +412,15 @@ namespace System.Text
         /// </summary>
         public override string ToString()
         {
-            Span<char> chars = stackalloc char[MaxUtf16SequenceLength]; // worst case
-            return new string(EncodeToUtf16(chars));
+            if (IsBmp)
+            {
+                return string.CreateFromChar((char)_value);
+            }
+            else
+            {
+                ReadOnlySpan<char> chars = stackalloc char[2] { GetHighSurrogateComponent(), GetLowSurrogateComponent() };
+                return new string(chars);
+            }
         }
 
         /// <summary>
