@@ -11,6 +11,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using System.Text;
+using Internal.Runtime.CompilerServices;
 
 namespace System
 {
@@ -497,6 +498,24 @@ namespace System
             string result = FastAllocateString(1);
             result._firstChar = c;
             return result;
+        }
+
+        // This is only intended to be used by Rune.ToString, for the same reasons as CreateFromChar.
+        internal static string CreateFromScalar(Rune scalarValue)
+        {
+            if (scalarValue.IsBmp)
+            {
+                string result = FastAllocateString(1);
+                result._firstChar = (char)scalarValue.Value;
+                return result;
+            }
+            else
+            {
+                string result = FastAllocateString(2);
+                result._firstChar = scalarValue.GetHighSurrogateComponent();
+                Unsafe.Add(ref result._firstChar, 1) = scalarValue.GetLowSurrogateComponent();
+                return result;
+            }
         }
 
         internal static unsafe void wstrcpy(char* dmem, char* smem, int charCount)

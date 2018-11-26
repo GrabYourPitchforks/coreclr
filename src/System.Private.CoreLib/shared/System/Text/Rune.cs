@@ -410,18 +410,7 @@ namespace System.Text
         /// <summary>
         /// Returns a <see cref="string"/> representation of this <see cref="Rune"/> instance.
         /// </summary>
-        public override string ToString()
-        {
-            if (IsBmp)
-            {
-                return string.CreateFromChar((char)_value);
-            }
-            else
-            {
-                ReadOnlySpan<char> chars = stackalloc char[2] { GetHighSurrogateComponent(), GetLowSurrogateComponent() };
-                return new string(chars);
-            }
-        }
+        public override string ToString() => string.CreateFromScalar(this);
 
         /// <summary>
         /// Attempts to create a <see cref="Rune"/> from the provided input value.
