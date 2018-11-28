@@ -99,38 +99,17 @@ namespace System.Numerics
         #endregion Static Members
 
         #region Static Initialization
-        private struct VectorSizeHelper
-        {
-            internal Vector<T> _placeholder;
-            internal byte _byte;
-        }
-
         // Calculates the size of this struct in bytes, by computing the offset of a field in a structure
-        private static unsafe int InitializeCount()
+        private static int InitializeCount()
         {
-            VectorSizeHelper vsh;
-            byte* vectorBase = &vsh._placeholder.register.byte_0;
-            byte* byteBase = &vsh._byte;
-            int vectorSizeInBytes = (int)(byteBase - vectorBase);
-
-            int typeSizeInBytes = -1;
-<#
-    foreach (Type type in supportedTypes)
-    {
-#>
-            <#=GenerateIfStatementHeader(type)#>
+            <#=GenerateIfConditionAllTypes(supportedTypes)#>
             {
-                typeSizeInBytes = sizeof(<#=typeAliases[type]#>);
+                return Unsafe.SizeOf<Vector<T>>() / Unsafe.SizeOf<T>();
             }
-<#
-    }
-#>
             else
             {
                 throw new NotSupportedException(SR.Arg_TypeNotSupported);
             }
-
-            return vectorSizeInBytes / typeSizeInBytes;
         }
         #endregion Static Initialization
 
@@ -189,13 +168,13 @@ namespace System.Numerics
         /// Constructs a vector from the given array. The size of the given array must be at least Vector'T.Count.
         /// </summary>
         [Intrinsic]
-        public unsafe Vector(T[] values) : this(values, 0) { }
+        public Vector(T[] values) : this(values, 0) { }
 
         /// <summary>
         /// Constructs a vector from the given array, starting from the given index.
         /// The array must contain at least Vector'T.Count from the given index.
         /// </summary>
-        public unsafe Vector(T[] values, int index)
+        public Vector(T[] values, int index)
             : this()
         {
             if (values == null)
@@ -203,55 +182,12 @@ namespace System.Numerics
                 // Match the JIT's exception type here. For perf, a NullReference is thrown instead of an ArgumentNull.
                 throw new NullReferenceException(SR.Arg_NullArgumentNullRef);
             }
-            if (index < 0 || (values.Length - index) < Count)
+            if ((uint)index > (uint)values.Length || (uint)(index + Count) > (uint)values.Length)
             {
                 throw new IndexOutOfRangeException(SR.Format(SR.Arg_InsufficientNumberOfElements, Vector<T>.Count, nameof(values)));
             }
 
-            if (Vector.IsHardwareAccelerated)
-            {
-<#
-    foreach (Type type in supportedTypes)
-    {
-#>
-                <#=GenerateIfStatementHeader(type)#>
-                {
-                    fixed (<#=typeAliases[type]#>* basePtr = &this.<#=GetRegisterFieldName(type, 0)#>)
-                    {
-                        for (int g = 0; g < Count; g++)
-                        {
-                            *(basePtr + g) = (<#=typeAliases[type]#>)(object)values[g + index];
-                        }
-                    }
-                }
-<#
-    }
-#>
-            }
-            else
-            {
-<#
-    foreach (Type type in supportedTypes)
-    {
-#>
-                <#=GenerateIfStatementHeader(type)#>
-                {
-                    fixed (<#=typeAliases[type]#>* basePtr = &this.<#=GetRegisterFieldName(type, 0)#>)
-                    {
-<#
-        for (int g = 0; g < GetNumFields(type, totalSize); g++)
-        {
-#>
-                        *(basePtr + <#=g#>) = (<#=typeAliases[type]#>)(object)values[<#=g#> + index];
-<#
-        }
-#>
-                    }
-                }
-<#
-    }
-#>
-            }
+            this = Unsafe.ReadUnaligned<Vector<T>>(ref Unsafe.As<T, byte>(ref values[index]));
         }
 
 #pragma warning disable 3001 // void* is not a CLS-Compliant argument type
@@ -263,25 +199,10 @@ namespace System.Numerics
         internal unsafe Vector(void* dataPointer, int offset)
             : this()
         {
-<#
-    foreach (Type type in supportedTypes)
-    {
-#>
-            <#=GenerateIfStatementHeader(type)#>
+            <#=GenerateIfConditionAllTypes(supportedTypes)#>
             {
-                <#=typeAliases[type]#>* castedPtr = (<#=typeAliases[type]#>*)dataPointer;
-                castedPtr += offset;
-                fixed (<#=typeAliases[type]#>* registerBase = &this.<#=GetRegisterFieldName(type, 0)#>)
-                {
-                    for (int g = 0; g < Count; g++)
-                    {
-                        registerBase[g] = castedPtr[g];
-                    }
-                }
+                this = Unsafe.ReadUnaligned<Vector<T>>(Unsafe.Add<T>(dataPointer, offset));
             }
-<#
-    }
-#>
             else
             {
                 throw new NotSupportedException(SR.Arg_TypeNotSupported);
@@ -299,6 +220,14 @@ namespace System.Numerics
         /// Constructs a vector from the given span. The span must contain at least Vector'T.Count elements.
         /// </summary>
         public Vector(Span<T> values)
+            : this((ReadOnlySpan<T>)values)
+        {
+        }
+
+        /// <summary>
+        /// Constructs a vector from the given span. The span must contain at least Vector'T.Count elements.
+        /// </summary>
+        public Vector(ReadOnlySpan<T> values)
             : this()
         {
             <#=GenerateIfConditionAllTypes(supportedTypes)#>
@@ -308,6 +237,26 @@ namespace System.Numerics
                     throw new IndexOutOfRangeException(SR.Format(SR.Arg_InsufficientNumberOfElements, Vector<T>.Count, nameof(values)));
                 }
                 this = Unsafe.ReadUnaligned<Vector<T>>(ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(values)));
+            }
+            else
+            {
+                throw new NotSupportedException(SR.Arg_TypeNotSupported);
+            }
+        }
+
+        /// <summary>
+        /// Constructs a vector from the given byte buffer. The span must contain at least sizeof(T) * Vector'T.Count elements.
+        /// </summary>
+        public Vector(ReadOnlySpan<byte> value)
+            : this()
+        {
+            <#=GenerateIfConditionAllTypes(supportedTypes)#>
+            {
+                if (value.Length < Unsafe.SizeOf<Vector<T>>())
+                {
+                    throw new IndexOutOfRangeException(SR.Format(SR.Arg_InsufficientNumberOfElements, Vector<T>.Count, nameof(value)));
+                }
+                this = Unsafe.ReadUnaligned<Vector<T>>(ref MemoryMarshal.GetReference(value));
             }
             else
             {
@@ -325,7 +274,7 @@ namespace System.Numerics
         /// <exception cref="ArgumentNullException">If the destination array is null</exception>
         /// <exception cref="ArgumentException">If number of elements in source vector is greater than those available in destination array</exception>
         [Intrinsic]
-        public unsafe void CopyTo(T[] destination)
+        public void CopyTo(T[] destination)
         {
             CopyTo(destination, 0);
         }
@@ -339,7 +288,7 @@ namespace System.Numerics
         /// <exception cref="ArgumentOutOfRangeException">If index is greater than end of the array or index is less than zero</exception>
         /// <exception cref="ArgumentException">If number of elements in source vector is greater than those available in destination array</exception>
         [Intrinsic]
-        public unsafe void CopyTo(T[] destination, int startIndex)
+        public void CopyTo(T[] destination, int startIndex)
         {
             if (destination == null)
             {
@@ -355,52 +304,35 @@ namespace System.Numerics
                 throw new ArgumentException(SR.Format(SR.Arg_ElementsInSourceIsGreaterThanDestination, startIndex));
             }
 
-            if (Vector.IsHardwareAccelerated)
-            {
-<#
-    foreach (Type type in supportedTypes)
-    {
-#>
-                <#=GenerateIfStatementHeader(type)#>
-                {
-                    <#=typeAliases[type]#>[] <#=type.Name.ToLowerInvariant()#>Array = (<#=typeAliases[type]#>[])(object)destination;
-                    fixed (<#=typeAliases[type]#>* destinationBase = <#=type.Name.ToLowerInvariant()#>Array)
-                    {
-                        for (int g = 0; g < Count; g++)
-                        {
-                            destinationBase[startIndex + g] = (<#=typeAliases[type]#>)(object)this[g];
-                        }
-                    }
-                }
-<#
-    }
-#>
-            }
-            else
-            {
-<#
-    foreach (Type type in supportedTypes)
-    {
-#>
-                <#=GenerateIfStatementHeader(type)#>
-                {
-                    <#=typeAliases[type]#>[] <#=type.Name.ToLowerInvariant()#>Array = (<#=typeAliases[type]#>[])(object)destination;
-                    fixed (<#=typeAliases[type]#>* destinationBase = <#=type.Name.ToLowerInvariant()#>Array)
-                    {
-<#
-        for (int g = 0; g < GetNumFields(type, totalSize); g++)
-        {
-#>
-                        destinationBase[startIndex + <#=g#>] = this.<#=GetRegisterFieldName(type, g)#>;
-<#
+            Unsafe.WriteUnaligned<Vector<T>>(ref Unsafe.As<T, byte>(ref Unsafe.Add(ref Unsafe.As<byte, T>(ref destination.GetRawSzArrayData()), startIndex)), this);
         }
-#>
-                    }
-                }
-<#
-    }
-#>
+
+        /// <summary>
+        /// Copies the vector to the given destination span. The destination span must be at least size Vector'T.Count.
+        /// </summary>
+        /// <param name="destination">The destination span which the values are copied into</param>
+        public void CopyTo(Span<T> destination)
+        {
+            if (destination.Length < Count)
+            {
+                ThrowHelper.ThrowArgumentException_DestinationTooShort();
             }
+
+            Unsafe.WriteUnaligned<Vector<T>>(ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(destination)), this);
+        }
+
+        /// <summary>
+        /// Copies the vector to the given destination span. The destination span must be at least size sizeof(T) * Vector'T.Count.
+        /// </summary>
+        /// <param name="destination">The destination span which the values are copied into</param>
+        public void CopyTo(Span<byte> destination)
+        {
+            if (destination.Length < Unsafe.SizeOf<Vector<T>>())
+            {
+                ThrowHelper.ThrowArgumentException_DestinationTooShort();
+            }
+
+            Unsafe.WriteUnaligned<Vector<T>>(ref MemoryMarshal.GetReference(destination), this);
         }
 
         /// <summary>
@@ -411,27 +343,14 @@ namespace System.Numerics
             [Intrinsic]
             get
             {
-                if (index >= Count || index < 0)
+                if ((uint)index >= (uint)Count)
                 {
-                    throw new IndexOutOfRangeException(SR.Format(SR.Arg_ArgumentOutOfRangeException, index));
+                    ThrowHelper.ThrowIndexOutOfRangeException();
                 }
-<#
-    foreach (Type type in supportedTypes)
-    {
-#>
-                <#=GenerateIfStatementHeader(type)#>
+
+                fixed (void* basePtr = &this.register)
                 {
-                    fixed (<#=typeAliases[type]#>* basePtr = &this.<#=GetRegisterFieldName(type, 0)#>)
-                    {
-                        return (T)(object)*(basePtr + index);
-                    }
-                }
-<#
-    }
-#>
-                else
-                {
-                    throw new NotSupportedException(SR.Arg_TypeNotSupported);
+                    return Unsafe.Read<T>(Unsafe.Add<T>(basePtr, index));
                 }
             }
         }

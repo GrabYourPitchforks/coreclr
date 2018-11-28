@@ -94,67 +94,26 @@ namespace System.Numerics
         #endregion Static Members
 
         #region Static Initialization
-        private struct VectorSizeHelper
-        {
-            internal Vector<T> _placeholder;
-            internal byte _byte;
-        }
-
         // Calculates the size of this struct in bytes, by computing the offset of a field in a structure
-        private static unsafe int InitializeCount()
+        private static int InitializeCount()
         {
-            VectorSizeHelper vsh;
-            byte* vectorBase = &vsh._placeholder.register.byte_0;
-            byte* byteBase = &vsh._byte;
-            int vectorSizeInBytes = (int)(byteBase - vectorBase);
-
-            int typeSizeInBytes = -1;
-            if (typeof(T) == typeof(byte))
+            if ((typeof(T) == typeof(byte))
+                || (typeof(T) == typeof(sbyte))
+                || (typeof(T) == typeof(ushort))
+                || (typeof(T) == typeof(short))
+                || (typeof(T) == typeof(uint))
+                || (typeof(T) == typeof(int))
+                || (typeof(T) == typeof(ulong))
+                || (typeof(T) == typeof(long))
+                || (typeof(T) == typeof(float))
+                || (typeof(T) == typeof(double)))
             {
-                typeSizeInBytes = sizeof(byte);
-            }
-            else if (typeof(T) == typeof(sbyte))
-            {
-                typeSizeInBytes = sizeof(sbyte);
-            }
-            else if (typeof(T) == typeof(ushort))
-            {
-                typeSizeInBytes = sizeof(ushort);
-            }
-            else if (typeof(T) == typeof(short))
-            {
-                typeSizeInBytes = sizeof(short);
-            }
-            else if (typeof(T) == typeof(uint))
-            {
-                typeSizeInBytes = sizeof(uint);
-            }
-            else if (typeof(T) == typeof(int))
-            {
-                typeSizeInBytes = sizeof(int);
-            }
-            else if (typeof(T) == typeof(ulong))
-            {
-                typeSizeInBytes = sizeof(ulong);
-            }
-            else if (typeof(T) == typeof(long))
-            {
-                typeSizeInBytes = sizeof(long);
-            }
-            else if (typeof(T) == typeof(float))
-            {
-                typeSizeInBytes = sizeof(float);
-            }
-            else if (typeof(T) == typeof(double))
-            {
-                typeSizeInBytes = sizeof(double);
+                return Unsafe.SizeOf<Vector<T>>() / Unsafe.SizeOf<T>();
             }
             else
             {
                 throw new NotSupportedException(SR.Arg_TypeNotSupported);
             }
-
-            return vectorSizeInBytes / typeSizeInBytes;
         }
         #endregion Static Initialization
 
@@ -374,13 +333,13 @@ namespace System.Numerics
         /// Constructs a vector from the given array. The size of the given array must be at least Vector'T.Count.
         /// </summary>
         [Intrinsic]
-        public unsafe Vector(T[] values) : this(values, 0) { }
+        public Vector(T[] values) : this(values, 0) { }
 
         /// <summary>
         /// Constructs a vector from the given array, starting from the given index.
         /// The array must contain at least Vector'T.Count from the given index.
         /// </summary>
-        public unsafe Vector(T[] values, int index)
+        public Vector(T[] values, int index)
             : this()
         {
             if (values == null)
@@ -388,243 +347,12 @@ namespace System.Numerics
                 // Match the JIT's exception type here. For perf, a NullReference is thrown instead of an ArgumentNull.
                 throw new NullReferenceException(SR.Arg_NullArgumentNullRef);
             }
-            if (index < 0 || (values.Length - index) < Count)
+            if ((uint)index > (uint)values.Length || (uint)(index + Count) > (uint)values.Length)
             {
                 throw new IndexOutOfRangeException(SR.Format(SR.Arg_InsufficientNumberOfElements, Vector<T>.Count, nameof(values)));
             }
 
-            if (Vector.IsHardwareAccelerated)
-            {
-                if (typeof(T) == typeof(byte))
-                {
-                    fixed (byte* basePtr = &this.register.byte_0)
-                    {
-                        for (int g = 0; g < Count; g++)
-                        {
-                            *(basePtr + g) = (byte)(object)values[g + index];
-                        }
-                    }
-                }
-                else if (typeof(T) == typeof(sbyte))
-                {
-                    fixed (sbyte* basePtr = &this.register.sbyte_0)
-                    {
-                        for (int g = 0; g < Count; g++)
-                        {
-                            *(basePtr + g) = (sbyte)(object)values[g + index];
-                        }
-                    }
-                }
-                else if (typeof(T) == typeof(ushort))
-                {
-                    fixed (ushort* basePtr = &this.register.uint16_0)
-                    {
-                        for (int g = 0; g < Count; g++)
-                        {
-                            *(basePtr + g) = (ushort)(object)values[g + index];
-                        }
-                    }
-                }
-                else if (typeof(T) == typeof(short))
-                {
-                    fixed (short* basePtr = &this.register.int16_0)
-                    {
-                        for (int g = 0; g < Count; g++)
-                        {
-                            *(basePtr + g) = (short)(object)values[g + index];
-                        }
-                    }
-                }
-                else if (typeof(T) == typeof(uint))
-                {
-                    fixed (uint* basePtr = &this.register.uint32_0)
-                    {
-                        for (int g = 0; g < Count; g++)
-                        {
-                            *(basePtr + g) = (uint)(object)values[g + index];
-                        }
-                    }
-                }
-                else if (typeof(T) == typeof(int))
-                {
-                    fixed (int* basePtr = &this.register.int32_0)
-                    {
-                        for (int g = 0; g < Count; g++)
-                        {
-                            *(basePtr + g) = (int)(object)values[g + index];
-                        }
-                    }
-                }
-                else if (typeof(T) == typeof(ulong))
-                {
-                    fixed (ulong* basePtr = &this.register.uint64_0)
-                    {
-                        for (int g = 0; g < Count; g++)
-                        {
-                            *(basePtr + g) = (ulong)(object)values[g + index];
-                        }
-                    }
-                }
-                else if (typeof(T) == typeof(long))
-                {
-                    fixed (long* basePtr = &this.register.int64_0)
-                    {
-                        for (int g = 0; g < Count; g++)
-                        {
-                            *(basePtr + g) = (long)(object)values[g + index];
-                        }
-                    }
-                }
-                else if (typeof(T) == typeof(float))
-                {
-                    fixed (float* basePtr = &this.register.single_0)
-                    {
-                        for (int g = 0; g < Count; g++)
-                        {
-                            *(basePtr + g) = (float)(object)values[g + index];
-                        }
-                    }
-                }
-                else if (typeof(T) == typeof(double))
-                {
-                    fixed (double* basePtr = &this.register.double_0)
-                    {
-                        for (int g = 0; g < Count; g++)
-                        {
-                            *(basePtr + g) = (double)(object)values[g + index];
-                        }
-                    }
-                }
-            }
-            else
-            {
-                if (typeof(T) == typeof(byte))
-                {
-                    fixed (byte* basePtr = &this.register.byte_0)
-                    {
-                        *(basePtr + 0) = (byte)(object)values[0 + index];
-                        *(basePtr + 1) = (byte)(object)values[1 + index];
-                        *(basePtr + 2) = (byte)(object)values[2 + index];
-                        *(basePtr + 3) = (byte)(object)values[3 + index];
-                        *(basePtr + 4) = (byte)(object)values[4 + index];
-                        *(basePtr + 5) = (byte)(object)values[5 + index];
-                        *(basePtr + 6) = (byte)(object)values[6 + index];
-                        *(basePtr + 7) = (byte)(object)values[7 + index];
-                        *(basePtr + 8) = (byte)(object)values[8 + index];
-                        *(basePtr + 9) = (byte)(object)values[9 + index];
-                        *(basePtr + 10) = (byte)(object)values[10 + index];
-                        *(basePtr + 11) = (byte)(object)values[11 + index];
-                        *(basePtr + 12) = (byte)(object)values[12 + index];
-                        *(basePtr + 13) = (byte)(object)values[13 + index];
-                        *(basePtr + 14) = (byte)(object)values[14 + index];
-                        *(basePtr + 15) = (byte)(object)values[15 + index];
-                    }
-                }
-                else if (typeof(T) == typeof(sbyte))
-                {
-                    fixed (sbyte* basePtr = &this.register.sbyte_0)
-                    {
-                        *(basePtr + 0) = (sbyte)(object)values[0 + index];
-                        *(basePtr + 1) = (sbyte)(object)values[1 + index];
-                        *(basePtr + 2) = (sbyte)(object)values[2 + index];
-                        *(basePtr + 3) = (sbyte)(object)values[3 + index];
-                        *(basePtr + 4) = (sbyte)(object)values[4 + index];
-                        *(basePtr + 5) = (sbyte)(object)values[5 + index];
-                        *(basePtr + 6) = (sbyte)(object)values[6 + index];
-                        *(basePtr + 7) = (sbyte)(object)values[7 + index];
-                        *(basePtr + 8) = (sbyte)(object)values[8 + index];
-                        *(basePtr + 9) = (sbyte)(object)values[9 + index];
-                        *(basePtr + 10) = (sbyte)(object)values[10 + index];
-                        *(basePtr + 11) = (sbyte)(object)values[11 + index];
-                        *(basePtr + 12) = (sbyte)(object)values[12 + index];
-                        *(basePtr + 13) = (sbyte)(object)values[13 + index];
-                        *(basePtr + 14) = (sbyte)(object)values[14 + index];
-                        *(basePtr + 15) = (sbyte)(object)values[15 + index];
-                    }
-                }
-                else if (typeof(T) == typeof(ushort))
-                {
-                    fixed (ushort* basePtr = &this.register.uint16_0)
-                    {
-                        *(basePtr + 0) = (ushort)(object)values[0 + index];
-                        *(basePtr + 1) = (ushort)(object)values[1 + index];
-                        *(basePtr + 2) = (ushort)(object)values[2 + index];
-                        *(basePtr + 3) = (ushort)(object)values[3 + index];
-                        *(basePtr + 4) = (ushort)(object)values[4 + index];
-                        *(basePtr + 5) = (ushort)(object)values[5 + index];
-                        *(basePtr + 6) = (ushort)(object)values[6 + index];
-                        *(basePtr + 7) = (ushort)(object)values[7 + index];
-                    }
-                }
-                else if (typeof(T) == typeof(short))
-                {
-                    fixed (short* basePtr = &this.register.int16_0)
-                    {
-                        *(basePtr + 0) = (short)(object)values[0 + index];
-                        *(basePtr + 1) = (short)(object)values[1 + index];
-                        *(basePtr + 2) = (short)(object)values[2 + index];
-                        *(basePtr + 3) = (short)(object)values[3 + index];
-                        *(basePtr + 4) = (short)(object)values[4 + index];
-                        *(basePtr + 5) = (short)(object)values[5 + index];
-                        *(basePtr + 6) = (short)(object)values[6 + index];
-                        *(basePtr + 7) = (short)(object)values[7 + index];
-                    }
-                }
-                else if (typeof(T) == typeof(uint))
-                {
-                    fixed (uint* basePtr = &this.register.uint32_0)
-                    {
-                        *(basePtr + 0) = (uint)(object)values[0 + index];
-                        *(basePtr + 1) = (uint)(object)values[1 + index];
-                        *(basePtr + 2) = (uint)(object)values[2 + index];
-                        *(basePtr + 3) = (uint)(object)values[3 + index];
-                    }
-                }
-                else if (typeof(T) == typeof(int))
-                {
-                    fixed (int* basePtr = &this.register.int32_0)
-                    {
-                        *(basePtr + 0) = (int)(object)values[0 + index];
-                        *(basePtr + 1) = (int)(object)values[1 + index];
-                        *(basePtr + 2) = (int)(object)values[2 + index];
-                        *(basePtr + 3) = (int)(object)values[3 + index];
-                    }
-                }
-                else if (typeof(T) == typeof(ulong))
-                {
-                    fixed (ulong* basePtr = &this.register.uint64_0)
-                    {
-                        *(basePtr + 0) = (ulong)(object)values[0 + index];
-                        *(basePtr + 1) = (ulong)(object)values[1 + index];
-                    }
-                }
-                else if (typeof(T) == typeof(long))
-                {
-                    fixed (long* basePtr = &this.register.int64_0)
-                    {
-                        *(basePtr + 0) = (long)(object)values[0 + index];
-                        *(basePtr + 1) = (long)(object)values[1 + index];
-                    }
-                }
-                else if (typeof(T) == typeof(float))
-                {
-                    fixed (float* basePtr = &this.register.single_0)
-                    {
-                        *(basePtr + 0) = (float)(object)values[0 + index];
-                        *(basePtr + 1) = (float)(object)values[1 + index];
-                        *(basePtr + 2) = (float)(object)values[2 + index];
-                        *(basePtr + 3) = (float)(object)values[3 + index];
-                    }
-                }
-                else if (typeof(T) == typeof(double))
-                {
-                    fixed (double* basePtr = &this.register.double_0)
-                    {
-                        *(basePtr + 0) = (double)(object)values[0 + index];
-                        *(basePtr + 1) = (double)(object)values[1 + index];
-                    }
-                }
-            }
+            this = Unsafe.ReadUnaligned<Vector<T>>(ref Unsafe.As<T, byte>(ref values[index]));
         }
 
 #pragma warning disable 3001 // void* is not a CLS-Compliant argument type
@@ -636,125 +364,18 @@ namespace System.Numerics
         internal unsafe Vector(void* dataPointer, int offset)
             : this()
         {
-            if (typeof(T) == typeof(byte))
+            if ((typeof(T) == typeof(byte))
+                || (typeof(T) == typeof(sbyte))
+                || (typeof(T) == typeof(ushort))
+                || (typeof(T) == typeof(short))
+                || (typeof(T) == typeof(uint))
+                || (typeof(T) == typeof(int))
+                || (typeof(T) == typeof(ulong))
+                || (typeof(T) == typeof(long))
+                || (typeof(T) == typeof(float))
+                || (typeof(T) == typeof(double)))
             {
-                byte* castedPtr = (byte*)dataPointer;
-                castedPtr += offset;
-                fixed (byte* registerBase = &this.register.byte_0)
-                {
-                    for (int g = 0; g < Count; g++)
-                    {
-                        registerBase[g] = castedPtr[g];
-                    }
-                }
-            }
-            else if (typeof(T) == typeof(sbyte))
-            {
-                sbyte* castedPtr = (sbyte*)dataPointer;
-                castedPtr += offset;
-                fixed (sbyte* registerBase = &this.register.sbyte_0)
-                {
-                    for (int g = 0; g < Count; g++)
-                    {
-                        registerBase[g] = castedPtr[g];
-                    }
-                }
-            }
-            else if (typeof(T) == typeof(ushort))
-            {
-                ushort* castedPtr = (ushort*)dataPointer;
-                castedPtr += offset;
-                fixed (ushort* registerBase = &this.register.uint16_0)
-                {
-                    for (int g = 0; g < Count; g++)
-                    {
-                        registerBase[g] = castedPtr[g];
-                    }
-                }
-            }
-            else if (typeof(T) == typeof(short))
-            {
-                short* castedPtr = (short*)dataPointer;
-                castedPtr += offset;
-                fixed (short* registerBase = &this.register.int16_0)
-                {
-                    for (int g = 0; g < Count; g++)
-                    {
-                        registerBase[g] = castedPtr[g];
-                    }
-                }
-            }
-            else if (typeof(T) == typeof(uint))
-            {
-                uint* castedPtr = (uint*)dataPointer;
-                castedPtr += offset;
-                fixed (uint* registerBase = &this.register.uint32_0)
-                {
-                    for (int g = 0; g < Count; g++)
-                    {
-                        registerBase[g] = castedPtr[g];
-                    }
-                }
-            }
-            else if (typeof(T) == typeof(int))
-            {
-                int* castedPtr = (int*)dataPointer;
-                castedPtr += offset;
-                fixed (int* registerBase = &this.register.int32_0)
-                {
-                    for (int g = 0; g < Count; g++)
-                    {
-                        registerBase[g] = castedPtr[g];
-                    }
-                }
-            }
-            else if (typeof(T) == typeof(ulong))
-            {
-                ulong* castedPtr = (ulong*)dataPointer;
-                castedPtr += offset;
-                fixed (ulong* registerBase = &this.register.uint64_0)
-                {
-                    for (int g = 0; g < Count; g++)
-                    {
-                        registerBase[g] = castedPtr[g];
-                    }
-                }
-            }
-            else if (typeof(T) == typeof(long))
-            {
-                long* castedPtr = (long*)dataPointer;
-                castedPtr += offset;
-                fixed (long* registerBase = &this.register.int64_0)
-                {
-                    for (int g = 0; g < Count; g++)
-                    {
-                        registerBase[g] = castedPtr[g];
-                    }
-                }
-            }
-            else if (typeof(T) == typeof(float))
-            {
-                float* castedPtr = (float*)dataPointer;
-                castedPtr += offset;
-                fixed (float* registerBase = &this.register.single_0)
-                {
-                    for (int g = 0; g < Count; g++)
-                    {
-                        registerBase[g] = castedPtr[g];
-                    }
-                }
-            }
-            else if (typeof(T) == typeof(double))
-            {
-                double* castedPtr = (double*)dataPointer;
-                castedPtr += offset;
-                fixed (double* registerBase = &this.register.double_0)
-                {
-                    for (int g = 0; g < Count; g++)
-                    {
-                        registerBase[g] = castedPtr[g];
-                    }
-                }
+                this = Unsafe.ReadUnaligned<Vector<T>>(Unsafe.Add<T>(dataPointer, offset));
             }
             else
             {
@@ -773,6 +394,14 @@ namespace System.Numerics
         /// Constructs a vector from the given span. The span must contain at least Vector'T.Count elements.
         /// </summary>
         public Vector(Span<T> values)
+            : this((ReadOnlySpan<T>)values)
+        {
+        }
+
+        /// <summary>
+        /// Constructs a vector from the given span. The span must contain at least Vector'T.Count elements.
+        /// </summary>
+        public Vector(ReadOnlySpan<T> values)
             : this()
         {
             if ((typeof(T) == typeof(byte))
@@ -797,6 +426,35 @@ namespace System.Numerics
                 throw new NotSupportedException(SR.Arg_TypeNotSupported);
             }
         }
+
+        /// <summary>
+        /// Constructs a vector from the given byte buffer. The span must contain at least sizeof(T) * Vector'T.Count elements.
+        /// </summary>
+        public Vector(ReadOnlySpan<byte> value)
+            : this()
+        {
+            if ((typeof(T) == typeof(byte))
+                || (typeof(T) == typeof(sbyte))
+                || (typeof(T) == typeof(ushort))
+                || (typeof(T) == typeof(short))
+                || (typeof(T) == typeof(uint))
+                || (typeof(T) == typeof(int))
+                || (typeof(T) == typeof(ulong))
+                || (typeof(T) == typeof(long))
+                || (typeof(T) == typeof(float))
+                || (typeof(T) == typeof(double)))
+            {
+                if (value.Length < Unsafe.SizeOf<Vector<T>>())
+                {
+                    throw new IndexOutOfRangeException(SR.Format(SR.Arg_InsufficientNumberOfElements, Vector<T>.Count, nameof(value)));
+                }
+                this = Unsafe.ReadUnaligned<Vector<T>>(ref MemoryMarshal.GetReference(value));
+            }
+            else
+            {
+                throw new NotSupportedException(SR.Arg_TypeNotSupported);
+            }
+        }
 #endif
         #endregion Constructors
 
@@ -808,7 +466,7 @@ namespace System.Numerics
         /// <exception cref="ArgumentNullException">If the destination array is null</exception>
         /// <exception cref="ArgumentException">If number of elements in source vector is greater than those available in destination array</exception>
         [Intrinsic]
-        public unsafe void CopyTo(T[] destination)
+        public void CopyTo(T[] destination)
         {
             CopyTo(destination, 0);
         }
@@ -822,7 +480,7 @@ namespace System.Numerics
         /// <exception cref="ArgumentOutOfRangeException">If index is greater than end of the array or index is less than zero</exception>
         /// <exception cref="ArgumentException">If number of elements in source vector is greater than those available in destination array</exception>
         [Intrinsic]
-        public unsafe void CopyTo(T[] destination, int startIndex)
+        public void CopyTo(T[] destination, int startIndex)
         {
             if (destination == null)
             {
@@ -838,258 +496,35 @@ namespace System.Numerics
                 throw new ArgumentException(SR.Format(SR.Arg_ElementsInSourceIsGreaterThanDestination, startIndex));
             }
 
-            if (Vector.IsHardwareAccelerated)
+            Unsafe.WriteUnaligned<Vector<T>>(ref Unsafe.As<T, byte>(ref Unsafe.Add(ref Unsafe.As<byte, T>(ref destination.GetRawSzArrayData()), startIndex)), this);
+        }
+
+        /// <summary>
+        /// Copies the vector to the given destination span. The destination span must be at least size Vector'T.Count.
+        /// </summary>
+        /// <param name="destination">The destination span which the values are copied into</param>
+        public void CopyTo(Span<T> destination)
+        {
+            if (destination.Length < Count)
             {
-                if (typeof(T) == typeof(byte))
-                {
-                    byte[] byteArray = (byte[])(object)destination;
-                    fixed (byte* destinationBase = byteArray)
-                    {
-                        for (int g = 0; g < Count; g++)
-                        {
-                            destinationBase[startIndex + g] = (byte)(object)this[g];
-                        }
-                    }
-                }
-                else if (typeof(T) == typeof(sbyte))
-                {
-                    sbyte[] sbyteArray = (sbyte[])(object)destination;
-                    fixed (sbyte* destinationBase = sbyteArray)
-                    {
-                        for (int g = 0; g < Count; g++)
-                        {
-                            destinationBase[startIndex + g] = (sbyte)(object)this[g];
-                        }
-                    }
-                }
-                else if (typeof(T) == typeof(ushort))
-                {
-                    ushort[] uint16Array = (ushort[])(object)destination;
-                    fixed (ushort* destinationBase = uint16Array)
-                    {
-                        for (int g = 0; g < Count; g++)
-                        {
-                            destinationBase[startIndex + g] = (ushort)(object)this[g];
-                        }
-                    }
-                }
-                else if (typeof(T) == typeof(short))
-                {
-                    short[] int16Array = (short[])(object)destination;
-                    fixed (short* destinationBase = int16Array)
-                    {
-                        for (int g = 0; g < Count; g++)
-                        {
-                            destinationBase[startIndex + g] = (short)(object)this[g];
-                        }
-                    }
-                }
-                else if (typeof(T) == typeof(uint))
-                {
-                    uint[] uint32Array = (uint[])(object)destination;
-                    fixed (uint* destinationBase = uint32Array)
-                    {
-                        for (int g = 0; g < Count; g++)
-                        {
-                            destinationBase[startIndex + g] = (uint)(object)this[g];
-                        }
-                    }
-                }
-                else if (typeof(T) == typeof(int))
-                {
-                    int[] int32Array = (int[])(object)destination;
-                    fixed (int* destinationBase = int32Array)
-                    {
-                        for (int g = 0; g < Count; g++)
-                        {
-                            destinationBase[startIndex + g] = (int)(object)this[g];
-                        }
-                    }
-                }
-                else if (typeof(T) == typeof(ulong))
-                {
-                    ulong[] uint64Array = (ulong[])(object)destination;
-                    fixed (ulong* destinationBase = uint64Array)
-                    {
-                        for (int g = 0; g < Count; g++)
-                        {
-                            destinationBase[startIndex + g] = (ulong)(object)this[g];
-                        }
-                    }
-                }
-                else if (typeof(T) == typeof(long))
-                {
-                    long[] int64Array = (long[])(object)destination;
-                    fixed (long* destinationBase = int64Array)
-                    {
-                        for (int g = 0; g < Count; g++)
-                        {
-                            destinationBase[startIndex + g] = (long)(object)this[g];
-                        }
-                    }
-                }
-                else if (typeof(T) == typeof(float))
-                {
-                    float[] singleArray = (float[])(object)destination;
-                    fixed (float* destinationBase = singleArray)
-                    {
-                        for (int g = 0; g < Count; g++)
-                        {
-                            destinationBase[startIndex + g] = (float)(object)this[g];
-                        }
-                    }
-                }
-                else if (typeof(T) == typeof(double))
-                {
-                    double[] doubleArray = (double[])(object)destination;
-                    fixed (double* destinationBase = doubleArray)
-                    {
-                        for (int g = 0; g < Count; g++)
-                        {
-                            destinationBase[startIndex + g] = (double)(object)this[g];
-                        }
-                    }
-                }
+                ThrowHelper.ThrowArgumentException_DestinationTooShort();
             }
-            else
+
+            Unsafe.WriteUnaligned<Vector<T>>(ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(destination)), this);
+        }
+
+        /// <summary>
+        /// Copies the vector to the given destination span. The destination span must be at least size sizeof(T) * Vector'T.Count.
+        /// </summary>
+        /// <param name="destination">The destination span which the values are copied into</param>
+        public void CopyTo(Span<byte> destination)
+        {
+            if (destination.Length < Unsafe.SizeOf<Vector<T>>())
             {
-                if (typeof(T) == typeof(byte))
-                {
-                    byte[] byteArray = (byte[])(object)destination;
-                    fixed (byte* destinationBase = byteArray)
-                    {
-                        destinationBase[startIndex + 0] = this.register.byte_0;
-                        destinationBase[startIndex + 1] = this.register.byte_1;
-                        destinationBase[startIndex + 2] = this.register.byte_2;
-                        destinationBase[startIndex + 3] = this.register.byte_3;
-                        destinationBase[startIndex + 4] = this.register.byte_4;
-                        destinationBase[startIndex + 5] = this.register.byte_5;
-                        destinationBase[startIndex + 6] = this.register.byte_6;
-                        destinationBase[startIndex + 7] = this.register.byte_7;
-                        destinationBase[startIndex + 8] = this.register.byte_8;
-                        destinationBase[startIndex + 9] = this.register.byte_9;
-                        destinationBase[startIndex + 10] = this.register.byte_10;
-                        destinationBase[startIndex + 11] = this.register.byte_11;
-                        destinationBase[startIndex + 12] = this.register.byte_12;
-                        destinationBase[startIndex + 13] = this.register.byte_13;
-                        destinationBase[startIndex + 14] = this.register.byte_14;
-                        destinationBase[startIndex + 15] = this.register.byte_15;
-                    }
-                }
-                else if (typeof(T) == typeof(sbyte))
-                {
-                    sbyte[] sbyteArray = (sbyte[])(object)destination;
-                    fixed (sbyte* destinationBase = sbyteArray)
-                    {
-                        destinationBase[startIndex + 0] = this.register.sbyte_0;
-                        destinationBase[startIndex + 1] = this.register.sbyte_1;
-                        destinationBase[startIndex + 2] = this.register.sbyte_2;
-                        destinationBase[startIndex + 3] = this.register.sbyte_3;
-                        destinationBase[startIndex + 4] = this.register.sbyte_4;
-                        destinationBase[startIndex + 5] = this.register.sbyte_5;
-                        destinationBase[startIndex + 6] = this.register.sbyte_6;
-                        destinationBase[startIndex + 7] = this.register.sbyte_7;
-                        destinationBase[startIndex + 8] = this.register.sbyte_8;
-                        destinationBase[startIndex + 9] = this.register.sbyte_9;
-                        destinationBase[startIndex + 10] = this.register.sbyte_10;
-                        destinationBase[startIndex + 11] = this.register.sbyte_11;
-                        destinationBase[startIndex + 12] = this.register.sbyte_12;
-                        destinationBase[startIndex + 13] = this.register.sbyte_13;
-                        destinationBase[startIndex + 14] = this.register.sbyte_14;
-                        destinationBase[startIndex + 15] = this.register.sbyte_15;
-                    }
-                }
-                else if (typeof(T) == typeof(ushort))
-                {
-                    ushort[] uint16Array = (ushort[])(object)destination;
-                    fixed (ushort* destinationBase = uint16Array)
-                    {
-                        destinationBase[startIndex + 0] = this.register.uint16_0;
-                        destinationBase[startIndex + 1] = this.register.uint16_1;
-                        destinationBase[startIndex + 2] = this.register.uint16_2;
-                        destinationBase[startIndex + 3] = this.register.uint16_3;
-                        destinationBase[startIndex + 4] = this.register.uint16_4;
-                        destinationBase[startIndex + 5] = this.register.uint16_5;
-                        destinationBase[startIndex + 6] = this.register.uint16_6;
-                        destinationBase[startIndex + 7] = this.register.uint16_7;
-                    }
-                }
-                else if (typeof(T) == typeof(short))
-                {
-                    short[] int16Array = (short[])(object)destination;
-                    fixed (short* destinationBase = int16Array)
-                    {
-                        destinationBase[startIndex + 0] = this.register.int16_0;
-                        destinationBase[startIndex + 1] = this.register.int16_1;
-                        destinationBase[startIndex + 2] = this.register.int16_2;
-                        destinationBase[startIndex + 3] = this.register.int16_3;
-                        destinationBase[startIndex + 4] = this.register.int16_4;
-                        destinationBase[startIndex + 5] = this.register.int16_5;
-                        destinationBase[startIndex + 6] = this.register.int16_6;
-                        destinationBase[startIndex + 7] = this.register.int16_7;
-                    }
-                }
-                else if (typeof(T) == typeof(uint))
-                {
-                    uint[] uint32Array = (uint[])(object)destination;
-                    fixed (uint* destinationBase = uint32Array)
-                    {
-                        destinationBase[startIndex + 0] = this.register.uint32_0;
-                        destinationBase[startIndex + 1] = this.register.uint32_1;
-                        destinationBase[startIndex + 2] = this.register.uint32_2;
-                        destinationBase[startIndex + 3] = this.register.uint32_3;
-                    }
-                }
-                else if (typeof(T) == typeof(int))
-                {
-                    int[] int32Array = (int[])(object)destination;
-                    fixed (int* destinationBase = int32Array)
-                    {
-                        destinationBase[startIndex + 0] = this.register.int32_0;
-                        destinationBase[startIndex + 1] = this.register.int32_1;
-                        destinationBase[startIndex + 2] = this.register.int32_2;
-                        destinationBase[startIndex + 3] = this.register.int32_3;
-                    }
-                }
-                else if (typeof(T) == typeof(ulong))
-                {
-                    ulong[] uint64Array = (ulong[])(object)destination;
-                    fixed (ulong* destinationBase = uint64Array)
-                    {
-                        destinationBase[startIndex + 0] = this.register.uint64_0;
-                        destinationBase[startIndex + 1] = this.register.uint64_1;
-                    }
-                }
-                else if (typeof(T) == typeof(long))
-                {
-                    long[] int64Array = (long[])(object)destination;
-                    fixed (long* destinationBase = int64Array)
-                    {
-                        destinationBase[startIndex + 0] = this.register.int64_0;
-                        destinationBase[startIndex + 1] = this.register.int64_1;
-                    }
-                }
-                else if (typeof(T) == typeof(float))
-                {
-                    float[] singleArray = (float[])(object)destination;
-                    fixed (float* destinationBase = singleArray)
-                    {
-                        destinationBase[startIndex + 0] = this.register.single_0;
-                        destinationBase[startIndex + 1] = this.register.single_1;
-                        destinationBase[startIndex + 2] = this.register.single_2;
-                        destinationBase[startIndex + 3] = this.register.single_3;
-                    }
-                }
-                else if (typeof(T) == typeof(double))
-                {
-                    double[] doubleArray = (double[])(object)destination;
-                    fixed (double* destinationBase = doubleArray)
-                    {
-                        destinationBase[startIndex + 0] = this.register.double_0;
-                        destinationBase[startIndex + 1] = this.register.double_1;
-                    }
-                }
+                ThrowHelper.ThrowArgumentException_DestinationTooShort();
             }
+
+            Unsafe.WriteUnaligned<Vector<T>>(ref MemoryMarshal.GetReference(destination), this);
         }
 
         /// <summary>
@@ -1100,83 +535,14 @@ namespace System.Numerics
             [Intrinsic]
             get
             {
-                if (index >= Count || index < 0)
+                if ((uint)index >= (uint)Count)
                 {
-                    throw new IndexOutOfRangeException(SR.Format(SR.Arg_ArgumentOutOfRangeException, index));
+                    ThrowHelper.ThrowIndexOutOfRangeException();
                 }
-                if (typeof(T) == typeof(byte))
+
+                fixed (void* basePtr = &this.register)
                 {
-                    fixed (byte* basePtr = &this.register.byte_0)
-                    {
-                        return (T)(object)*(basePtr + index);
-                    }
-                }
-                else if (typeof(T) == typeof(sbyte))
-                {
-                    fixed (sbyte* basePtr = &this.register.sbyte_0)
-                    {
-                        return (T)(object)*(basePtr + index);
-                    }
-                }
-                else if (typeof(T) == typeof(ushort))
-                {
-                    fixed (ushort* basePtr = &this.register.uint16_0)
-                    {
-                        return (T)(object)*(basePtr + index);
-                    }
-                }
-                else if (typeof(T) == typeof(short))
-                {
-                    fixed (short* basePtr = &this.register.int16_0)
-                    {
-                        return (T)(object)*(basePtr + index);
-                    }
-                }
-                else if (typeof(T) == typeof(uint))
-                {
-                    fixed (uint* basePtr = &this.register.uint32_0)
-                    {
-                        return (T)(object)*(basePtr + index);
-                    }
-                }
-                else if (typeof(T) == typeof(int))
-                {
-                    fixed (int* basePtr = &this.register.int32_0)
-                    {
-                        return (T)(object)*(basePtr + index);
-                    }
-                }
-                else if (typeof(T) == typeof(ulong))
-                {
-                    fixed (ulong* basePtr = &this.register.uint64_0)
-                    {
-                        return (T)(object)*(basePtr + index);
-                    }
-                }
-                else if (typeof(T) == typeof(long))
-                {
-                    fixed (long* basePtr = &this.register.int64_0)
-                    {
-                        return (T)(object)*(basePtr + index);
-                    }
-                }
-                else if (typeof(T) == typeof(float))
-                {
-                    fixed (float* basePtr = &this.register.single_0)
-                    {
-                        return (T)(object)*(basePtr + index);
-                    }
-                }
-                else if (typeof(T) == typeof(double))
-                {
-                    fixed (double* basePtr = &this.register.double_0)
-                    {
-                        return (T)(object)*(basePtr + index);
-                    }
-                }
-                else
-                {
-                    throw new NotSupportedException(SR.Arg_TypeNotSupported);
+                    return Unsafe.Read<T>(Unsafe.Add<T>(basePtr, index));
                 }
             }
         }
