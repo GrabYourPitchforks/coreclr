@@ -159,12 +159,12 @@
         return string.Format("{0} (typeof(T) == typeof({1}))", keyword, typeAliases[type]);
     }
 
-    public string MakeTypeComparisonCondition(Type type)
+    public string MakeTypeCompareNotEqualCondition(Type type)
     {
-        return string.Format("(typeof(T) == typeof({0}))", typeAliases[type]);
+        return string.Format("(typeof(T) != typeof({0}))", typeAliases[type]);
     }
 
-    public string GenerateIfConditionAllTypes(IEnumerable<Type> allTypes)
+    public string GenerateIfNotConditionAllTypes(IEnumerable<Type> allTypes)
     {
         StringBuilder sbuilder = new StringBuilder();
         bool firstTime = true;
@@ -172,12 +172,12 @@
         {
             if (firstTime)
             {
-                sbuilder.Append("if (").Append(MakeTypeComparisonCondition(type));
+                sbuilder.Append("if (").Append(MakeTypeCompareNotEqualCondition(type));
                 firstTime = false;
             }
             else
             {
-                sbuilder.AppendLine().Append("                || ").Append(MakeTypeComparisonCondition(type));
+                sbuilder.AppendLine().Append("                && ").Append(MakeTypeCompareNotEqualCondition(type));
             }
         }
         sbuilder.Append(")");

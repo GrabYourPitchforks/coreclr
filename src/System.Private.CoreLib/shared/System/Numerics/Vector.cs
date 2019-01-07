@@ -5,6 +5,7 @@
 #if netcoreapp
 using Internal.Runtime.CompilerServices;
 #endif
+using System.Diagnostics;
 using System.Globalization;
 using System.Numerics.Hashing;
 using System.Runtime.CompilerServices;
@@ -58,10 +59,10 @@ namespace System.Numerics
             [Intrinsic]
             get
             {
-                return s_count;
+                ThrowIfUnsupportedType();
+                return Unsafe.SizeOf<Vector<T>>() / Unsafe.SizeOf<T>(); // JIT-time constants
             }
         }
-        private static readonly int s_count = InitializeCount();
 
         /// <summary>
         /// Returns a vector containing all zeroes.
@@ -71,10 +72,10 @@ namespace System.Numerics
             [Intrinsic]
             get
             {
-                return s_zero;
+                ThrowIfUnsupportedType();
+                return default;
             }
         }
-        private static readonly Vector<T> s_zero = new Vector<T>();
 
         /// <summary>
         /// Returns a vector containing all ones.
@@ -100,71 +101,6 @@ namespace System.Numerics
         private static readonly Vector<T> s_allOnes = new Vector<T>(GetAllBitsSetValue());
         #endregion Static Members
 
-        #region Static Initialization
-        private struct VectorSizeHelper
-        {
-            internal Vector<T> _placeholder;
-            internal byte _byte;
-        }
-
-        // Calculates the size of this struct in bytes, by computing the offset of a field in a structure
-        private static unsafe int InitializeCount()
-        {
-            VectorSizeHelper vsh;
-            byte* vectorBase = &vsh._placeholder.register.byte_0;
-            byte* byteBase = &vsh._byte;
-            int vectorSizeInBytes = (int)(byteBase - vectorBase);
-
-            int typeSizeInBytes = -1;
-            if (typeof(T) == typeof(byte))
-            {
-                typeSizeInBytes = sizeof(byte);
-            }
-            else if (typeof(T) == typeof(sbyte))
-            {
-                typeSizeInBytes = sizeof(sbyte);
-            }
-            else if (typeof(T) == typeof(ushort))
-            {
-                typeSizeInBytes = sizeof(ushort);
-            }
-            else if (typeof(T) == typeof(short))
-            {
-                typeSizeInBytes = sizeof(short);
-            }
-            else if (typeof(T) == typeof(uint))
-            {
-                typeSizeInBytes = sizeof(uint);
-            }
-            else if (typeof(T) == typeof(int))
-            {
-                typeSizeInBytes = sizeof(int);
-            }
-            else if (typeof(T) == typeof(ulong))
-            {
-                typeSizeInBytes = sizeof(ulong);
-            }
-            else if (typeof(T) == typeof(long))
-            {
-                typeSizeInBytes = sizeof(long);
-            }
-            else if (typeof(T) == typeof(float))
-            {
-                typeSizeInBytes = sizeof(float);
-            }
-            else if (typeof(T) == typeof(double))
-            {
-                typeSizeInBytes = sizeof(double);
-            }
-            else
-            {
-                throw new NotSupportedException(SR.Arg_TypeNotSupported);
-            }
-
-            return vectorSizeInBytes / typeSizeInBytes;
-        }
-        #endregion Static Initialization
-
         #region Constructors
         /// <summary>
         /// Constructs a vector whose components are all <code>value</code>
@@ -173,108 +109,12 @@ namespace System.Numerics
         public unsafe Vector(T value)
             : this()
         {
+            ThrowIfUnsupportedType();
+
             if (Vector.IsHardwareAccelerated)
             {
-                if (typeof(T) == typeof(byte))
-                {
-                    fixed (byte* basePtr = &this.register.byte_0)
-                    {
-                        for (int g = 0; g < Count; g++)
-                        {
-                            *(basePtr + g) = (byte)(object)value;
-                        }
-                    }
-                }
-                else if (typeof(T) == typeof(sbyte))
-                {
-                    fixed (sbyte* basePtr = &this.register.sbyte_0)
-                    {
-                        for (int g = 0; g < Count; g++)
-                        {
-                            *(basePtr + g) = (sbyte)(object)value;
-                        }
-                    }
-                }
-                else if (typeof(T) == typeof(ushort))
-                {
-                    fixed (ushort* basePtr = &this.register.uint16_0)
-                    {
-                        for (int g = 0; g < Count; g++)
-                        {
-                            *(basePtr + g) = (ushort)(object)value;
-                        }
-                    }
-                }
-                else if (typeof(T) == typeof(short))
-                {
-                    fixed (short* basePtr = &this.register.int16_0)
-                    {
-                        for (int g = 0; g < Count; g++)
-                        {
-                            *(basePtr + g) = (short)(object)value;
-                        }
-                    }
-                }
-                else if (typeof(T) == typeof(uint))
-                {
-                    fixed (uint* basePtr = &this.register.uint32_0)
-                    {
-                        for (int g = 0; g < Count; g++)
-                        {
-                            *(basePtr + g) = (uint)(object)value;
-                        }
-                    }
-                }
-                else if (typeof(T) == typeof(int))
-                {
-                    fixed (int* basePtr = &this.register.int32_0)
-                    {
-                        for (int g = 0; g < Count; g++)
-                        {
-                            *(basePtr + g) = (int)(object)value;
-                        }
-                    }
-                }
-                else if (typeof(T) == typeof(ulong))
-                {
-                    fixed (ulong* basePtr = &this.register.uint64_0)
-                    {
-                        for (int g = 0; g < Count; g++)
-                        {
-                            *(basePtr + g) = (ulong)(object)value;
-                        }
-                    }
-                }
-                else if (typeof(T) == typeof(long))
-                {
-                    fixed (long* basePtr = &this.register.int64_0)
-                    {
-                        for (int g = 0; g < Count; g++)
-                        {
-                            *(basePtr + g) = (long)(object)value;
-                        }
-                    }
-                }
-                else if (typeof(T) == typeof(float))
-                {
-                    fixed (float* basePtr = &this.register.single_0)
-                    {
-                        for (int g = 0; g < Count; g++)
-                        {
-                            *(basePtr + g) = (float)(object)value;
-                        }
-                    }
-                }
-                else if (typeof(T) == typeof(double))
-                {
-                    fixed (double* basePtr = &this.register.double_0)
-                    {
-                        for (int g = 0; g < Count; g++)
-                        {
-                            *(basePtr + g) = (double)(object)value;
-                        }
-                    }
-                }
+                // This is an intrinsic operation and will not result in a recursive call.
+                this = new Vector<T>(value);
             }
             else
             {
@@ -644,130 +484,9 @@ namespace System.Numerics
         internal unsafe Vector(void* dataPointer, int offset)
             : this()
         {
-            if (typeof(T) == typeof(byte))
-            {
-                byte* castedPtr = (byte*)dataPointer;
-                castedPtr += offset;
-                fixed (byte* registerBase = &this.register.byte_0)
-                {
-                    for (int g = 0; g < Count; g++)
-                    {
-                        registerBase[g] = castedPtr[g];
-                    }
-                }
-            }
-            else if (typeof(T) == typeof(sbyte))
-            {
-                sbyte* castedPtr = (sbyte*)dataPointer;
-                castedPtr += offset;
-                fixed (sbyte* registerBase = &this.register.sbyte_0)
-                {
-                    for (int g = 0; g < Count; g++)
-                    {
-                        registerBase[g] = castedPtr[g];
-                    }
-                }
-            }
-            else if (typeof(T) == typeof(ushort))
-            {
-                ushort* castedPtr = (ushort*)dataPointer;
-                castedPtr += offset;
-                fixed (ushort* registerBase = &this.register.uint16_0)
-                {
-                    for (int g = 0; g < Count; g++)
-                    {
-                        registerBase[g] = castedPtr[g];
-                    }
-                }
-            }
-            else if (typeof(T) == typeof(short))
-            {
-                short* castedPtr = (short*)dataPointer;
-                castedPtr += offset;
-                fixed (short* registerBase = &this.register.int16_0)
-                {
-                    for (int g = 0; g < Count; g++)
-                    {
-                        registerBase[g] = castedPtr[g];
-                    }
-                }
-            }
-            else if (typeof(T) == typeof(uint))
-            {
-                uint* castedPtr = (uint*)dataPointer;
-                castedPtr += offset;
-                fixed (uint* registerBase = &this.register.uint32_0)
-                {
-                    for (int g = 0; g < Count; g++)
-                    {
-                        registerBase[g] = castedPtr[g];
-                    }
-                }
-            }
-            else if (typeof(T) == typeof(int))
-            {
-                int* castedPtr = (int*)dataPointer;
-                castedPtr += offset;
-                fixed (int* registerBase = &this.register.int32_0)
-                {
-                    for (int g = 0; g < Count; g++)
-                    {
-                        registerBase[g] = castedPtr[g];
-                    }
-                }
-            }
-            else if (typeof(T) == typeof(ulong))
-            {
-                ulong* castedPtr = (ulong*)dataPointer;
-                castedPtr += offset;
-                fixed (ulong* registerBase = &this.register.uint64_0)
-                {
-                    for (int g = 0; g < Count; g++)
-                    {
-                        registerBase[g] = castedPtr[g];
-                    }
-                }
-            }
-            else if (typeof(T) == typeof(long))
-            {
-                long* castedPtr = (long*)dataPointer;
-                castedPtr += offset;
-                fixed (long* registerBase = &this.register.int64_0)
-                {
-                    for (int g = 0; g < Count; g++)
-                    {
-                        registerBase[g] = castedPtr[g];
-                    }
-                }
-            }
-            else if (typeof(T) == typeof(float))
-            {
-                float* castedPtr = (float*)dataPointer;
-                castedPtr += offset;
-                fixed (float* registerBase = &this.register.single_0)
-                {
-                    for (int g = 0; g < Count; g++)
-                    {
-                        registerBase[g] = castedPtr[g];
-                    }
-                }
-            }
-            else if (typeof(T) == typeof(double))
-            {
-                double* castedPtr = (double*)dataPointer;
-                castedPtr += offset;
-                fixed (double* registerBase = &this.register.double_0)
-                {
-                    for (int g = 0; g < Count; g++)
-                    {
-                        registerBase[g] = castedPtr[g];
-                    }
-                }
-            }
-            else
-            {
-                throw new NotSupportedException(SR.Arg_TypeNotSupported);
-            }
+            ThrowIfUnsupportedType();
+
+            this = Unsafe.ReadUnaligned<Vector<T>>(Unsafe.Add<T>(dataPointer, offset));
         }
 #pragma warning restore 3001 // void* is not a CLS-Compliant argument type
 
@@ -783,27 +502,14 @@ namespace System.Numerics
         public Vector(Span<T> values)
             : this()
         {
-            if ((typeof(T) == typeof(byte))
-                || (typeof(T) == typeof(sbyte))
-                || (typeof(T) == typeof(ushort))
-                || (typeof(T) == typeof(short))
-                || (typeof(T) == typeof(uint))
-                || (typeof(T) == typeof(int))
-                || (typeof(T) == typeof(ulong))
-                || (typeof(T) == typeof(long))
-                || (typeof(T) == typeof(float))
-                || (typeof(T) == typeof(double)))
+            ThrowIfUnsupportedType();
+
+            if (values.Length < Count)
             {
-                if (values.Length < Count)
-                {
-                    throw new IndexOutOfRangeException(SR.Format(SR.Arg_InsufficientNumberOfElements, Vector<T>.Count, nameof(values)));
-                }
-                this = Unsafe.ReadUnaligned<Vector<T>>(ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(values)));
+                throw new IndexOutOfRangeException(SR.Format(SR.Arg_InsufficientNumberOfElements, Vector<T>.Count, nameof(values)));
             }
-            else
-            {
-                throw new NotSupportedException(SR.Arg_TypeNotSupported);
-            }
+
+            this = Unsafe.ReadUnaligned<Vector<T>>(ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(values)));
         }
 #endif
         #endregion Constructors
@@ -837,7 +543,7 @@ namespace System.Numerics
                 // Match the JIT's exception type here. For perf, a NullReference is thrown instead of an ArgumentNull.
                 throw new NullReferenceException(SR.Arg_NullArgumentNullRef);
             }
-            if (startIndex < 0 || startIndex >= destination.Length)
+            if ((uint)startIndex >= destination.Length)
             {
                 throw new ArgumentOutOfRangeException(nameof(startIndex), SR.Format(SR.Arg_ArgumentOutOfRangeException, startIndex));
             }
@@ -846,258 +552,9 @@ namespace System.Numerics
                 throw new ArgumentException(SR.Format(SR.Arg_ElementsInSourceIsGreaterThanDestination, startIndex));
             }
 
-            if (Vector.IsHardwareAccelerated)
-            {
-                if (typeof(T) == typeof(byte))
-                {
-                    byte[] byteArray = (byte[])(object)destination;
-                    fixed (byte* destinationBase = byteArray)
-                    {
-                        for (int g = 0; g < Count; g++)
-                        {
-                            destinationBase[startIndex + g] = (byte)(object)this[g];
-                        }
-                    }
-                }
-                else if (typeof(T) == typeof(sbyte))
-                {
-                    sbyte[] sbyteArray = (sbyte[])(object)destination;
-                    fixed (sbyte* destinationBase = sbyteArray)
-                    {
-                        for (int g = 0; g < Count; g++)
-                        {
-                            destinationBase[startIndex + g] = (sbyte)(object)this[g];
-                        }
-                    }
-                }
-                else if (typeof(T) == typeof(ushort))
-                {
-                    ushort[] uint16Array = (ushort[])(object)destination;
-                    fixed (ushort* destinationBase = uint16Array)
-                    {
-                        for (int g = 0; g < Count; g++)
-                        {
-                            destinationBase[startIndex + g] = (ushort)(object)this[g];
-                        }
-                    }
-                }
-                else if (typeof(T) == typeof(short))
-                {
-                    short[] int16Array = (short[])(object)destination;
-                    fixed (short* destinationBase = int16Array)
-                    {
-                        for (int g = 0; g < Count; g++)
-                        {
-                            destinationBase[startIndex + g] = (short)(object)this[g];
-                        }
-                    }
-                }
-                else if (typeof(T) == typeof(uint))
-                {
-                    uint[] uint32Array = (uint[])(object)destination;
-                    fixed (uint* destinationBase = uint32Array)
-                    {
-                        for (int g = 0; g < Count; g++)
-                        {
-                            destinationBase[startIndex + g] = (uint)(object)this[g];
-                        }
-                    }
-                }
-                else if (typeof(T) == typeof(int))
-                {
-                    int[] int32Array = (int[])(object)destination;
-                    fixed (int* destinationBase = int32Array)
-                    {
-                        for (int g = 0; g < Count; g++)
-                        {
-                            destinationBase[startIndex + g] = (int)(object)this[g];
-                        }
-                    }
-                }
-                else if (typeof(T) == typeof(ulong))
-                {
-                    ulong[] uint64Array = (ulong[])(object)destination;
-                    fixed (ulong* destinationBase = uint64Array)
-                    {
-                        for (int g = 0; g < Count; g++)
-                        {
-                            destinationBase[startIndex + g] = (ulong)(object)this[g];
-                        }
-                    }
-                }
-                else if (typeof(T) == typeof(long))
-                {
-                    long[] int64Array = (long[])(object)destination;
-                    fixed (long* destinationBase = int64Array)
-                    {
-                        for (int g = 0; g < Count; g++)
-                        {
-                            destinationBase[startIndex + g] = (long)(object)this[g];
-                        }
-                    }
-                }
-                else if (typeof(T) == typeof(float))
-                {
-                    float[] singleArray = (float[])(object)destination;
-                    fixed (float* destinationBase = singleArray)
-                    {
-                        for (int g = 0; g < Count; g++)
-                        {
-                            destinationBase[startIndex + g] = (float)(object)this[g];
-                        }
-                    }
-                }
-                else if (typeof(T) == typeof(double))
-                {
-                    double[] doubleArray = (double[])(object)destination;
-                    fixed (double* destinationBase = doubleArray)
-                    {
-                        for (int g = 0; g < Count; g++)
-                        {
-                            destinationBase[startIndex + g] = (double)(object)this[g];
-                        }
-                    }
-                }
-            }
-            else
-            {
-                if (typeof(T) == typeof(byte))
-                {
-                    byte[] byteArray = (byte[])(object)destination;
-                    fixed (byte* destinationBase = byteArray)
-                    {
-                        destinationBase[startIndex + 0] = this.register.byte_0;
-                        destinationBase[startIndex + 1] = this.register.byte_1;
-                        destinationBase[startIndex + 2] = this.register.byte_2;
-                        destinationBase[startIndex + 3] = this.register.byte_3;
-                        destinationBase[startIndex + 4] = this.register.byte_4;
-                        destinationBase[startIndex + 5] = this.register.byte_5;
-                        destinationBase[startIndex + 6] = this.register.byte_6;
-                        destinationBase[startIndex + 7] = this.register.byte_7;
-                        destinationBase[startIndex + 8] = this.register.byte_8;
-                        destinationBase[startIndex + 9] = this.register.byte_9;
-                        destinationBase[startIndex + 10] = this.register.byte_10;
-                        destinationBase[startIndex + 11] = this.register.byte_11;
-                        destinationBase[startIndex + 12] = this.register.byte_12;
-                        destinationBase[startIndex + 13] = this.register.byte_13;
-                        destinationBase[startIndex + 14] = this.register.byte_14;
-                        destinationBase[startIndex + 15] = this.register.byte_15;
-                    }
-                }
-                else if (typeof(T) == typeof(sbyte))
-                {
-                    sbyte[] sbyteArray = (sbyte[])(object)destination;
-                    fixed (sbyte* destinationBase = sbyteArray)
-                    {
-                        destinationBase[startIndex + 0] = this.register.sbyte_0;
-                        destinationBase[startIndex + 1] = this.register.sbyte_1;
-                        destinationBase[startIndex + 2] = this.register.sbyte_2;
-                        destinationBase[startIndex + 3] = this.register.sbyte_3;
-                        destinationBase[startIndex + 4] = this.register.sbyte_4;
-                        destinationBase[startIndex + 5] = this.register.sbyte_5;
-                        destinationBase[startIndex + 6] = this.register.sbyte_6;
-                        destinationBase[startIndex + 7] = this.register.sbyte_7;
-                        destinationBase[startIndex + 8] = this.register.sbyte_8;
-                        destinationBase[startIndex + 9] = this.register.sbyte_9;
-                        destinationBase[startIndex + 10] = this.register.sbyte_10;
-                        destinationBase[startIndex + 11] = this.register.sbyte_11;
-                        destinationBase[startIndex + 12] = this.register.sbyte_12;
-                        destinationBase[startIndex + 13] = this.register.sbyte_13;
-                        destinationBase[startIndex + 14] = this.register.sbyte_14;
-                        destinationBase[startIndex + 15] = this.register.sbyte_15;
-                    }
-                }
-                else if (typeof(T) == typeof(ushort))
-                {
-                    ushort[] uint16Array = (ushort[])(object)destination;
-                    fixed (ushort* destinationBase = uint16Array)
-                    {
-                        destinationBase[startIndex + 0] = this.register.uint16_0;
-                        destinationBase[startIndex + 1] = this.register.uint16_1;
-                        destinationBase[startIndex + 2] = this.register.uint16_2;
-                        destinationBase[startIndex + 3] = this.register.uint16_3;
-                        destinationBase[startIndex + 4] = this.register.uint16_4;
-                        destinationBase[startIndex + 5] = this.register.uint16_5;
-                        destinationBase[startIndex + 6] = this.register.uint16_6;
-                        destinationBase[startIndex + 7] = this.register.uint16_7;
-                    }
-                }
-                else if (typeof(T) == typeof(short))
-                {
-                    short[] int16Array = (short[])(object)destination;
-                    fixed (short* destinationBase = int16Array)
-                    {
-                        destinationBase[startIndex + 0] = this.register.int16_0;
-                        destinationBase[startIndex + 1] = this.register.int16_1;
-                        destinationBase[startIndex + 2] = this.register.int16_2;
-                        destinationBase[startIndex + 3] = this.register.int16_3;
-                        destinationBase[startIndex + 4] = this.register.int16_4;
-                        destinationBase[startIndex + 5] = this.register.int16_5;
-                        destinationBase[startIndex + 6] = this.register.int16_6;
-                        destinationBase[startIndex + 7] = this.register.int16_7;
-                    }
-                }
-                else if (typeof(T) == typeof(uint))
-                {
-                    uint[] uint32Array = (uint[])(object)destination;
-                    fixed (uint* destinationBase = uint32Array)
-                    {
-                        destinationBase[startIndex + 0] = this.register.uint32_0;
-                        destinationBase[startIndex + 1] = this.register.uint32_1;
-                        destinationBase[startIndex + 2] = this.register.uint32_2;
-                        destinationBase[startIndex + 3] = this.register.uint32_3;
-                    }
-                }
-                else if (typeof(T) == typeof(int))
-                {
-                    int[] int32Array = (int[])(object)destination;
-                    fixed (int* destinationBase = int32Array)
-                    {
-                        destinationBase[startIndex + 0] = this.register.int32_0;
-                        destinationBase[startIndex + 1] = this.register.int32_1;
-                        destinationBase[startIndex + 2] = this.register.int32_2;
-                        destinationBase[startIndex + 3] = this.register.int32_3;
-                    }
-                }
-                else if (typeof(T) == typeof(ulong))
-                {
-                    ulong[] uint64Array = (ulong[])(object)destination;
-                    fixed (ulong* destinationBase = uint64Array)
-                    {
-                        destinationBase[startIndex + 0] = this.register.uint64_0;
-                        destinationBase[startIndex + 1] = this.register.uint64_1;
-                    }
-                }
-                else if (typeof(T) == typeof(long))
-                {
-                    long[] int64Array = (long[])(object)destination;
-                    fixed (long* destinationBase = int64Array)
-                    {
-                        destinationBase[startIndex + 0] = this.register.int64_0;
-                        destinationBase[startIndex + 1] = this.register.int64_1;
-                    }
-                }
-                else if (typeof(T) == typeof(float))
-                {
-                    float[] singleArray = (float[])(object)destination;
-                    fixed (float* destinationBase = singleArray)
-                    {
-                        destinationBase[startIndex + 0] = this.register.single_0;
-                        destinationBase[startIndex + 1] = this.register.single_1;
-                        destinationBase[startIndex + 2] = this.register.single_2;
-                        destinationBase[startIndex + 3] = this.register.single_3;
-                    }
-                }
-                else if (typeof(T) == typeof(double))
-                {
-                    double[] doubleArray = (double[])(object)destination;
-                    fixed (double* destinationBase = doubleArray)
-                    {
-                        destinationBase[startIndex + 0] = this.register.double_0;
-                        destinationBase[startIndex + 1] = this.register.double_1;
-                    }
-                }
-            }
+            ThrowIfUnsupportedType();
+
+            Unsafe.WriteUnaligned<Vector<T>>(ref Unsafe.As<T, byte>(ref Unsafe.Add(ref Unsafe.As<byte, T>(ref JitHelpers.GetRawSzArrayData(destination)), startIndex)), this);
         }
 
         /// <summary>
@@ -1108,84 +565,14 @@ namespace System.Numerics
             [Intrinsic]
             get
             {
-                if (index >= Count || index < 0)
+                if ((uint)index >= (uint)Count)
                 {
-                    throw new IndexOutOfRangeException(SR.Format(SR.Arg_ArgumentOutOfRangeException, index));
+                    ThrowHelper.ThrowArgumentOutOfRangeException(ExceptionArgument.index);
                 }
-                if (typeof(T) == typeof(byte))
-                {
-                    fixed (byte* basePtr = &this.register.byte_0)
-                    {
-                        return (T)(object)*(basePtr + index);
-                    }
-                }
-                else if (typeof(T) == typeof(sbyte))
-                {
-                    fixed (sbyte* basePtr = &this.register.sbyte_0)
-                    {
-                        return (T)(object)*(basePtr + index);
-                    }
-                }
-                else if (typeof(T) == typeof(ushort))
-                {
-                    fixed (ushort* basePtr = &this.register.uint16_0)
-                    {
-                        return (T)(object)*(basePtr + index);
-                    }
-                }
-                else if (typeof(T) == typeof(short))
-                {
-                    fixed (short* basePtr = &this.register.int16_0)
-                    {
-                        return (T)(object)*(basePtr + index);
-                    }
-                }
-                else if (typeof(T) == typeof(uint))
-                {
-                    fixed (uint* basePtr = &this.register.uint32_0)
-                    {
-                        return (T)(object)*(basePtr + index);
-                    }
-                }
-                else if (typeof(T) == typeof(int))
-                {
-                    fixed (int* basePtr = &this.register.int32_0)
-                    {
-                        return (T)(object)*(basePtr + index);
-                    }
-                }
-                else if (typeof(T) == typeof(ulong))
-                {
-                    fixed (ulong* basePtr = &this.register.uint64_0)
-                    {
-                        return (T)(object)*(basePtr + index);
-                    }
-                }
-                else if (typeof(T) == typeof(long))
-                {
-                    fixed (long* basePtr = &this.register.int64_0)
-                    {
-                        return (T)(object)*(basePtr + index);
-                    }
-                }
-                else if (typeof(T) == typeof(float))
-                {
-                    fixed (float* basePtr = &this.register.single_0)
-                    {
-                        return (T)(object)*(basePtr + index);
-                    }
-                }
-                else if (typeof(T) == typeof(double))
-                {
-                    fixed (double* basePtr = &this.register.double_0)
-                    {
-                        return (T)(object)*(basePtr + index);
-                    }
-                }
-                else
-                {
-                    throw new NotSupportedException(SR.Arg_TypeNotSupported);
-                }
+
+                ThrowIfUnsupportedType();
+
+                return Unsafe.Add(ref Unsafe.As<Register, T>(ref register), index);
             }
         }
 
@@ -1212,129 +599,25 @@ namespace System.Numerics
         [Intrinsic]
         public bool Equals(Vector<T> other)
         {
+            ThrowIfUnsupportedType();
+
             if (Vector.IsHardwareAccelerated)
             {
-                for (int g = 0; g < Count; g++)
-                {
-                    if (!ScalarEquals(this[g], other[g]))
-                    {
-                        return false;
-                    }
-                }
-                return true;
+                // This is an intrinsic operation and will not result in a recursive call.
+                return Equals(other);
+            }
+
+            if (IntPtr.Size == 4)
+            {
+                return this.register.int32_0 == other.register.int32_0
+                    && this.register.int32_1 == other.register.int32_1
+                    && this.register.int32_2 == other.register.int32_2
+                    && this.register.int32_3 == other.register.int32_3;
             }
             else
             {
-                if (typeof(T) == typeof(byte))
-                {
-                    return
-                        this.register.byte_0 == other.register.byte_0
-                        && this.register.byte_1 == other.register.byte_1
-                        && this.register.byte_2 == other.register.byte_2
-                        && this.register.byte_3 == other.register.byte_3
-                        && this.register.byte_4 == other.register.byte_4
-                        && this.register.byte_5 == other.register.byte_5
-                        && this.register.byte_6 == other.register.byte_6
-                        && this.register.byte_7 == other.register.byte_7
-                        && this.register.byte_8 == other.register.byte_8
-                        && this.register.byte_9 == other.register.byte_9
-                        && this.register.byte_10 == other.register.byte_10
-                        && this.register.byte_11 == other.register.byte_11
-                        && this.register.byte_12 == other.register.byte_12
-                        && this.register.byte_13 == other.register.byte_13
-                        && this.register.byte_14 == other.register.byte_14
-                        && this.register.byte_15 == other.register.byte_15;
-                }
-                else if (typeof(T) == typeof(sbyte))
-                {
-                    return
-                        this.register.sbyte_0 == other.register.sbyte_0
-                        && this.register.sbyte_1 == other.register.sbyte_1
-                        && this.register.sbyte_2 == other.register.sbyte_2
-                        && this.register.sbyte_3 == other.register.sbyte_3
-                        && this.register.sbyte_4 == other.register.sbyte_4
-                        && this.register.sbyte_5 == other.register.sbyte_5
-                        && this.register.sbyte_6 == other.register.sbyte_6
-                        && this.register.sbyte_7 == other.register.sbyte_7
-                        && this.register.sbyte_8 == other.register.sbyte_8
-                        && this.register.sbyte_9 == other.register.sbyte_9
-                        && this.register.sbyte_10 == other.register.sbyte_10
-                        && this.register.sbyte_11 == other.register.sbyte_11
-                        && this.register.sbyte_12 == other.register.sbyte_12
-                        && this.register.sbyte_13 == other.register.sbyte_13
-                        && this.register.sbyte_14 == other.register.sbyte_14
-                        && this.register.sbyte_15 == other.register.sbyte_15;
-                }
-                else if (typeof(T) == typeof(ushort))
-                {
-                    return
-                        this.register.uint16_0 == other.register.uint16_0
-                        && this.register.uint16_1 == other.register.uint16_1
-                        && this.register.uint16_2 == other.register.uint16_2
-                        && this.register.uint16_3 == other.register.uint16_3
-                        && this.register.uint16_4 == other.register.uint16_4
-                        && this.register.uint16_5 == other.register.uint16_5
-                        && this.register.uint16_6 == other.register.uint16_6
-                        && this.register.uint16_7 == other.register.uint16_7;
-                }
-                else if (typeof(T) == typeof(short))
-                {
-                    return
-                        this.register.int16_0 == other.register.int16_0
-                        && this.register.int16_1 == other.register.int16_1
-                        && this.register.int16_2 == other.register.int16_2
-                        && this.register.int16_3 == other.register.int16_3
-                        && this.register.int16_4 == other.register.int16_4
-                        && this.register.int16_5 == other.register.int16_5
-                        && this.register.int16_6 == other.register.int16_6
-                        && this.register.int16_7 == other.register.int16_7;
-                }
-                else if (typeof(T) == typeof(uint))
-                {
-                    return
-                        this.register.uint32_0 == other.register.uint32_0
-                        && this.register.uint32_1 == other.register.uint32_1
-                        && this.register.uint32_2 == other.register.uint32_2
-                        && this.register.uint32_3 == other.register.uint32_3;
-                }
-                else if (typeof(T) == typeof(int))
-                {
-                    return
-                        this.register.int32_0 == other.register.int32_0
-                        && this.register.int32_1 == other.register.int32_1
-                        && this.register.int32_2 == other.register.int32_2
-                        && this.register.int32_3 == other.register.int32_3;
-                }
-                else if (typeof(T) == typeof(ulong))
-                {
-                    return
-                        this.register.uint64_0 == other.register.uint64_0
-                        && this.register.uint64_1 == other.register.uint64_1;
-                }
-                else if (typeof(T) == typeof(long))
-                {
-                    return
-                        this.register.int64_0 == other.register.int64_0
-                        && this.register.int64_1 == other.register.int64_1;
-                }
-                else if (typeof(T) == typeof(float))
-                {
-                    return
-                        this.register.single_0 == other.register.single_0
-                        && this.register.single_1 == other.register.single_1
-                        && this.register.single_2 == other.register.single_2
-                        && this.register.single_3 == other.register.single_3;
-                }
-                else if (typeof(T) == typeof(double))
-                {
-                    return
-                        this.register.double_0 == other.register.double_0
-                        && this.register.double_1 == other.register.double_1;
-                }
-                else
-                {
-                    throw new NotSupportedException(SR.Arg_TypeNotSupported);
-                }
+                return this.register.int64_0 == other.register.int64_0
+                    && this.register.int64_1 == other.register.int64_1;
             }
         }
 
@@ -1344,208 +627,36 @@ namespace System.Numerics
         /// <returns>The hash code.</returns>
         public override int GetHashCode()
         {
-            int hash = 0;
+            int hash = HashHelpers.RandomSeed;
 
             if (Vector.IsHardwareAccelerated)
             {
-                if (typeof(T) == typeof(byte))
+                // We currently only support 128-bit and 256-bit vectors for hardware acceleration
+                Debug.Assert(Vector<int>.Count == 4 || Vector<int>.Count == 8);
+
+                hash = HashHelpers.Combine(hash, ((Vector<int>)this)[0]);
+                hash = HashHelpers.Combine(hash, ((Vector<int>)this)[1]);
+                hash = HashHelpers.Combine(hash, ((Vector<int>)this)[2]);
+                hash = HashHelpers.Combine(hash, ((Vector<int>)this)[3]);
+
+                // We have a 256-bit vector
+                if (Vector<int>.Count == 8)
                 {
-                    for (int g = 0; g < Count; g++)
-                    {
-                        hash = HashHelpers.Combine(hash, ((byte)(object)this[g]).GetHashCode());
-                    }
-                    return hash;
-                }
-                else if (typeof(T) == typeof(sbyte))
-                {
-                    for (int g = 0; g < Count; g++)
-                    {
-                        hash = HashHelpers.Combine(hash, ((sbyte)(object)this[g]).GetHashCode());
-                    }
-                    return hash;
-                }
-                else if (typeof(T) == typeof(ushort))
-                {
-                    for (int g = 0; g < Count; g++)
-                    {
-                        hash = HashHelpers.Combine(hash, ((ushort)(object)this[g]).GetHashCode());
-                    }
-                    return hash;
-                }
-                else if (typeof(T) == typeof(short))
-                {
-                    for (int g = 0; g < Count; g++)
-                    {
-                        hash = HashHelpers.Combine(hash, ((short)(object)this[g]).GetHashCode());
-                    }
-                    return hash;
-                }
-                else if (typeof(T) == typeof(uint))
-                {
-                    for (int g = 0; g < Count; g++)
-                    {
-                        hash = HashHelpers.Combine(hash, ((uint)(object)this[g]).GetHashCode());
-                    }
-                    return hash;
-                }
-                else if (typeof(T) == typeof(int))
-                {
-                    for (int g = 0; g < Count; g++)
-                    {
-                        hash = HashHelpers.Combine(hash, ((int)(object)this[g]).GetHashCode());
-                    }
-                    return hash;
-                }
-                else if (typeof(T) == typeof(ulong))
-                {
-                    for (int g = 0; g < Count; g++)
-                    {
-                        hash = HashHelpers.Combine(hash, ((ulong)(object)this[g]).GetHashCode());
-                    }
-                    return hash;
-                }
-                else if (typeof(T) == typeof(long))
-                {
-                    for (int g = 0; g < Count; g++)
-                    {
-                        hash = HashHelpers.Combine(hash, ((long)(object)this[g]).GetHashCode());
-                    }
-                    return hash;
-                }
-                else if (typeof(T) == typeof(float))
-                {
-                    for (int g = 0; g < Count; g++)
-                    {
-                        hash = HashHelpers.Combine(hash, ((float)(object)this[g]).GetHashCode());
-                    }
-                    return hash;
-                }
-                else if (typeof(T) == typeof(double))
-                {
-                    for (int g = 0; g < Count; g++)
-                    {
-                        hash = HashHelpers.Combine(hash, ((double)(object)this[g]).GetHashCode());
-                    }
-                    return hash;
-                }
-                else
-                {
-                    throw new NotSupportedException(SR.Arg_TypeNotSupported);
+                    hash = HashHelpers.Combine(hash, ((Vector<int>)this)[4]);
+                    hash = HashHelpers.Combine(hash, ((Vector<int>)this)[5]);
+                    hash = HashHelpers.Combine(hash, ((Vector<int>)this)[6]);
+                    hash = HashHelpers.Combine(hash, ((Vector<int>)this)[7]);
                 }
             }
             else
             {
-                if (typeof(T) == typeof(byte))
-                {
-                    hash = HashHelpers.Combine(hash, this.register.byte_0.GetHashCode());
-                    hash = HashHelpers.Combine(hash, this.register.byte_1.GetHashCode());
-                    hash = HashHelpers.Combine(hash, this.register.byte_2.GetHashCode());
-                    hash = HashHelpers.Combine(hash, this.register.byte_3.GetHashCode());
-                    hash = HashHelpers.Combine(hash, this.register.byte_4.GetHashCode());
-                    hash = HashHelpers.Combine(hash, this.register.byte_5.GetHashCode());
-                    hash = HashHelpers.Combine(hash, this.register.byte_6.GetHashCode());
-                    hash = HashHelpers.Combine(hash, this.register.byte_7.GetHashCode());
-                    hash = HashHelpers.Combine(hash, this.register.byte_8.GetHashCode());
-                    hash = HashHelpers.Combine(hash, this.register.byte_9.GetHashCode());
-                    hash = HashHelpers.Combine(hash, this.register.byte_10.GetHashCode());
-                    hash = HashHelpers.Combine(hash, this.register.byte_11.GetHashCode());
-                    hash = HashHelpers.Combine(hash, this.register.byte_12.GetHashCode());
-                    hash = HashHelpers.Combine(hash, this.register.byte_13.GetHashCode());
-                    hash = HashHelpers.Combine(hash, this.register.byte_14.GetHashCode());
-                    hash = HashHelpers.Combine(hash, this.register.byte_15.GetHashCode());
-                    return hash;
-                }
-                else if (typeof(T) == typeof(sbyte))
-                {
-                    hash = HashHelpers.Combine(hash, this.register.sbyte_0.GetHashCode());
-                    hash = HashHelpers.Combine(hash, this.register.sbyte_1.GetHashCode());
-                    hash = HashHelpers.Combine(hash, this.register.sbyte_2.GetHashCode());
-                    hash = HashHelpers.Combine(hash, this.register.sbyte_3.GetHashCode());
-                    hash = HashHelpers.Combine(hash, this.register.sbyte_4.GetHashCode());
-                    hash = HashHelpers.Combine(hash, this.register.sbyte_5.GetHashCode());
-                    hash = HashHelpers.Combine(hash, this.register.sbyte_6.GetHashCode());
-                    hash = HashHelpers.Combine(hash, this.register.sbyte_7.GetHashCode());
-                    hash = HashHelpers.Combine(hash, this.register.sbyte_8.GetHashCode());
-                    hash = HashHelpers.Combine(hash, this.register.sbyte_9.GetHashCode());
-                    hash = HashHelpers.Combine(hash, this.register.sbyte_10.GetHashCode());
-                    hash = HashHelpers.Combine(hash, this.register.sbyte_11.GetHashCode());
-                    hash = HashHelpers.Combine(hash, this.register.sbyte_12.GetHashCode());
-                    hash = HashHelpers.Combine(hash, this.register.sbyte_13.GetHashCode());
-                    hash = HashHelpers.Combine(hash, this.register.sbyte_14.GetHashCode());
-                    hash = HashHelpers.Combine(hash, this.register.sbyte_15.GetHashCode());
-                    return hash;
-                }
-                else if (typeof(T) == typeof(ushort))
-                {
-                    hash = HashHelpers.Combine(hash, this.register.uint16_0.GetHashCode());
-                    hash = HashHelpers.Combine(hash, this.register.uint16_1.GetHashCode());
-                    hash = HashHelpers.Combine(hash, this.register.uint16_2.GetHashCode());
-                    hash = HashHelpers.Combine(hash, this.register.uint16_3.GetHashCode());
-                    hash = HashHelpers.Combine(hash, this.register.uint16_4.GetHashCode());
-                    hash = HashHelpers.Combine(hash, this.register.uint16_5.GetHashCode());
-                    hash = HashHelpers.Combine(hash, this.register.uint16_6.GetHashCode());
-                    hash = HashHelpers.Combine(hash, this.register.uint16_7.GetHashCode());
-                    return hash;
-                }
-                else if (typeof(T) == typeof(short))
-                {
-                    hash = HashHelpers.Combine(hash, this.register.int16_0.GetHashCode());
-                    hash = HashHelpers.Combine(hash, this.register.int16_1.GetHashCode());
-                    hash = HashHelpers.Combine(hash, this.register.int16_2.GetHashCode());
-                    hash = HashHelpers.Combine(hash, this.register.int16_3.GetHashCode());
-                    hash = HashHelpers.Combine(hash, this.register.int16_4.GetHashCode());
-                    hash = HashHelpers.Combine(hash, this.register.int16_5.GetHashCode());
-                    hash = HashHelpers.Combine(hash, this.register.int16_6.GetHashCode());
-                    hash = HashHelpers.Combine(hash, this.register.int16_7.GetHashCode());
-                    return hash;
-                }
-                else if (typeof(T) == typeof(uint))
-                {
-                    hash = HashHelpers.Combine(hash, this.register.uint32_0.GetHashCode());
-                    hash = HashHelpers.Combine(hash, this.register.uint32_1.GetHashCode());
-                    hash = HashHelpers.Combine(hash, this.register.uint32_2.GetHashCode());
-                    hash = HashHelpers.Combine(hash, this.register.uint32_3.GetHashCode());
-                    return hash;
-                }
-                else if (typeof(T) == typeof(int))
-                {
-                    hash = HashHelpers.Combine(hash, this.register.int32_0.GetHashCode());
-                    hash = HashHelpers.Combine(hash, this.register.int32_1.GetHashCode());
-                    hash = HashHelpers.Combine(hash, this.register.int32_2.GetHashCode());
-                    hash = HashHelpers.Combine(hash, this.register.int32_3.GetHashCode());
-                    return hash;
-                }
-                else if (typeof(T) == typeof(ulong))
-                {
-                    hash = HashHelpers.Combine(hash, this.register.uint64_0.GetHashCode());
-                    hash = HashHelpers.Combine(hash, this.register.uint64_1.GetHashCode());
-                    return hash;
-                }
-                else if (typeof(T) == typeof(long))
-                {
-                    hash = HashHelpers.Combine(hash, this.register.int64_0.GetHashCode());
-                    hash = HashHelpers.Combine(hash, this.register.int64_1.GetHashCode());
-                    return hash;
-                }
-                else if (typeof(T) == typeof(float))
-                {
-                    hash = HashHelpers.Combine(hash, this.register.single_0.GetHashCode());
-                    hash = HashHelpers.Combine(hash, this.register.single_1.GetHashCode());
-                    hash = HashHelpers.Combine(hash, this.register.single_2.GetHashCode());
-                    hash = HashHelpers.Combine(hash, this.register.single_3.GetHashCode());
-                    return hash;
-                }
-                else if (typeof(T) == typeof(double))
-                {
-                    hash = HashHelpers.Combine(hash, this.register.double_0.GetHashCode());
-                    hash = HashHelpers.Combine(hash, this.register.double_1.GetHashCode());
-                    return hash;
-                }
-                else
-                {
-                    throw new NotSupportedException(SR.Arg_TypeNotSupported);
-                }
+                hash = HashHelpers.Combine(hash, this.register.int32_0);
+                hash = HashHelpers.Combine(hash, this.register.int32_1);
+                hash = HashHelpers.Combine(hash, this.register.int32_2);
+                hash = HashHelpers.Combine(hash, this.register.int32_3);
             }
+
+            return hash;
         }
 
         /// <summary>
@@ -1602,104 +713,14 @@ namespace System.Numerics
         [Intrinsic]
         public static unsafe Vector<T> operator +(Vector<T> left, Vector<T> right)
         {
+            ThrowIfUnsupportedType();
+
             unchecked
             {
                 if (Vector.IsHardwareAccelerated)
                 {
-                    if (typeof(T) == typeof(byte))
-                    {
-                        byte* dataPtr = stackalloc byte[Count];
-                        for (int g = 0; g < Count; g++)
-                        {
-                            dataPtr[g] = (byte)(object)ScalarAdd(left[g], right[g]);
-                        }
-                        return new Vector<T>(dataPtr);
-                    }
-                    else if (typeof(T) == typeof(sbyte))
-                    {
-                        sbyte* dataPtr = stackalloc sbyte[Count];
-                        for (int g = 0; g < Count; g++)
-                        {
-                            dataPtr[g] = (sbyte)(object)ScalarAdd(left[g], right[g]);
-                        }
-                        return new Vector<T>(dataPtr);
-                    }
-                    else if (typeof(T) == typeof(ushort))
-                    {
-                        ushort* dataPtr = stackalloc ushort[Count];
-                        for (int g = 0; g < Count; g++)
-                        {
-                            dataPtr[g] = (ushort)(object)ScalarAdd(left[g], right[g]);
-                        }
-                        return new Vector<T>(dataPtr);
-                    }
-                    else if (typeof(T) == typeof(short))
-                    {
-                        short* dataPtr = stackalloc short[Count];
-                        for (int g = 0; g < Count; g++)
-                        {
-                            dataPtr[g] = (short)(object)ScalarAdd(left[g], right[g]);
-                        }
-                        return new Vector<T>(dataPtr);
-                    }
-                    else if (typeof(T) == typeof(uint))
-                    {
-                        uint* dataPtr = stackalloc uint[Count];
-                        for (int g = 0; g < Count; g++)
-                        {
-                            dataPtr[g] = (uint)(object)ScalarAdd(left[g], right[g]);
-                        }
-                        return new Vector<T>(dataPtr);
-                    }
-                    else if (typeof(T) == typeof(int))
-                    {
-                        int* dataPtr = stackalloc int[Count];
-                        for (int g = 0; g < Count; g++)
-                        {
-                            dataPtr[g] = (int)(object)ScalarAdd(left[g], right[g]);
-                        }
-                        return new Vector<T>(dataPtr);
-                    }
-                    else if (typeof(T) == typeof(ulong))
-                    {
-                        ulong* dataPtr = stackalloc ulong[Count];
-                        for (int g = 0; g < Count; g++)
-                        {
-                            dataPtr[g] = (ulong)(object)ScalarAdd(left[g], right[g]);
-                        }
-                        return new Vector<T>(dataPtr);
-                    }
-                    else if (typeof(T) == typeof(long))
-                    {
-                        long* dataPtr = stackalloc long[Count];
-                        for (int g = 0; g < Count; g++)
-                        {
-                            dataPtr[g] = (long)(object)ScalarAdd(left[g], right[g]);
-                        }
-                        return new Vector<T>(dataPtr);
-                    }
-                    else if (typeof(T) == typeof(float))
-                    {
-                        float* dataPtr = stackalloc float[Count];
-                        for (int g = 0; g < Count; g++)
-                        {
-                            dataPtr[g] = (float)(object)ScalarAdd(left[g], right[g]);
-                        }
-                        return new Vector<T>(dataPtr);
-                    }
-                    else if (typeof(T) == typeof(double))
-                    {
-                        double* dataPtr = stackalloc double[Count];
-                        for (int g = 0; g < Count; g++)
-                        {
-                            dataPtr[g] = (double)(object)ScalarAdd(left[g], right[g]);
-                        }
-                        return new Vector<T>(dataPtr);
-                    }
-                    else
-                    {
-                        throw new NotSupportedException(SR.Arg_TypeNotSupported);
-                    }
+                    // This is an intrinsic operation and will not result in a recursive call.
+                    return left + right;
                 }
                 else
                 {
@@ -1814,104 +835,14 @@ namespace System.Numerics
         [Intrinsic]
         public static unsafe Vector<T> operator -(Vector<T> left, Vector<T> right)
         {
+            ThrowIfUnsupportedType();
+
             unchecked
             {
                 if (Vector.IsHardwareAccelerated)
                 {
-                    if (typeof(T) == typeof(byte))
-                    {
-                        byte* dataPtr = stackalloc byte[Count];
-                        for (int g = 0; g < Count; g++)
-                        {
-                            dataPtr[g] = (byte)(object)ScalarSubtract(left[g], right[g]);
-                        }
-                        return new Vector<T>(dataPtr);
-                    }
-                    else if (typeof(T) == typeof(sbyte))
-                    {
-                        sbyte* dataPtr = stackalloc sbyte[Count];
-                        for (int g = 0; g < Count; g++)
-                        {
-                            dataPtr[g] = (sbyte)(object)ScalarSubtract(left[g], right[g]);
-                        }
-                        return new Vector<T>(dataPtr);
-                    }
-                    else if (typeof(T) == typeof(ushort))
-                    {
-                        ushort* dataPtr = stackalloc ushort[Count];
-                        for (int g = 0; g < Count; g++)
-                        {
-                            dataPtr[g] = (ushort)(object)ScalarSubtract(left[g], right[g]);
-                        }
-                        return new Vector<T>(dataPtr);
-                    }
-                    else if (typeof(T) == typeof(short))
-                    {
-                        short* dataPtr = stackalloc short[Count];
-                        for (int g = 0; g < Count; g++)
-                        {
-                            dataPtr[g] = (short)(object)ScalarSubtract(left[g], right[g]);
-                        }
-                        return new Vector<T>(dataPtr);
-                    }
-                    else if (typeof(T) == typeof(uint))
-                    {
-                        uint* dataPtr = stackalloc uint[Count];
-                        for (int g = 0; g < Count; g++)
-                        {
-                            dataPtr[g] = (uint)(object)ScalarSubtract(left[g], right[g]);
-                        }
-                        return new Vector<T>(dataPtr);
-                    }
-                    else if (typeof(T) == typeof(int))
-                    {
-                        int* dataPtr = stackalloc int[Count];
-                        for (int g = 0; g < Count; g++)
-                        {
-                            dataPtr[g] = (int)(object)ScalarSubtract(left[g], right[g]);
-                        }
-                        return new Vector<T>(dataPtr);
-                    }
-                    else if (typeof(T) == typeof(ulong))
-                    {
-                        ulong* dataPtr = stackalloc ulong[Count];
-                        for (int g = 0; g < Count; g++)
-                        {
-                            dataPtr[g] = (ulong)(object)ScalarSubtract(left[g], right[g]);
-                        }
-                        return new Vector<T>(dataPtr);
-                    }
-                    else if (typeof(T) == typeof(long))
-                    {
-                        long* dataPtr = stackalloc long[Count];
-                        for (int g = 0; g < Count; g++)
-                        {
-                            dataPtr[g] = (long)(object)ScalarSubtract(left[g], right[g]);
-                        }
-                        return new Vector<T>(dataPtr);
-                    }
-                    else if (typeof(T) == typeof(float))
-                    {
-                        float* dataPtr = stackalloc float[Count];
-                        for (int g = 0; g < Count; g++)
-                        {
-                            dataPtr[g] = (float)(object)ScalarSubtract(left[g], right[g]);
-                        }
-                        return new Vector<T>(dataPtr);
-                    }
-                    else if (typeof(T) == typeof(double))
-                    {
-                        double* dataPtr = stackalloc double[Count];
-                        for (int g = 0; g < Count; g++)
-                        {
-                            dataPtr[g] = (double)(object)ScalarSubtract(left[g], right[g]);
-                        }
-                        return new Vector<T>(dataPtr);
-                    }
-                    else
-                    {
-                        throw new NotSupportedException(SR.Arg_TypeNotSupported);
-                    }
+                    // This is an intrinsic operation and will not result in a recursive call.
+                    return left - right;
                 }
                 else
                 {
@@ -2027,104 +958,14 @@ namespace System.Numerics
         [Intrinsic]
         public static unsafe Vector<T> operator *(Vector<T> left, Vector<T> right)
         {
+            ThrowIfUnsupportedType();
+
             unchecked
             {
                 if (Vector.IsHardwareAccelerated)
                 {
-                    if (typeof(T) == typeof(byte))
-                    {
-                        byte* dataPtr = stackalloc byte[Count];
-                        for (int g = 0; g < Count; g++)
-                        {
-                            dataPtr[g] = (byte)(object)ScalarMultiply(left[g], right[g]);
-                        }
-                        return new Vector<T>(dataPtr);
-                    }
-                    else if (typeof(T) == typeof(sbyte))
-                    {
-                        sbyte* dataPtr = stackalloc sbyte[Count];
-                        for (int g = 0; g < Count; g++)
-                        {
-                            dataPtr[g] = (sbyte)(object)ScalarMultiply(left[g], right[g]);
-                        }
-                        return new Vector<T>(dataPtr);
-                    }
-                    else if (typeof(T) == typeof(ushort))
-                    {
-                        ushort* dataPtr = stackalloc ushort[Count];
-                        for (int g = 0; g < Count; g++)
-                        {
-                            dataPtr[g] = (ushort)(object)ScalarMultiply(left[g], right[g]);
-                        }
-                        return new Vector<T>(dataPtr);
-                    }
-                    else if (typeof(T) == typeof(short))
-                    {
-                        short* dataPtr = stackalloc short[Count];
-                        for (int g = 0; g < Count; g++)
-                        {
-                            dataPtr[g] = (short)(object)ScalarMultiply(left[g], right[g]);
-                        }
-                        return new Vector<T>(dataPtr);
-                    }
-                    else if (typeof(T) == typeof(uint))
-                    {
-                        uint* dataPtr = stackalloc uint[Count];
-                        for (int g = 0; g < Count; g++)
-                        {
-                            dataPtr[g] = (uint)(object)ScalarMultiply(left[g], right[g]);
-                        }
-                        return new Vector<T>(dataPtr);
-                    }
-                    else if (typeof(T) == typeof(int))
-                    {
-                        int* dataPtr = stackalloc int[Count];
-                        for (int g = 0; g < Count; g++)
-                        {
-                            dataPtr[g] = (int)(object)ScalarMultiply(left[g], right[g]);
-                        }
-                        return new Vector<T>(dataPtr);
-                    }
-                    else if (typeof(T) == typeof(ulong))
-                    {
-                        ulong* dataPtr = stackalloc ulong[Count];
-                        for (int g = 0; g < Count; g++)
-                        {
-                            dataPtr[g] = (ulong)(object)ScalarMultiply(left[g], right[g]);
-                        }
-                        return new Vector<T>(dataPtr);
-                    }
-                    else if (typeof(T) == typeof(long))
-                    {
-                        long* dataPtr = stackalloc long[Count];
-                        for (int g = 0; g < Count; g++)
-                        {
-                            dataPtr[g] = (long)(object)ScalarMultiply(left[g], right[g]);
-                        }
-                        return new Vector<T>(dataPtr);
-                    }
-                    else if (typeof(T) == typeof(float))
-                    {
-                        float* dataPtr = stackalloc float[Count];
-                        for (int g = 0; g < Count; g++)
-                        {
-                            dataPtr[g] = (float)(object)ScalarMultiply(left[g], right[g]);
-                        }
-                        return new Vector<T>(dataPtr);
-                    }
-                    else if (typeof(T) == typeof(double))
-                    {
-                        double* dataPtr = stackalloc double[Count];
-                        for (int g = 0; g < Count; g++)
-                        {
-                            dataPtr[g] = (double)(object)ScalarMultiply(left[g], right[g]);
-                        }
-                        return new Vector<T>(dataPtr);
-                    }
-                    else
-                    {
-                        throw new NotSupportedException(SR.Arg_TypeNotSupported);
-                    }
+                    // This is an intrinsic operation and will not result in a recursive call.
+                    return left * right;
                 }
                 else
                 {
@@ -2264,104 +1105,14 @@ namespace System.Numerics
         [Intrinsic]
         public static unsafe Vector<T> operator /(Vector<T> left, Vector<T> right)
         {
+            ThrowIfUnsupportedType();
+
             unchecked
             {
                 if (Vector.IsHardwareAccelerated)
                 {
-                    if (typeof(T) == typeof(byte))
-                    {
-                        byte* dataPtr = stackalloc byte[Count];
-                        for (int g = 0; g < Count; g++)
-                        {
-                            dataPtr[g] = (byte)(object)ScalarDivide(left[g], right[g]);
-                        }
-                        return new Vector<T>(dataPtr);
-                    }
-                    else if (typeof(T) == typeof(sbyte))
-                    {
-                        sbyte* dataPtr = stackalloc sbyte[Count];
-                        for (int g = 0; g < Count; g++)
-                        {
-                            dataPtr[g] = (sbyte)(object)ScalarDivide(left[g], right[g]);
-                        }
-                        return new Vector<T>(dataPtr);
-                    }
-                    else if (typeof(T) == typeof(ushort))
-                    {
-                        ushort* dataPtr = stackalloc ushort[Count];
-                        for (int g = 0; g < Count; g++)
-                        {
-                            dataPtr[g] = (ushort)(object)ScalarDivide(left[g], right[g]);
-                        }
-                        return new Vector<T>(dataPtr);
-                    }
-                    else if (typeof(T) == typeof(short))
-                    {
-                        short* dataPtr = stackalloc short[Count];
-                        for (int g = 0; g < Count; g++)
-                        {
-                            dataPtr[g] = (short)(object)ScalarDivide(left[g], right[g]);
-                        }
-                        return new Vector<T>(dataPtr);
-                    }
-                    else if (typeof(T) == typeof(uint))
-                    {
-                        uint* dataPtr = stackalloc uint[Count];
-                        for (int g = 0; g < Count; g++)
-                        {
-                            dataPtr[g] = (uint)(object)ScalarDivide(left[g], right[g]);
-                        }
-                        return new Vector<T>(dataPtr);
-                    }
-                    else if (typeof(T) == typeof(int))
-                    {
-                        int* dataPtr = stackalloc int[Count];
-                        for (int g = 0; g < Count; g++)
-                        {
-                            dataPtr[g] = (int)(object)ScalarDivide(left[g], right[g]);
-                        }
-                        return new Vector<T>(dataPtr);
-                    }
-                    else if (typeof(T) == typeof(ulong))
-                    {
-                        ulong* dataPtr = stackalloc ulong[Count];
-                        for (int g = 0; g < Count; g++)
-                        {
-                            dataPtr[g] = (ulong)(object)ScalarDivide(left[g], right[g]);
-                        }
-                        return new Vector<T>(dataPtr);
-                    }
-                    else if (typeof(T) == typeof(long))
-                    {
-                        long* dataPtr = stackalloc long[Count];
-                        for (int g = 0; g < Count; g++)
-                        {
-                            dataPtr[g] = (long)(object)ScalarDivide(left[g], right[g]);
-                        }
-                        return new Vector<T>(dataPtr);
-                    }
-                    else if (typeof(T) == typeof(float))
-                    {
-                        float* dataPtr = stackalloc float[Count];
-                        for (int g = 0; g < Count; g++)
-                        {
-                            dataPtr[g] = (float)(object)ScalarDivide(left[g], right[g]);
-                        }
-                        return new Vector<T>(dataPtr);
-                    }
-                    else if (typeof(T) == typeof(double))
-                    {
-                        double* dataPtr = stackalloc double[Count];
-                        for (int g = 0; g < Count; g++)
-                        {
-                            dataPtr[g] = (double)(object)ScalarDivide(left[g], right[g]);
-                        }
-                        return new Vector<T>(dataPtr);
-                    }
-                    else
-                    {
-                        throw new NotSupportedException(SR.Arg_TypeNotSupported);
-                    }
+                    // This is an intrinsic operation and will not result in a recursive call.
+                    return left / right;
                 }
                 else
                 {
@@ -2488,26 +1239,23 @@ namespace System.Numerics
         [Intrinsic]
         public static unsafe Vector<T> operator &(Vector<T> left, Vector<T> right)
         {
-            Vector<T> result = new Vector<T>();
+            ThrowIfUnsupportedType();
+
             unchecked
             {
                 if (Vector.IsHardwareAccelerated)
                 {
-                    long* resultBase = &result.register.int64_0;
-                    long* leftBase = &left.register.int64_0;
-                    long* rightBase = &right.register.int64_0;
-                    for (int g = 0; g < Vector<long>.Count; g++)
-                    {
-                        resultBase[g] = leftBase[g] & rightBase[g];
-                    }
+                    // This is an intrinsic operation and will not result in a recursive call.
+                    return left & right;
                 }
                 else
                 {
+                    Vector<T> result = new Vector<T>();
                     result.register.int64_0 = left.register.int64_0 & right.register.int64_0;
                     result.register.int64_1 = left.register.int64_1 & right.register.int64_1;
+                    return result;
                 }
             }
-            return result;
         }
 
         /// <summary>
@@ -2519,18 +1267,15 @@ namespace System.Numerics
         [Intrinsic]
         public static unsafe Vector<T> operator |(Vector<T> left, Vector<T> right)
         {
+            ThrowIfUnsupportedType();
+
             Vector<T> result = new Vector<T>();
             unchecked
             {
                 if (Vector.IsHardwareAccelerated)
                 {
-                    long* resultBase = &result.register.int64_0;
-                    long* leftBase = &left.register.int64_0;
-                    long* rightBase = &right.register.int64_0;
-                    for (int g = 0; g < Vector<long>.Count; g++)
-                    {
-                        resultBase[g] = leftBase[g] | rightBase[g];
-                    }
+                    // This is an intrinsic operation and will not result in a recursive call.
+                    return left | right;
                 }
                 else
                 {
@@ -2550,18 +1295,15 @@ namespace System.Numerics
         [Intrinsic]
         public static unsafe Vector<T> operator ^(Vector<T> left, Vector<T> right)
         {
+            ThrowIfUnsupportedType();
+
             Vector<T> result = new Vector<T>();
             unchecked
             {
                 if (Vector.IsHardwareAccelerated)
                 {
-                    long* resultBase = &result.register.int64_0;
-                    long* leftBase = &left.register.int64_0;
-                    long* rightBase = &right.register.int64_0;
-                    for (int g = 0; g < Vector<long>.Count; g++)
-                    {
-                        resultBase[g] = leftBase[g] ^ rightBase[g];
-                    }
+                    // This is an intrinsic operation and will not result in a recursive call.
+                    return left ^ right;
                 }
                 else
                 {
@@ -2734,102 +1476,12 @@ namespace System.Numerics
         [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
         internal static unsafe Vector<T> Equals(Vector<T> left, Vector<T> right)
         {
+            ThrowIfUnsupportedType();
+
             if (Vector.IsHardwareAccelerated)
             {
-                if (typeof(T) == typeof(byte))
-                {
-                    byte* dataPtr = stackalloc byte[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = ScalarEquals(left[g], right[g]) ? ConstantHelper.GetByteWithAllBitsSet() : (byte)0;
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-                else if (typeof(T) == typeof(sbyte))
-                {
-                    sbyte* dataPtr = stackalloc sbyte[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = ScalarEquals(left[g], right[g]) ? ConstantHelper.GetSByteWithAllBitsSet() : (sbyte)0;
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-                else if (typeof(T) == typeof(ushort))
-                {
-                    ushort* dataPtr = stackalloc ushort[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = ScalarEquals(left[g], right[g]) ? ConstantHelper.GetUInt16WithAllBitsSet() : (ushort)0;
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-                else if (typeof(T) == typeof(short))
-                {
-                    short* dataPtr = stackalloc short[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = ScalarEquals(left[g], right[g]) ? ConstantHelper.GetInt16WithAllBitsSet() : (short)0;
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-                else if (typeof(T) == typeof(uint))
-                {
-                    uint* dataPtr = stackalloc uint[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = ScalarEquals(left[g], right[g]) ? ConstantHelper.GetUInt32WithAllBitsSet() : (uint)0;
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-                else if (typeof(T) == typeof(int))
-                {
-                    int* dataPtr = stackalloc int[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = ScalarEquals(left[g], right[g]) ? ConstantHelper.GetInt32WithAllBitsSet() : (int)0;
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-                else if (typeof(T) == typeof(ulong))
-                {
-                    ulong* dataPtr = stackalloc ulong[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = ScalarEquals(left[g], right[g]) ? ConstantHelper.GetUInt64WithAllBitsSet() : (ulong)0;
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-                else if (typeof(T) == typeof(long))
-                {
-                    long* dataPtr = stackalloc long[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = ScalarEquals(left[g], right[g]) ? ConstantHelper.GetInt64WithAllBitsSet() : (long)0;
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-                else if (typeof(T) == typeof(float))
-                {
-                    float* dataPtr = stackalloc float[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = ScalarEquals(left[g], right[g]) ? ConstantHelper.GetSingleWithAllBitsSet() : (float)0;
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-                else if (typeof(T) == typeof(double))
-                {
-                    double* dataPtr = stackalloc double[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = ScalarEquals(left[g], right[g]) ? ConstantHelper.GetDoubleWithAllBitsSet() : (double)0;
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-                else
-                {
-                    throw new NotSupportedException(SR.Arg_TypeNotSupported);
-                }
+                // This is an intrinsic operation and will not result in a recursive call.
+                return Equals(left, right);
             }
             else
             {
@@ -2852,7 +1504,6 @@ namespace System.Numerics
                     register.byte_13 = left.register.byte_13 == right.register.byte_13 ? ConstantHelper.GetByteWithAllBitsSet() : (byte)0;
                     register.byte_14 = left.register.byte_14 == right.register.byte_14 ? ConstantHelper.GetByteWithAllBitsSet() : (byte)0;
                     register.byte_15 = left.register.byte_15 == right.register.byte_15 ? ConstantHelper.GetByteWithAllBitsSet() : (byte)0;
-                    return new Vector<T>(ref register);
                 }
                 else if (typeof(T) == typeof(sbyte))
                 {
@@ -2872,7 +1523,6 @@ namespace System.Numerics
                     register.sbyte_13 = left.register.sbyte_13 == right.register.sbyte_13 ? ConstantHelper.GetSByteWithAllBitsSet() : (sbyte)0;
                     register.sbyte_14 = left.register.sbyte_14 == right.register.sbyte_14 ? ConstantHelper.GetSByteWithAllBitsSet() : (sbyte)0;
                     register.sbyte_15 = left.register.sbyte_15 == right.register.sbyte_15 ? ConstantHelper.GetSByteWithAllBitsSet() : (sbyte)0;
-                    return new Vector<T>(ref register);
                 }
                 else if (typeof(T) == typeof(ushort))
                 {
@@ -2884,7 +1534,6 @@ namespace System.Numerics
                     register.uint16_5 = left.register.uint16_5 == right.register.uint16_5 ? ConstantHelper.GetUInt16WithAllBitsSet() : (ushort)0;
                     register.uint16_6 = left.register.uint16_6 == right.register.uint16_6 ? ConstantHelper.GetUInt16WithAllBitsSet() : (ushort)0;
                     register.uint16_7 = left.register.uint16_7 == right.register.uint16_7 ? ConstantHelper.GetUInt16WithAllBitsSet() : (ushort)0;
-                    return new Vector<T>(ref register);
                 }
                 else if (typeof(T) == typeof(short))
                 {
@@ -2896,7 +1545,6 @@ namespace System.Numerics
                     register.int16_5 = left.register.int16_5 == right.register.int16_5 ? ConstantHelper.GetInt16WithAllBitsSet() : (short)0;
                     register.int16_6 = left.register.int16_6 == right.register.int16_6 ? ConstantHelper.GetInt16WithAllBitsSet() : (short)0;
                     register.int16_7 = left.register.int16_7 == right.register.int16_7 ? ConstantHelper.GetInt16WithAllBitsSet() : (short)0;
-                    return new Vector<T>(ref register);
                 }
                 else if (typeof(T) == typeof(uint))
                 {
@@ -2904,7 +1552,6 @@ namespace System.Numerics
                     register.uint32_1 = left.register.uint32_1 == right.register.uint32_1 ? ConstantHelper.GetUInt32WithAllBitsSet() : (uint)0;
                     register.uint32_2 = left.register.uint32_2 == right.register.uint32_2 ? ConstantHelper.GetUInt32WithAllBitsSet() : (uint)0;
                     register.uint32_3 = left.register.uint32_3 == right.register.uint32_3 ? ConstantHelper.GetUInt32WithAllBitsSet() : (uint)0;
-                    return new Vector<T>(ref register);
                 }
                 else if (typeof(T) == typeof(int))
                 {
@@ -2912,19 +1559,16 @@ namespace System.Numerics
                     register.int32_1 = left.register.int32_1 == right.register.int32_1 ? ConstantHelper.GetInt32WithAllBitsSet() : (int)0;
                     register.int32_2 = left.register.int32_2 == right.register.int32_2 ? ConstantHelper.GetInt32WithAllBitsSet() : (int)0;
                     register.int32_3 = left.register.int32_3 == right.register.int32_3 ? ConstantHelper.GetInt32WithAllBitsSet() : (int)0;
-                    return new Vector<T>(ref register);
                 }
                 else if (typeof(T) == typeof(ulong))
                 {
                     register.uint64_0 = left.register.uint64_0 == right.register.uint64_0 ? ConstantHelper.GetUInt64WithAllBitsSet() : (ulong)0;
                     register.uint64_1 = left.register.uint64_1 == right.register.uint64_1 ? ConstantHelper.GetUInt64WithAllBitsSet() : (ulong)0;
-                    return new Vector<T>(ref register);
                 }
                 else if (typeof(T) == typeof(long))
                 {
                     register.int64_0 = left.register.int64_0 == right.register.int64_0 ? ConstantHelper.GetInt64WithAllBitsSet() : (long)0;
                     register.int64_1 = left.register.int64_1 == right.register.int64_1 ? ConstantHelper.GetInt64WithAllBitsSet() : (long)0;
-                    return new Vector<T>(ref register);
                 }
                 else if (typeof(T) == typeof(float))
                 {
@@ -2932,18 +1576,13 @@ namespace System.Numerics
                     register.single_1 = left.register.single_1 == right.register.single_1 ? ConstantHelper.GetSingleWithAllBitsSet() : (float)0;
                     register.single_2 = left.register.single_2 == right.register.single_2 ? ConstantHelper.GetSingleWithAllBitsSet() : (float)0;
                     register.single_3 = left.register.single_3 == right.register.single_3 ? ConstantHelper.GetSingleWithAllBitsSet() : (float)0;
-                    return new Vector<T>(ref register);
                 }
                 else if (typeof(T) == typeof(double))
                 {
                     register.double_0 = left.register.double_0 == right.register.double_0 ? ConstantHelper.GetDoubleWithAllBitsSet() : (double)0;
                     register.double_1 = left.register.double_1 == right.register.double_1 ? ConstantHelper.GetDoubleWithAllBitsSet() : (double)0;
-                    return new Vector<T>(ref register);
                 }
-                else
-                {
-                    throw new NotSupportedException(SR.Arg_TypeNotSupported);
-                }
+                return new Vector<T>(ref register);
             }
         }
 
@@ -2951,102 +1590,12 @@ namespace System.Numerics
         [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
         internal static unsafe Vector<T> LessThan(Vector<T> left, Vector<T> right)
         {
+            ThrowIfUnsupportedType();
+
             if (Vector.IsHardwareAccelerated)
             {
-                if (typeof(T) == typeof(byte))
-                {
-                    byte* dataPtr = stackalloc byte[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = ScalarLessThan(left[g], right[g]) ? ConstantHelper.GetByteWithAllBitsSet() : (byte)0;
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-                else if (typeof(T) == typeof(sbyte))
-                {
-                    sbyte* dataPtr = stackalloc sbyte[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = ScalarLessThan(left[g], right[g]) ? ConstantHelper.GetSByteWithAllBitsSet() : (sbyte)0;
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-                else if (typeof(T) == typeof(ushort))
-                {
-                    ushort* dataPtr = stackalloc ushort[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = ScalarLessThan(left[g], right[g]) ? ConstantHelper.GetUInt16WithAllBitsSet() : (ushort)0;
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-                else if (typeof(T) == typeof(short))
-                {
-                    short* dataPtr = stackalloc short[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = ScalarLessThan(left[g], right[g]) ? ConstantHelper.GetInt16WithAllBitsSet() : (short)0;
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-                else if (typeof(T) == typeof(uint))
-                {
-                    uint* dataPtr = stackalloc uint[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = ScalarLessThan(left[g], right[g]) ? ConstantHelper.GetUInt32WithAllBitsSet() : (uint)0;
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-                else if (typeof(T) == typeof(int))
-                {
-                    int* dataPtr = stackalloc int[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = ScalarLessThan(left[g], right[g]) ? ConstantHelper.GetInt32WithAllBitsSet() : (int)0;
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-                else if (typeof(T) == typeof(ulong))
-                {
-                    ulong* dataPtr = stackalloc ulong[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = ScalarLessThan(left[g], right[g]) ? ConstantHelper.GetUInt64WithAllBitsSet() : (ulong)0;
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-                else if (typeof(T) == typeof(long))
-                {
-                    long* dataPtr = stackalloc long[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = ScalarLessThan(left[g], right[g]) ? ConstantHelper.GetInt64WithAllBitsSet() : (long)0;
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-                else if (typeof(T) == typeof(float))
-                {
-                    float* dataPtr = stackalloc float[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = ScalarLessThan(left[g], right[g]) ? ConstantHelper.GetSingleWithAllBitsSet() : (float)0;
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-                else if (typeof(T) == typeof(double))
-                {
-                    double* dataPtr = stackalloc double[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = ScalarLessThan(left[g], right[g]) ? ConstantHelper.GetDoubleWithAllBitsSet() : (double)0;
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-                else
-                {
-                    throw new NotSupportedException(SR.Arg_TypeNotSupported);
-                }
+                // This is an intrinsic operation and will not result in a recursive call.
+                return LessThan(left, right);
             }
             else
             {
@@ -3069,7 +1618,6 @@ namespace System.Numerics
                     register.byte_13 = left.register.byte_13 < right.register.byte_13 ? ConstantHelper.GetByteWithAllBitsSet() : (byte)0;
                     register.byte_14 = left.register.byte_14 < right.register.byte_14 ? ConstantHelper.GetByteWithAllBitsSet() : (byte)0;
                     register.byte_15 = left.register.byte_15 < right.register.byte_15 ? ConstantHelper.GetByteWithAllBitsSet() : (byte)0;
-                    return new Vector<T>(ref register);
                 }
                 else if (typeof(T) == typeof(sbyte))
                 {
@@ -3089,7 +1637,6 @@ namespace System.Numerics
                     register.sbyte_13 = left.register.sbyte_13 < right.register.sbyte_13 ? ConstantHelper.GetSByteWithAllBitsSet() : (sbyte)0;
                     register.sbyte_14 = left.register.sbyte_14 < right.register.sbyte_14 ? ConstantHelper.GetSByteWithAllBitsSet() : (sbyte)0;
                     register.sbyte_15 = left.register.sbyte_15 < right.register.sbyte_15 ? ConstantHelper.GetSByteWithAllBitsSet() : (sbyte)0;
-                    return new Vector<T>(ref register);
                 }
                 else if (typeof(T) == typeof(ushort))
                 {
@@ -3101,7 +1648,6 @@ namespace System.Numerics
                     register.uint16_5 = left.register.uint16_5 < right.register.uint16_5 ? ConstantHelper.GetUInt16WithAllBitsSet() : (ushort)0;
                     register.uint16_6 = left.register.uint16_6 < right.register.uint16_6 ? ConstantHelper.GetUInt16WithAllBitsSet() : (ushort)0;
                     register.uint16_7 = left.register.uint16_7 < right.register.uint16_7 ? ConstantHelper.GetUInt16WithAllBitsSet() : (ushort)0;
-                    return new Vector<T>(ref register);
                 }
                 else if (typeof(T) == typeof(short))
                 {
@@ -3113,7 +1659,6 @@ namespace System.Numerics
                     register.int16_5 = left.register.int16_5 < right.register.int16_5 ? ConstantHelper.GetInt16WithAllBitsSet() : (short)0;
                     register.int16_6 = left.register.int16_6 < right.register.int16_6 ? ConstantHelper.GetInt16WithAllBitsSet() : (short)0;
                     register.int16_7 = left.register.int16_7 < right.register.int16_7 ? ConstantHelper.GetInt16WithAllBitsSet() : (short)0;
-                    return new Vector<T>(ref register);
                 }
                 else if (typeof(T) == typeof(uint))
                 {
@@ -3121,7 +1666,6 @@ namespace System.Numerics
                     register.uint32_1 = left.register.uint32_1 < right.register.uint32_1 ? ConstantHelper.GetUInt32WithAllBitsSet() : (uint)0;
                     register.uint32_2 = left.register.uint32_2 < right.register.uint32_2 ? ConstantHelper.GetUInt32WithAllBitsSet() : (uint)0;
                     register.uint32_3 = left.register.uint32_3 < right.register.uint32_3 ? ConstantHelper.GetUInt32WithAllBitsSet() : (uint)0;
-                    return new Vector<T>(ref register);
                 }
                 else if (typeof(T) == typeof(int))
                 {
@@ -3129,19 +1673,16 @@ namespace System.Numerics
                     register.int32_1 = left.register.int32_1 < right.register.int32_1 ? ConstantHelper.GetInt32WithAllBitsSet() : (int)0;
                     register.int32_2 = left.register.int32_2 < right.register.int32_2 ? ConstantHelper.GetInt32WithAllBitsSet() : (int)0;
                     register.int32_3 = left.register.int32_3 < right.register.int32_3 ? ConstantHelper.GetInt32WithAllBitsSet() : (int)0;
-                    return new Vector<T>(ref register);
                 }
                 else if (typeof(T) == typeof(ulong))
                 {
                     register.uint64_0 = left.register.uint64_0 < right.register.uint64_0 ? ConstantHelper.GetUInt64WithAllBitsSet() : (ulong)0;
                     register.uint64_1 = left.register.uint64_1 < right.register.uint64_1 ? ConstantHelper.GetUInt64WithAllBitsSet() : (ulong)0;
-                    return new Vector<T>(ref register);
                 }
                 else if (typeof(T) == typeof(long))
                 {
                     register.int64_0 = left.register.int64_0 < right.register.int64_0 ? ConstantHelper.GetInt64WithAllBitsSet() : (long)0;
                     register.int64_1 = left.register.int64_1 < right.register.int64_1 ? ConstantHelper.GetInt64WithAllBitsSet() : (long)0;
-                    return new Vector<T>(ref register);
                 }
                 else if (typeof(T) == typeof(float))
                 {
@@ -3149,18 +1690,13 @@ namespace System.Numerics
                     register.single_1 = left.register.single_1 < right.register.single_1 ? ConstantHelper.GetSingleWithAllBitsSet() : (float)0;
                     register.single_2 = left.register.single_2 < right.register.single_2 ? ConstantHelper.GetSingleWithAllBitsSet() : (float)0;
                     register.single_3 = left.register.single_3 < right.register.single_3 ? ConstantHelper.GetSingleWithAllBitsSet() : (float)0;
-                    return new Vector<T>(ref register);
                 }
                 else if (typeof(T) == typeof(double))
                 {
                     register.double_0 = left.register.double_0 < right.register.double_0 ? ConstantHelper.GetDoubleWithAllBitsSet() : (double)0;
                     register.double_1 = left.register.double_1 < right.register.double_1 ? ConstantHelper.GetDoubleWithAllBitsSet() : (double)0;
-                    return new Vector<T>(ref register);
                 }
-                else
-                {
-                    throw new NotSupportedException(SR.Arg_TypeNotSupported);
-                }
+                return new Vector<T>(ref register);
             }
         }
 
@@ -3168,102 +1704,12 @@ namespace System.Numerics
         [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
         internal static unsafe Vector<T> GreaterThan(Vector<T> left, Vector<T> right)
         {
+            ThrowIfUnsupportedType();
+
             if (Vector.IsHardwareAccelerated)
             {
-                if (typeof(T) == typeof(byte))
-                {
-                    byte* dataPtr = stackalloc byte[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = ScalarGreaterThan(left[g], right[g]) ? ConstantHelper.GetByteWithAllBitsSet() : (byte)0;
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-                else if (typeof(T) == typeof(sbyte))
-                {
-                    sbyte* dataPtr = stackalloc sbyte[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = ScalarGreaterThan(left[g], right[g]) ? ConstantHelper.GetSByteWithAllBitsSet() : (sbyte)0;
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-                else if (typeof(T) == typeof(ushort))
-                {
-                    ushort* dataPtr = stackalloc ushort[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = ScalarGreaterThan(left[g], right[g]) ? ConstantHelper.GetUInt16WithAllBitsSet() : (ushort)0;
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-                else if (typeof(T) == typeof(short))
-                {
-                    short* dataPtr = stackalloc short[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = ScalarGreaterThan(left[g], right[g]) ? ConstantHelper.GetInt16WithAllBitsSet() : (short)0;
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-                else if (typeof(T) == typeof(uint))
-                {
-                    uint* dataPtr = stackalloc uint[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = ScalarGreaterThan(left[g], right[g]) ? ConstantHelper.GetUInt32WithAllBitsSet() : (uint)0;
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-                else if (typeof(T) == typeof(int))
-                {
-                    int* dataPtr = stackalloc int[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = ScalarGreaterThan(left[g], right[g]) ? ConstantHelper.GetInt32WithAllBitsSet() : (int)0;
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-                else if (typeof(T) == typeof(ulong))
-                {
-                    ulong* dataPtr = stackalloc ulong[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = ScalarGreaterThan(left[g], right[g]) ? ConstantHelper.GetUInt64WithAllBitsSet() : (ulong)0;
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-                else if (typeof(T) == typeof(long))
-                {
-                    long* dataPtr = stackalloc long[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = ScalarGreaterThan(left[g], right[g]) ? ConstantHelper.GetInt64WithAllBitsSet() : (long)0;
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-                else if (typeof(T) == typeof(float))
-                {
-                    float* dataPtr = stackalloc float[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = ScalarGreaterThan(left[g], right[g]) ? ConstantHelper.GetSingleWithAllBitsSet() : (float)0;
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-                else if (typeof(T) == typeof(double))
-                {
-                    double* dataPtr = stackalloc double[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = ScalarGreaterThan(left[g], right[g]) ? ConstantHelper.GetDoubleWithAllBitsSet() : (double)0;
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-                else
-                {
-                    throw new NotSupportedException(SR.Arg_TypeNotSupported);
-                }
+                // This is an intrinsic operation and will not result in a recursive call.
+                return GreaterThan(left, right);
             }
             else
             {
@@ -3286,7 +1732,6 @@ namespace System.Numerics
                     register.byte_13 = left.register.byte_13 > right.register.byte_13 ? ConstantHelper.GetByteWithAllBitsSet() : (byte)0;
                     register.byte_14 = left.register.byte_14 > right.register.byte_14 ? ConstantHelper.GetByteWithAllBitsSet() : (byte)0;
                     register.byte_15 = left.register.byte_15 > right.register.byte_15 ? ConstantHelper.GetByteWithAllBitsSet() : (byte)0;
-                    return new Vector<T>(ref register);
                 }
                 else if (typeof(T) == typeof(sbyte))
                 {
@@ -3306,7 +1751,6 @@ namespace System.Numerics
                     register.sbyte_13 = left.register.sbyte_13 > right.register.sbyte_13 ? ConstantHelper.GetSByteWithAllBitsSet() : (sbyte)0;
                     register.sbyte_14 = left.register.sbyte_14 > right.register.sbyte_14 ? ConstantHelper.GetSByteWithAllBitsSet() : (sbyte)0;
                     register.sbyte_15 = left.register.sbyte_15 > right.register.sbyte_15 ? ConstantHelper.GetSByteWithAllBitsSet() : (sbyte)0;
-                    return new Vector<T>(ref register);
                 }
                 else if (typeof(T) == typeof(ushort))
                 {
@@ -3318,7 +1762,6 @@ namespace System.Numerics
                     register.uint16_5 = left.register.uint16_5 > right.register.uint16_5 ? ConstantHelper.GetUInt16WithAllBitsSet() : (ushort)0;
                     register.uint16_6 = left.register.uint16_6 > right.register.uint16_6 ? ConstantHelper.GetUInt16WithAllBitsSet() : (ushort)0;
                     register.uint16_7 = left.register.uint16_7 > right.register.uint16_7 ? ConstantHelper.GetUInt16WithAllBitsSet() : (ushort)0;
-                    return new Vector<T>(ref register);
                 }
                 else if (typeof(T) == typeof(short))
                 {
@@ -3330,7 +1773,6 @@ namespace System.Numerics
                     register.int16_5 = left.register.int16_5 > right.register.int16_5 ? ConstantHelper.GetInt16WithAllBitsSet() : (short)0;
                     register.int16_6 = left.register.int16_6 > right.register.int16_6 ? ConstantHelper.GetInt16WithAllBitsSet() : (short)0;
                     register.int16_7 = left.register.int16_7 > right.register.int16_7 ? ConstantHelper.GetInt16WithAllBitsSet() : (short)0;
-                    return new Vector<T>(ref register);
                 }
                 else if (typeof(T) == typeof(uint))
                 {
@@ -3338,7 +1780,6 @@ namespace System.Numerics
                     register.uint32_1 = left.register.uint32_1 > right.register.uint32_1 ? ConstantHelper.GetUInt32WithAllBitsSet() : (uint)0;
                     register.uint32_2 = left.register.uint32_2 > right.register.uint32_2 ? ConstantHelper.GetUInt32WithAllBitsSet() : (uint)0;
                     register.uint32_3 = left.register.uint32_3 > right.register.uint32_3 ? ConstantHelper.GetUInt32WithAllBitsSet() : (uint)0;
-                    return new Vector<T>(ref register);
                 }
                 else if (typeof(T) == typeof(int))
                 {
@@ -3346,19 +1787,16 @@ namespace System.Numerics
                     register.int32_1 = left.register.int32_1 > right.register.int32_1 ? ConstantHelper.GetInt32WithAllBitsSet() : (int)0;
                     register.int32_2 = left.register.int32_2 > right.register.int32_2 ? ConstantHelper.GetInt32WithAllBitsSet() : (int)0;
                     register.int32_3 = left.register.int32_3 > right.register.int32_3 ? ConstantHelper.GetInt32WithAllBitsSet() : (int)0;
-                    return new Vector<T>(ref register);
                 }
                 else if (typeof(T) == typeof(ulong))
                 {
                     register.uint64_0 = left.register.uint64_0 > right.register.uint64_0 ? ConstantHelper.GetUInt64WithAllBitsSet() : (ulong)0;
                     register.uint64_1 = left.register.uint64_1 > right.register.uint64_1 ? ConstantHelper.GetUInt64WithAllBitsSet() : (ulong)0;
-                    return new Vector<T>(ref register);
                 }
                 else if (typeof(T) == typeof(long))
                 {
                     register.int64_0 = left.register.int64_0 > right.register.int64_0 ? ConstantHelper.GetInt64WithAllBitsSet() : (long)0;
                     register.int64_1 = left.register.int64_1 > right.register.int64_1 ? ConstantHelper.GetInt64WithAllBitsSet() : (long)0;
-                    return new Vector<T>(ref register);
                 }
                 else if (typeof(T) == typeof(float))
                 {
@@ -3366,37 +1804,62 @@ namespace System.Numerics
                     register.single_1 = left.register.single_1 > right.register.single_1 ? ConstantHelper.GetSingleWithAllBitsSet() : (float)0;
                     register.single_2 = left.register.single_2 > right.register.single_2 ? ConstantHelper.GetSingleWithAllBitsSet() : (float)0;
                     register.single_3 = left.register.single_3 > right.register.single_3 ? ConstantHelper.GetSingleWithAllBitsSet() : (float)0;
-                    return new Vector<T>(ref register);
                 }
                 else if (typeof(T) == typeof(double))
                 {
                     register.double_0 = left.register.double_0 > right.register.double_0 ? ConstantHelper.GetDoubleWithAllBitsSet() : (double)0;
                     register.double_1 = left.register.double_1 > right.register.double_1 ? ConstantHelper.GetDoubleWithAllBitsSet() : (double)0;
-                    return new Vector<T>(ref register);
                 }
-                else
-                {
-                    throw new NotSupportedException(SR.Arg_TypeNotSupported);
-                }
+                return new Vector<T>(ref register);
             }
         }
 
         [Intrinsic]
         internal static Vector<T> GreaterThanOrEqual(Vector<T> left, Vector<T> right)
         {
-            return Equals(left, right) | GreaterThan(left, right);
+            ThrowIfUnsupportedType();
+
+            if (Vector.IsHardwareAccelerated)
+            {
+                // This is an intrinsic operation and will not result in a recursive call.
+                return GreaterThanOrEqual(left, right);
+            }
+            else
+            {
+                return Equals(left, right) | GreaterThan(left, right);
+            }
         }
 
         [Intrinsic]
         internal static Vector<T> LessThanOrEqual(Vector<T> left, Vector<T> right)
         {
-            return Equals(left, right) | LessThan(left, right);
+            ThrowIfUnsupportedType();
+
+            if (Vector.IsHardwareAccelerated)
+            {
+                // This is an intrinsic operation and will not result in a recursive call.
+                return LessThanOrEqual(left, right);
+            }
+            else
+            {
+                return Equals(left, right) | LessThan(left, right);
+            }
         }
 
         [Intrinsic]
         internal static Vector<T> ConditionalSelect(Vector<T> condition, Vector<T> left, Vector<T> right)
         {
-            return (left & condition) | (Vector.AndNot(right, condition));
+            ThrowIfUnsupportedType();
+
+            if (Vector.IsHardwareAccelerated)
+            {
+                // This is an intrinsic operation and will not result in a recursive call.
+                return ConditionalSelect(condition, left, right);
+            }
+            else
+            {
+                return (left & condition) | (Vector.AndNot(right, condition));
+            }
         }
         #endregion Comparison Methods
 
@@ -3404,6 +1867,8 @@ namespace System.Numerics
         [Intrinsic]
         internal static unsafe Vector<T> Abs(Vector<T> value)
         {
+            ThrowIfUnsupportedType();
+
             if (typeof(T) == typeof(byte))
             {
                 return value;
@@ -3420,66 +1885,11 @@ namespace System.Numerics
             {
                 return value;
             }
+
             if (Vector.IsHardwareAccelerated)
             {
-                if (typeof(T) == typeof(sbyte))
-                {
-                    sbyte* dataPtr = stackalloc sbyte[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = (sbyte)(object)(Math.Abs((sbyte)(object)value[g]));
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-                else if (typeof(T) == typeof(short))
-                {
-                    short* dataPtr = stackalloc short[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = (short)(object)(Math.Abs((short)(object)value[g]));
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-                else if (typeof(T) == typeof(int))
-                {
-                    int* dataPtr = stackalloc int[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = (int)(object)(Math.Abs((int)(object)value[g]));
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-                else if (typeof(T) == typeof(long))
-                {
-                    long* dataPtr = stackalloc long[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = (long)(object)(Math.Abs((long)(object)value[g]));
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-                else if (typeof(T) == typeof(float))
-                {
-                    float* dataPtr = stackalloc float[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = (float)(object)(Math.Abs((float)(object)value[g]));
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-                else if (typeof(T) == typeof(double))
-                {
-                    double* dataPtr = stackalloc double[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = (double)(object)(Math.Abs((double)(object)value[g]));
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-                else
-                {
-                    throw new NotSupportedException(SR.Arg_TypeNotSupported);
-                }
+                // This is an intrinsic operation and will not result in a recursive call.
+                return Abs(value);
             }
             else
             {
@@ -3553,102 +1963,12 @@ namespace System.Numerics
         [Intrinsic]
         internal static unsafe Vector<T> Min(Vector<T> left, Vector<T> right)
         {
+            ThrowIfUnsupportedType();
+
             if (Vector.IsHardwareAccelerated)
             {
-                if (typeof(T) == typeof(byte))
-                {
-                    byte* dataPtr = stackalloc byte[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = ScalarLessThan(left[g], right[g]) ? (byte)(object)left[g] : (byte)(object)right[g];
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-                else if (typeof(T) == typeof(sbyte))
-                {
-                    sbyte* dataPtr = stackalloc sbyte[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = ScalarLessThan(left[g], right[g]) ? (sbyte)(object)left[g] : (sbyte)(object)right[g];
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-                else if (typeof(T) == typeof(ushort))
-                {
-                    ushort* dataPtr = stackalloc ushort[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = ScalarLessThan(left[g], right[g]) ? (ushort)(object)left[g] : (ushort)(object)right[g];
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-                else if (typeof(T) == typeof(short))
-                {
-                    short* dataPtr = stackalloc short[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = ScalarLessThan(left[g], right[g]) ? (short)(object)left[g] : (short)(object)right[g];
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-                else if (typeof(T) == typeof(uint))
-                {
-                    uint* dataPtr = stackalloc uint[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = ScalarLessThan(left[g], right[g]) ? (uint)(object)left[g] : (uint)(object)right[g];
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-                else if (typeof(T) == typeof(int))
-                {
-                    int* dataPtr = stackalloc int[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = ScalarLessThan(left[g], right[g]) ? (int)(object)left[g] : (int)(object)right[g];
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-                else if (typeof(T) == typeof(ulong))
-                {
-                    ulong* dataPtr = stackalloc ulong[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = ScalarLessThan(left[g], right[g]) ? (ulong)(object)left[g] : (ulong)(object)right[g];
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-                else if (typeof(T) == typeof(long))
-                {
-                    long* dataPtr = stackalloc long[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = ScalarLessThan(left[g], right[g]) ? (long)(object)left[g] : (long)(object)right[g];
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-                else if (typeof(T) == typeof(float))
-                {
-                    float* dataPtr = stackalloc float[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = ScalarLessThan(left[g], right[g]) ? (float)(object)left[g] : (float)(object)right[g];
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-                else if (typeof(T) == typeof(double))
-                {
-                    double* dataPtr = stackalloc double[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = ScalarLessThan(left[g], right[g]) ? (double)(object)left[g] : (double)(object)right[g];
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-                else
-                {
-                    throw new NotSupportedException(SR.Arg_TypeNotSupported);
-                }
+                // This is an intrinsic operation and will not result in a recursive call.
+                return Min(left, right);
             }
             else
             {
@@ -3671,7 +1991,6 @@ namespace System.Numerics
                     vec.register.byte_13 = left.register.byte_13 < right.register.byte_13 ? left.register.byte_13 : right.register.byte_13;
                     vec.register.byte_14 = left.register.byte_14 < right.register.byte_14 ? left.register.byte_14 : right.register.byte_14;
                     vec.register.byte_15 = left.register.byte_15 < right.register.byte_15 ? left.register.byte_15 : right.register.byte_15;
-                    return vec;
                 }
                 else if (typeof(T) == typeof(sbyte))
                 {
@@ -3691,7 +2010,6 @@ namespace System.Numerics
                     vec.register.sbyte_13 = left.register.sbyte_13 < right.register.sbyte_13 ? left.register.sbyte_13 : right.register.sbyte_13;
                     vec.register.sbyte_14 = left.register.sbyte_14 < right.register.sbyte_14 ? left.register.sbyte_14 : right.register.sbyte_14;
                     vec.register.sbyte_15 = left.register.sbyte_15 < right.register.sbyte_15 ? left.register.sbyte_15 : right.register.sbyte_15;
-                    return vec;
                 }
                 else if (typeof(T) == typeof(ushort))
                 {
@@ -3703,7 +2021,6 @@ namespace System.Numerics
                     vec.register.uint16_5 = left.register.uint16_5 < right.register.uint16_5 ? left.register.uint16_5 : right.register.uint16_5;
                     vec.register.uint16_6 = left.register.uint16_6 < right.register.uint16_6 ? left.register.uint16_6 : right.register.uint16_6;
                     vec.register.uint16_7 = left.register.uint16_7 < right.register.uint16_7 ? left.register.uint16_7 : right.register.uint16_7;
-                    return vec;
                 }
                 else if (typeof(T) == typeof(short))
                 {
@@ -3715,7 +2032,6 @@ namespace System.Numerics
                     vec.register.int16_5 = left.register.int16_5 < right.register.int16_5 ? left.register.int16_5 : right.register.int16_5;
                     vec.register.int16_6 = left.register.int16_6 < right.register.int16_6 ? left.register.int16_6 : right.register.int16_6;
                     vec.register.int16_7 = left.register.int16_7 < right.register.int16_7 ? left.register.int16_7 : right.register.int16_7;
-                    return vec;
                 }
                 else if (typeof(T) == typeof(uint))
                 {
@@ -3723,7 +2039,6 @@ namespace System.Numerics
                     vec.register.uint32_1 = left.register.uint32_1 < right.register.uint32_1 ? left.register.uint32_1 : right.register.uint32_1;
                     vec.register.uint32_2 = left.register.uint32_2 < right.register.uint32_2 ? left.register.uint32_2 : right.register.uint32_2;
                     vec.register.uint32_3 = left.register.uint32_3 < right.register.uint32_3 ? left.register.uint32_3 : right.register.uint32_3;
-                    return vec;
                 }
                 else if (typeof(T) == typeof(int))
                 {
@@ -3731,19 +2046,16 @@ namespace System.Numerics
                     vec.register.int32_1 = left.register.int32_1 < right.register.int32_1 ? left.register.int32_1 : right.register.int32_1;
                     vec.register.int32_2 = left.register.int32_2 < right.register.int32_2 ? left.register.int32_2 : right.register.int32_2;
                     vec.register.int32_3 = left.register.int32_3 < right.register.int32_3 ? left.register.int32_3 : right.register.int32_3;
-                    return vec;
                 }
                 else if (typeof(T) == typeof(ulong))
                 {
                     vec.register.uint64_0 = left.register.uint64_0 < right.register.uint64_0 ? left.register.uint64_0 : right.register.uint64_0;
                     vec.register.uint64_1 = left.register.uint64_1 < right.register.uint64_1 ? left.register.uint64_1 : right.register.uint64_1;
-                    return vec;
                 }
                 else if (typeof(T) == typeof(long))
                 {
                     vec.register.int64_0 = left.register.int64_0 < right.register.int64_0 ? left.register.int64_0 : right.register.int64_0;
                     vec.register.int64_1 = left.register.int64_1 < right.register.int64_1 ? left.register.int64_1 : right.register.int64_1;
-                    return vec;
                 }
                 else if (typeof(T) == typeof(float))
                 {
@@ -3751,120 +2063,25 @@ namespace System.Numerics
                     vec.register.single_1 = left.register.single_1 < right.register.single_1 ? left.register.single_1 : right.register.single_1;
                     vec.register.single_2 = left.register.single_2 < right.register.single_2 ? left.register.single_2 : right.register.single_2;
                     vec.register.single_3 = left.register.single_3 < right.register.single_3 ? left.register.single_3 : right.register.single_3;
-                    return vec;
                 }
                 else if (typeof(T) == typeof(double))
                 {
                     vec.register.double_0 = left.register.double_0 < right.register.double_0 ? left.register.double_0 : right.register.double_0;
                     vec.register.double_1 = left.register.double_1 < right.register.double_1 ? left.register.double_1 : right.register.double_1;
-                    return vec;
                 }
-                else
-                {
-                    throw new NotSupportedException(SR.Arg_TypeNotSupported);
-                }
+                return vec;
             }
         }
 
         [Intrinsic]
         internal static unsafe Vector<T> Max(Vector<T> left, Vector<T> right)
         {
+            ThrowIfUnsupportedType();
+
             if (Vector.IsHardwareAccelerated)
             {
-                if (typeof(T) == typeof(byte))
-                {
-                    byte* dataPtr = stackalloc byte[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = ScalarGreaterThan(left[g], right[g]) ? (byte)(object)left[g] : (byte)(object)right[g];
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-                else if (typeof(T) == typeof(sbyte))
-                {
-                    sbyte* dataPtr = stackalloc sbyte[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = ScalarGreaterThan(left[g], right[g]) ? (sbyte)(object)left[g] : (sbyte)(object)right[g];
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-                else if (typeof(T) == typeof(ushort))
-                {
-                    ushort* dataPtr = stackalloc ushort[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = ScalarGreaterThan(left[g], right[g]) ? (ushort)(object)left[g] : (ushort)(object)right[g];
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-                else if (typeof(T) == typeof(short))
-                {
-                    short* dataPtr = stackalloc short[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = ScalarGreaterThan(left[g], right[g]) ? (short)(object)left[g] : (short)(object)right[g];
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-                else if (typeof(T) == typeof(uint))
-                {
-                    uint* dataPtr = stackalloc uint[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = ScalarGreaterThan(left[g], right[g]) ? (uint)(object)left[g] : (uint)(object)right[g];
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-                else if (typeof(T) == typeof(int))
-                {
-                    int* dataPtr = stackalloc int[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = ScalarGreaterThan(left[g], right[g]) ? (int)(object)left[g] : (int)(object)right[g];
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-                else if (typeof(T) == typeof(ulong))
-                {
-                    ulong* dataPtr = stackalloc ulong[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = ScalarGreaterThan(left[g], right[g]) ? (ulong)(object)left[g] : (ulong)(object)right[g];
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-                else if (typeof(T) == typeof(long))
-                {
-                    long* dataPtr = stackalloc long[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = ScalarGreaterThan(left[g], right[g]) ? (long)(object)left[g] : (long)(object)right[g];
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-                else if (typeof(T) == typeof(float))
-                {
-                    float* dataPtr = stackalloc float[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = ScalarGreaterThan(left[g], right[g]) ? (float)(object)left[g] : (float)(object)right[g];
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-                else if (typeof(T) == typeof(double))
-                {
-                    double* dataPtr = stackalloc double[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = ScalarGreaterThan(left[g], right[g]) ? (double)(object)left[g] : (double)(object)right[g];
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-                else
-                {
-                    throw new NotSupportedException(SR.Arg_TypeNotSupported);
-                }
+                // This is an intrinsic operation and will not result in a recursive call.
+                return Max(left, right);
             }
             else
             {
@@ -3887,7 +2104,6 @@ namespace System.Numerics
                     vec.register.byte_13 = left.register.byte_13 > right.register.byte_13 ? left.register.byte_13 : right.register.byte_13;
                     vec.register.byte_14 = left.register.byte_14 > right.register.byte_14 ? left.register.byte_14 : right.register.byte_14;
                     vec.register.byte_15 = left.register.byte_15 > right.register.byte_15 ? left.register.byte_15 : right.register.byte_15;
-                    return vec;
                 }
                 else if (typeof(T) == typeof(sbyte))
                 {
@@ -3907,7 +2123,6 @@ namespace System.Numerics
                     vec.register.sbyte_13 = left.register.sbyte_13 > right.register.sbyte_13 ? left.register.sbyte_13 : right.register.sbyte_13;
                     vec.register.sbyte_14 = left.register.sbyte_14 > right.register.sbyte_14 ? left.register.sbyte_14 : right.register.sbyte_14;
                     vec.register.sbyte_15 = left.register.sbyte_15 > right.register.sbyte_15 ? left.register.sbyte_15 : right.register.sbyte_15;
-                    return vec;
                 }
                 else if (typeof(T) == typeof(ushort))
                 {
@@ -3919,7 +2134,6 @@ namespace System.Numerics
                     vec.register.uint16_5 = left.register.uint16_5 > right.register.uint16_5 ? left.register.uint16_5 : right.register.uint16_5;
                     vec.register.uint16_6 = left.register.uint16_6 > right.register.uint16_6 ? left.register.uint16_6 : right.register.uint16_6;
                     vec.register.uint16_7 = left.register.uint16_7 > right.register.uint16_7 ? left.register.uint16_7 : right.register.uint16_7;
-                    return vec;
                 }
                 else if (typeof(T) == typeof(short))
                 {
@@ -3931,7 +2145,6 @@ namespace System.Numerics
                     vec.register.int16_5 = left.register.int16_5 > right.register.int16_5 ? left.register.int16_5 : right.register.int16_5;
                     vec.register.int16_6 = left.register.int16_6 > right.register.int16_6 ? left.register.int16_6 : right.register.int16_6;
                     vec.register.int16_7 = left.register.int16_7 > right.register.int16_7 ? left.register.int16_7 : right.register.int16_7;
-                    return vec;
                 }
                 else if (typeof(T) == typeof(uint))
                 {
@@ -3939,7 +2152,6 @@ namespace System.Numerics
                     vec.register.uint32_1 = left.register.uint32_1 > right.register.uint32_1 ? left.register.uint32_1 : right.register.uint32_1;
                     vec.register.uint32_2 = left.register.uint32_2 > right.register.uint32_2 ? left.register.uint32_2 : right.register.uint32_2;
                     vec.register.uint32_3 = left.register.uint32_3 > right.register.uint32_3 ? left.register.uint32_3 : right.register.uint32_3;
-                    return vec;
                 }
                 else if (typeof(T) == typeof(int))
                 {
@@ -3947,19 +2159,16 @@ namespace System.Numerics
                     vec.register.int32_1 = left.register.int32_1 > right.register.int32_1 ? left.register.int32_1 : right.register.int32_1;
                     vec.register.int32_2 = left.register.int32_2 > right.register.int32_2 ? left.register.int32_2 : right.register.int32_2;
                     vec.register.int32_3 = left.register.int32_3 > right.register.int32_3 ? left.register.int32_3 : right.register.int32_3;
-                    return vec;
                 }
                 else if (typeof(T) == typeof(ulong))
                 {
                     vec.register.uint64_0 = left.register.uint64_0 > right.register.uint64_0 ? left.register.uint64_0 : right.register.uint64_0;
                     vec.register.uint64_1 = left.register.uint64_1 > right.register.uint64_1 ? left.register.uint64_1 : right.register.uint64_1;
-                    return vec;
                 }
                 else if (typeof(T) == typeof(long))
                 {
                     vec.register.int64_0 = left.register.int64_0 > right.register.int64_0 ? left.register.int64_0 : right.register.int64_0;
                     vec.register.int64_1 = left.register.int64_1 > right.register.int64_1 ? left.register.int64_1 : right.register.int64_1;
-                    return vec;
                 }
                 else if (typeof(T) == typeof(float))
                 {
@@ -3967,32 +2176,25 @@ namespace System.Numerics
                     vec.register.single_1 = left.register.single_1 > right.register.single_1 ? left.register.single_1 : right.register.single_1;
                     vec.register.single_2 = left.register.single_2 > right.register.single_2 ? left.register.single_2 : right.register.single_2;
                     vec.register.single_3 = left.register.single_3 > right.register.single_3 ? left.register.single_3 : right.register.single_3;
-                    return vec;
                 }
                 else if (typeof(T) == typeof(double))
                 {
                     vec.register.double_0 = left.register.double_0 > right.register.double_0 ? left.register.double_0 : right.register.double_0;
                     vec.register.double_1 = left.register.double_1 > right.register.double_1 ? left.register.double_1 : right.register.double_1;
-                    return vec;
                 }
-                else
-                {
-                    throw new NotSupportedException(SR.Arg_TypeNotSupported);
-                }
+                return vec;
             }
         }
 
         [Intrinsic]
         internal static T Dot(Vector<T> left, Vector<T> right)
         {
+            ThrowIfUnsupportedType();
+
             if (Vector.IsHardwareAccelerated)
             {
-                T product = default;
-                for (int g = 0; g < Count; g++)
-                {
-                    product = ScalarAdd(product, ScalarMultiply(left[g], right[g]));
-                }
-                return product;
+                // This is an intrinsic operation and will not result in a recursive call.
+                return Dot(left, right);
             }
             else
             {
@@ -4122,102 +2324,12 @@ namespace System.Numerics
         [Intrinsic]
         internal static unsafe Vector<T> SquareRoot(Vector<T> value)
         {
+            ThrowIfUnsupportedType();
+
             if (Vector.IsHardwareAccelerated)
             {
-                if (typeof(T) == typeof(byte))
-                {
-                    byte* dataPtr = stackalloc byte[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = unchecked((byte)Math.Sqrt((byte)(object)value[g]));
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-                else if (typeof(T) == typeof(sbyte))
-                {
-                    sbyte* dataPtr = stackalloc sbyte[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = unchecked((sbyte)Math.Sqrt((sbyte)(object)value[g]));
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-                else if (typeof(T) == typeof(ushort))
-                {
-                    ushort* dataPtr = stackalloc ushort[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = unchecked((ushort)Math.Sqrt((ushort)(object)value[g]));
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-                else if (typeof(T) == typeof(short))
-                {
-                    short* dataPtr = stackalloc short[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = unchecked((short)Math.Sqrt((short)(object)value[g]));
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-                else if (typeof(T) == typeof(uint))
-                {
-                    uint* dataPtr = stackalloc uint[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = unchecked((uint)Math.Sqrt((uint)(object)value[g]));
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-                else if (typeof(T) == typeof(int))
-                {
-                    int* dataPtr = stackalloc int[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = unchecked((int)Math.Sqrt((int)(object)value[g]));
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-                else if (typeof(T) == typeof(ulong))
-                {
-                    ulong* dataPtr = stackalloc ulong[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = unchecked((ulong)Math.Sqrt((ulong)(object)value[g]));
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-                else if (typeof(T) == typeof(long))
-                {
-                    long* dataPtr = stackalloc long[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = unchecked((long)Math.Sqrt((long)(object)value[g]));
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-                else if (typeof(T) == typeof(float))
-                {
-                    float* dataPtr = stackalloc float[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = unchecked((float)Math.Sqrt((float)(object)value[g]));
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-                else if (typeof(T) == typeof(double))
-                {
-                    double* dataPtr = stackalloc double[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = unchecked((double)Math.Sqrt((double)(object)value[g]));
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-                else
-                {
-                    throw new NotSupportedException(SR.Arg_TypeNotSupported);
-                }
+                // This is an intrinsic operation and will not result in a recursive call.
+                return SquareRoot(value);
             }
             else
             {
@@ -4239,7 +2351,6 @@ namespace System.Numerics
                     value.register.byte_13 = (byte)Math.Sqrt(value.register.byte_13);
                     value.register.byte_14 = (byte)Math.Sqrt(value.register.byte_14);
                     value.register.byte_15 = (byte)Math.Sqrt(value.register.byte_15);
-                    return value;
                 }
                 else if (typeof(T) == typeof(sbyte))
                 {
@@ -4259,7 +2370,6 @@ namespace System.Numerics
                     value.register.sbyte_13 = (sbyte)Math.Sqrt(value.register.sbyte_13);
                     value.register.sbyte_14 = (sbyte)Math.Sqrt(value.register.sbyte_14);
                     value.register.sbyte_15 = (sbyte)Math.Sqrt(value.register.sbyte_15);
-                    return value;
                 }
                 else if (typeof(T) == typeof(ushort))
                 {
@@ -4271,7 +2381,6 @@ namespace System.Numerics
                     value.register.uint16_5 = (ushort)Math.Sqrt(value.register.uint16_5);
                     value.register.uint16_6 = (ushort)Math.Sqrt(value.register.uint16_6);
                     value.register.uint16_7 = (ushort)Math.Sqrt(value.register.uint16_7);
-                    return value;
                 }
                 else if (typeof(T) == typeof(short))
                 {
@@ -4283,7 +2392,6 @@ namespace System.Numerics
                     value.register.int16_5 = (short)Math.Sqrt(value.register.int16_5);
                     value.register.int16_6 = (short)Math.Sqrt(value.register.int16_6);
                     value.register.int16_7 = (short)Math.Sqrt(value.register.int16_7);
-                    return value;
                 }
                 else if (typeof(T) == typeof(uint))
                 {
@@ -4291,7 +2399,6 @@ namespace System.Numerics
                     value.register.uint32_1 = (uint)Math.Sqrt(value.register.uint32_1);
                     value.register.uint32_2 = (uint)Math.Sqrt(value.register.uint32_2);
                     value.register.uint32_3 = (uint)Math.Sqrt(value.register.uint32_3);
-                    return value;
                 }
                 else if (typeof(T) == typeof(int))
                 {
@@ -4299,19 +2406,16 @@ namespace System.Numerics
                     value.register.int32_1 = (int)Math.Sqrt(value.register.int32_1);
                     value.register.int32_2 = (int)Math.Sqrt(value.register.int32_2);
                     value.register.int32_3 = (int)Math.Sqrt(value.register.int32_3);
-                    return value;
                 }
                 else if (typeof(T) == typeof(ulong))
                 {
                     value.register.uint64_0 = (ulong)Math.Sqrt(value.register.uint64_0);
                     value.register.uint64_1 = (ulong)Math.Sqrt(value.register.uint64_1);
-                    return value;
                 }
                 else if (typeof(T) == typeof(long))
                 {
                     value.register.int64_0 = (long)Math.Sqrt(value.register.int64_0);
                     value.register.int64_1 = (long)Math.Sqrt(value.register.int64_1);
-                    return value;
                 }
                 else if (typeof(T) == typeof(float))
                 {
@@ -4319,366 +2423,18 @@ namespace System.Numerics
                     value.register.single_1 = (float)Math.Sqrt(value.register.single_1);
                     value.register.single_2 = (float)Math.Sqrt(value.register.single_2);
                     value.register.single_3 = (float)Math.Sqrt(value.register.single_3);
-                    return value;
                 }
                 else if (typeof(T) == typeof(double))
                 {
                     value.register.double_0 = (double)Math.Sqrt(value.register.double_0);
                     value.register.double_1 = (double)Math.Sqrt(value.register.double_1);
-                    return value;
                 }
-                else
-                {
-                    throw new NotSupportedException(SR.Arg_TypeNotSupported);
-                }
+                return value;
             }
         }
         #endregion Internal Math Methods
 
         #region Helper Methods
-        [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
-        private static bool ScalarEquals(T left, T right)
-        {
-            if (typeof(T) == typeof(byte))
-            {
-                return (byte)(object)left == (byte)(object)right;
-            }
-            else if (typeof(T) == typeof(sbyte))
-            {
-                return (sbyte)(object)left == (sbyte)(object)right;
-            }
-            else if (typeof(T) == typeof(ushort))
-            {
-                return (ushort)(object)left == (ushort)(object)right;
-            }
-            else if (typeof(T) == typeof(short))
-            {
-                return (short)(object)left == (short)(object)right;
-            }
-            else if (typeof(T) == typeof(uint))
-            {
-                return (uint)(object)left == (uint)(object)right;
-            }
-            else if (typeof(T) == typeof(int))
-            {
-                return (int)(object)left == (int)(object)right;
-            }
-            else if (typeof(T) == typeof(ulong))
-            {
-                return (ulong)(object)left == (ulong)(object)right;
-            }
-            else if (typeof(T) == typeof(long))
-            {
-                return (long)(object)left == (long)(object)right;
-            }
-            else if (typeof(T) == typeof(float))
-            {
-                return (float)(object)left == (float)(object)right;
-            }
-            else if (typeof(T) == typeof(double))
-            {
-                return (double)(object)left == (double)(object)right;
-            }
-            else
-            {
-                throw new NotSupportedException(SR.Arg_TypeNotSupported);
-            }
-        }
-
-        [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
-        private static bool ScalarLessThan(T left, T right)
-        {
-            if (typeof(T) == typeof(byte))
-            {
-                return (byte)(object)left < (byte)(object)right;
-            }
-            else if (typeof(T) == typeof(sbyte))
-            {
-                return (sbyte)(object)left < (sbyte)(object)right;
-            }
-            else if (typeof(T) == typeof(ushort))
-            {
-                return (ushort)(object)left < (ushort)(object)right;
-            }
-            else if (typeof(T) == typeof(short))
-            {
-                return (short)(object)left < (short)(object)right;
-            }
-            else if (typeof(T) == typeof(uint))
-            {
-                return (uint)(object)left < (uint)(object)right;
-            }
-            else if (typeof(T) == typeof(int))
-            {
-                return (int)(object)left < (int)(object)right;
-            }
-            else if (typeof(T) == typeof(ulong))
-            {
-                return (ulong)(object)left < (ulong)(object)right;
-            }
-            else if (typeof(T) == typeof(long))
-            {
-                return (long)(object)left < (long)(object)right;
-            }
-            else if (typeof(T) == typeof(float))
-            {
-                return (float)(object)left < (float)(object)right;
-            }
-            else if (typeof(T) == typeof(double))
-            {
-                return (double)(object)left < (double)(object)right;
-            }
-            else
-            {
-                throw new NotSupportedException(SR.Arg_TypeNotSupported);
-            }
-        }
-
-        [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
-        private static bool ScalarGreaterThan(T left, T right)
-        {
-            if (typeof(T) == typeof(byte))
-            {
-                return (byte)(object)left > (byte)(object)right;
-            }
-            else if (typeof(T) == typeof(sbyte))
-            {
-                return (sbyte)(object)left > (sbyte)(object)right;
-            }
-            else if (typeof(T) == typeof(ushort))
-            {
-                return (ushort)(object)left > (ushort)(object)right;
-            }
-            else if (typeof(T) == typeof(short))
-            {
-                return (short)(object)left > (short)(object)right;
-            }
-            else if (typeof(T) == typeof(uint))
-            {
-                return (uint)(object)left > (uint)(object)right;
-            }
-            else if (typeof(T) == typeof(int))
-            {
-                return (int)(object)left > (int)(object)right;
-            }
-            else if (typeof(T) == typeof(ulong))
-            {
-                return (ulong)(object)left > (ulong)(object)right;
-            }
-            else if (typeof(T) == typeof(long))
-            {
-                return (long)(object)left > (long)(object)right;
-            }
-            else if (typeof(T) == typeof(float))
-            {
-                return (float)(object)left > (float)(object)right;
-            }
-            else if (typeof(T) == typeof(double))
-            {
-                return (double)(object)left > (double)(object)right;
-            }
-            else
-            {
-                throw new NotSupportedException(SR.Arg_TypeNotSupported);
-            }
-        }
-
-        [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
-        private static T ScalarAdd(T left, T right)
-        {
-            if (typeof(T) == typeof(byte))
-            {
-                return (T)(object)unchecked((byte)((byte)(object)left + (byte)(object)right));
-            }
-            else if (typeof(T) == typeof(sbyte))
-            {
-                return (T)(object)unchecked((sbyte)((sbyte)(object)left + (sbyte)(object)right));
-            }
-            else if (typeof(T) == typeof(ushort))
-            {
-                return (T)(object)unchecked((ushort)((ushort)(object)left + (ushort)(object)right));
-            }
-            else if (typeof(T) == typeof(short))
-            {
-                return (T)(object)unchecked((short)((short)(object)left + (short)(object)right));
-            }
-            else if (typeof(T) == typeof(uint))
-            {
-                return (T)(object)unchecked((uint)((uint)(object)left + (uint)(object)right));
-            }
-            else if (typeof(T) == typeof(int))
-            {
-                return (T)(object)unchecked((int)((int)(object)left + (int)(object)right));
-            }
-            else if (typeof(T) == typeof(ulong))
-            {
-                return (T)(object)unchecked((ulong)((ulong)(object)left + (ulong)(object)right));
-            }
-            else if (typeof(T) == typeof(long))
-            {
-                return (T)(object)unchecked((long)((long)(object)left + (long)(object)right));
-            }
-            else if (typeof(T) == typeof(float))
-            {
-                return (T)(object)unchecked((float)((float)(object)left + (float)(object)right));
-            }
-            else if (typeof(T) == typeof(double))
-            {
-                return (T)(object)unchecked((double)((double)(object)left + (double)(object)right));
-            }
-            else
-            {
-                throw new NotSupportedException(SR.Arg_TypeNotSupported);
-            }
-        }
-
-        [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
-        private static T ScalarSubtract(T left, T right)
-        {
-            if (typeof(T) == typeof(byte))
-            {
-                return (T)(object)(byte)((byte)(object)left - (byte)(object)right);
-            }
-            else if (typeof(T) == typeof(sbyte))
-            {
-                return (T)(object)(sbyte)((sbyte)(object)left - (sbyte)(object)right);
-            }
-            else if (typeof(T) == typeof(ushort))
-            {
-                return (T)(object)(ushort)((ushort)(object)left - (ushort)(object)right);
-            }
-            else if (typeof(T) == typeof(short))
-            {
-                return (T)(object)(short)((short)(object)left - (short)(object)right);
-            }
-            else if (typeof(T) == typeof(uint))
-            {
-                return (T)(object)(uint)((uint)(object)left - (uint)(object)right);
-            }
-            else if (typeof(T) == typeof(int))
-            {
-                return (T)(object)(int)((int)(object)left - (int)(object)right);
-            }
-            else if (typeof(T) == typeof(ulong))
-            {
-                return (T)(object)(ulong)((ulong)(object)left - (ulong)(object)right);
-            }
-            else if (typeof(T) == typeof(long))
-            {
-                return (T)(object)(long)((long)(object)left - (long)(object)right);
-            }
-            else if (typeof(T) == typeof(float))
-            {
-                return (T)(object)(float)((float)(object)left - (float)(object)right);
-            }
-            else if (typeof(T) == typeof(double))
-            {
-                return (T)(object)(double)((double)(object)left - (double)(object)right);
-            }
-            else
-            {
-                throw new NotSupportedException(SR.Arg_TypeNotSupported);
-            }
-        }
-
-        [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
-        private static T ScalarMultiply(T left, T right)
-        {
-            if (typeof(T) == typeof(byte))
-            {
-                return (T)(object)unchecked((byte)((byte)(object)left * (byte)(object)right));
-            }
-            else if (typeof(T) == typeof(sbyte))
-            {
-                return (T)(object)unchecked((sbyte)((sbyte)(object)left * (sbyte)(object)right));
-            }
-            else if (typeof(T) == typeof(ushort))
-            {
-                return (T)(object)unchecked((ushort)((ushort)(object)left * (ushort)(object)right));
-            }
-            else if (typeof(T) == typeof(short))
-            {
-                return (T)(object)unchecked((short)((short)(object)left * (short)(object)right));
-            }
-            else if (typeof(T) == typeof(uint))
-            {
-                return (T)(object)unchecked((uint)((uint)(object)left * (uint)(object)right));
-            }
-            else if (typeof(T) == typeof(int))
-            {
-                return (T)(object)unchecked((int)((int)(object)left * (int)(object)right));
-            }
-            else if (typeof(T) == typeof(ulong))
-            {
-                return (T)(object)unchecked((ulong)((ulong)(object)left * (ulong)(object)right));
-            }
-            else if (typeof(T) == typeof(long))
-            {
-                return (T)(object)unchecked((long)((long)(object)left * (long)(object)right));
-            }
-            else if (typeof(T) == typeof(float))
-            {
-                return (T)(object)unchecked((float)((float)(object)left * (float)(object)right));
-            }
-            else if (typeof(T) == typeof(double))
-            {
-                return (T)(object)unchecked((double)((double)(object)left * (double)(object)right));
-            }
-            else
-            {
-                throw new NotSupportedException(SR.Arg_TypeNotSupported);
-            }
-        }
-
-        [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
-        private static T ScalarDivide(T left, T right)
-        {
-            if (typeof(T) == typeof(byte))
-            {
-                return (T)(object)(byte)((byte)(object)left / (byte)(object)right);
-            }
-            else if (typeof(T) == typeof(sbyte))
-            {
-                return (T)(object)(sbyte)((sbyte)(object)left / (sbyte)(object)right);
-            }
-            else if (typeof(T) == typeof(ushort))
-            {
-                return (T)(object)(ushort)((ushort)(object)left / (ushort)(object)right);
-            }
-            else if (typeof(T) == typeof(short))
-            {
-                return (T)(object)(short)((short)(object)left / (short)(object)right);
-            }
-            else if (typeof(T) == typeof(uint))
-            {
-                return (T)(object)(uint)((uint)(object)left / (uint)(object)right);
-            }
-            else if (typeof(T) == typeof(int))
-            {
-                return (T)(object)(int)((int)(object)left / (int)(object)right);
-            }
-            else if (typeof(T) == typeof(ulong))
-            {
-                return (T)(object)(ulong)((ulong)(object)left / (ulong)(object)right);
-            }
-            else if (typeof(T) == typeof(long))
-            {
-                return (T)(object)(long)((long)(object)left / (long)(object)right);
-            }
-            else if (typeof(T) == typeof(float))
-            {
-                return (T)(object)(float)((float)(object)left / (float)(object)right);
-            }
-            else if (typeof(T) == typeof(double))
-            {
-                return (T)(object)(double)((double)(object)left / (double)(object)right);
-            }
-            else
-            {
-                throw new NotSupportedException(SR.Arg_TypeNotSupported);
-            }
-        }
-
         [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
         private static T GetOneValue()
         {
@@ -4782,6 +2538,29 @@ namespace System.Numerics
                 return (T)(object)ConstantHelper.GetDoubleWithAllBitsSet();
             }
             else
+            {
+                throw new NotSupportedException(SR.Arg_TypeNotSupported);
+            }
+        }
+
+        [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
+        [StackTraceHiddenAttribute]
+        private static void ThrowIfUnsupportedType()
+        {
+            // These conditions are evaluated and collapsed during JIT, which means that
+            // ultimately this method ends up as empty (and is optimized away completely)
+            // or becomes a single unconditional throw statement.
+
+            if ((typeof(T) != typeof(byte))
+                && (typeof(T) != typeof(sbyte))
+                && (typeof(T) != typeof(ushort))
+                && (typeof(T) != typeof(short))
+                && (typeof(T) != typeof(uint))
+                && (typeof(T) != typeof(int))
+                && (typeof(T) != typeof(ulong))
+                && (typeof(T) != typeof(long))
+                && (typeof(T) != typeof(float))
+                && (typeof(T) != typeof(double)))
             {
                 throw new NotSupportedException(SR.Arg_TypeNotSupported);
             }

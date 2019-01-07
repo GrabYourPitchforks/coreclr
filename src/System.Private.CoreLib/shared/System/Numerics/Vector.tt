@@ -10,6 +10,7 @@
 #if netcoreapp
 using Internal.Runtime.CompilerServices;
 #endif
+using System.Diagnostics;
 using System.Globalization;
 using System.Numerics.Hashing;
 using System.Runtime.CompilerServices;
@@ -63,10 +64,10 @@ namespace System.Numerics
             [Intrinsic]
             get
             {
-                return s_count;
+                ThrowIfUnsupportedType();
+                return Unsafe.SizeOf<Vector<T>>() / Unsafe.SizeOf<T>(); // JIT-time constants
             }
         }
-        private static readonly int s_count = InitializeCount();
 
         /// <summary>
         /// Returns a vector containing all zeroes.
@@ -76,10 +77,10 @@ namespace System.Numerics
             [Intrinsic]
             get
             {
-                return s_zero;
+                ThrowIfUnsupportedType();
+                return default;
             }
         }
-        private static readonly Vector<T> s_zero = new Vector<T>();
 
         /// <summary>
         /// Returns a vector containing all ones.
@@ -105,42 +106,6 @@ namespace System.Numerics
         private static readonly Vector<T> s_allOnes = new Vector<T>(GetAllBitsSetValue());
         #endregion Static Members
 
-        #region Static Initialization
-        private struct VectorSizeHelper
-        {
-            internal Vector<T> _placeholder;
-            internal byte _byte;
-        }
-
-        // Calculates the size of this struct in bytes, by computing the offset of a field in a structure
-        private static unsafe int InitializeCount()
-        {
-            VectorSizeHelper vsh;
-            byte* vectorBase = &vsh._placeholder.register.byte_0;
-            byte* byteBase = &vsh._byte;
-            int vectorSizeInBytes = (int)(byteBase - vectorBase);
-
-            int typeSizeInBytes = -1;
-<#
-    foreach (Type type in supportedTypes)
-    {
-#>
-            <#=GenerateIfStatementHeader(type)#>
-            {
-                typeSizeInBytes = sizeof(<#=typeAliases[type]#>);
-            }
-<#
-    }
-#>
-            else
-            {
-                throw new NotSupportedException(SR.Arg_TypeNotSupported);
-            }
-
-            return vectorSizeInBytes / typeSizeInBytes;
-        }
-        #endregion Static Initialization
-
         #region Constructors
         /// <summary>
         /// Constructs a vector whose components are all <code>value</code>
@@ -149,25 +114,12 @@ namespace System.Numerics
         public unsafe Vector(T value)
             : this()
         {
+            ThrowIfUnsupportedType();
+
             if (Vector.IsHardwareAccelerated)
             {
-<#
-    foreach (Type type in supportedTypes)
-    {
-#>
-                <#=GenerateIfStatementHeader(type)#>
-                {
-                    fixed (<#=typeAliases[type]#>* basePtr = &this.<#=GetRegisterFieldName(type, 0)#>)
-                    {
-                        for (int g = 0; g < Count; g++)
-                        {
-                            *(basePtr + g) = (<#=typeAliases[type]#>)(object)value;
-                        }
-                    }
-                }
-<#
-    }
-#>
+                // This is an intrinsic operation and will not result in a recursive call.
+                this = new Vector<T>(value);
             }
             else
             {
@@ -271,29 +223,9 @@ namespace System.Numerics
         internal unsafe Vector(void* dataPointer, int offset)
             : this()
         {
-<#
-    foreach (Type type in supportedTypes)
-    {
-#>
-            <#=GenerateIfStatementHeader(type)#>
-            {
-                <#=typeAliases[type]#>* castedPtr = (<#=typeAliases[type]#>*)dataPointer;
-                castedPtr += offset;
-                fixed (<#=typeAliases[type]#>* registerBase = &this.<#=GetRegisterFieldName(type, 0)#>)
-                {
-                    for (int g = 0; g < Count; g++)
-                    {
-                        registerBase[g] = castedPtr[g];
-                    }
-                }
-            }
-<#
-    }
-#>
-            else
-            {
-                throw new NotSupportedException(SR.Arg_TypeNotSupported);
-            }
+            ThrowIfUnsupportedType();
+
+            this = Unsafe.ReadUnaligned<Vector<T>>(Unsafe.Add<T>(dataPointer, offset));
         }
 #pragma warning restore 3001 // void* is not a CLS-Compliant argument type
 
@@ -309,18 +241,14 @@ namespace System.Numerics
         public Vector(Span<T> values)
             : this()
         {
-            <#=GenerateIfConditionAllTypes(supportedTypes)#>
+            ThrowIfUnsupportedType();
+
+            if (values.Length < Count)
             {
-                if (values.Length < Count)
-                {
-                    throw new IndexOutOfRangeException(SR.Format(SR.Arg_InsufficientNumberOfElements, Vector<T>.Count, nameof(values)));
-                }
-                this = Unsafe.ReadUnaligned<Vector<T>>(ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(values)));
+                throw new IndexOutOfRangeException(SR.Format(SR.Arg_InsufficientNumberOfElements, Vector<T>.Count, nameof(values)));
             }
-            else
-            {
-                throw new NotSupportedException(SR.Arg_TypeNotSupported);
-            }
+
+            this = Unsafe.ReadUnaligned<Vector<T>>(ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(values)));
         }
 #endif
         #endregion Constructors
@@ -354,7 +282,7 @@ namespace System.Numerics
                 // Match the JIT's exception type here. For perf, a NullReference is thrown instead of an ArgumentNull.
                 throw new NullReferenceException(SR.Arg_NullArgumentNullRef);
             }
-            if (startIndex < 0 || startIndex >= destination.Length)
+            if ((uint)startIndex >= destination.Length)
             {
                 throw new ArgumentOutOfRangeException(nameof(startIndex), SR.Format(SR.Arg_ArgumentOutOfRangeException, startIndex));
             }
@@ -363,52 +291,9 @@ namespace System.Numerics
                 throw new ArgumentException(SR.Format(SR.Arg_ElementsInSourceIsGreaterThanDestination, startIndex));
             }
 
-            if (Vector.IsHardwareAccelerated)
-            {
-<#
-    foreach (Type type in supportedTypes)
-    {
-#>
-                <#=GenerateIfStatementHeader(type)#>
-                {
-                    <#=typeAliases[type]#>[] <#=type.Name.ToLowerInvariant()#>Array = (<#=typeAliases[type]#>[])(object)destination;
-                    fixed (<#=typeAliases[type]#>* destinationBase = <#=type.Name.ToLowerInvariant()#>Array)
-                    {
-                        for (int g = 0; g < Count; g++)
-                        {
-                            destinationBase[startIndex + g] = (<#=typeAliases[type]#>)(object)this[g];
-                        }
-                    }
-                }
-<#
-    }
-#>
-            }
-            else
-            {
-<#
-    foreach (Type type in supportedTypes)
-    {
-#>
-                <#=GenerateIfStatementHeader(type)#>
-                {
-                    <#=typeAliases[type]#>[] <#=type.Name.ToLowerInvariant()#>Array = (<#=typeAliases[type]#>[])(object)destination;
-                    fixed (<#=typeAliases[type]#>* destinationBase = <#=type.Name.ToLowerInvariant()#>Array)
-                    {
-<#
-        for (int g = 0; g < GetNumFields(type, totalSize); g++)
-        {
-#>
-                        destinationBase[startIndex + <#=g#>] = this.<#=GetRegisterFieldName(type, g)#>;
-<#
-        }
-#>
-                    }
-                }
-<#
-    }
-#>
-            }
+            ThrowIfUnsupportedType();
+
+            Unsafe.WriteUnaligned<Vector<T>>(ref Unsafe.As<T, byte>(ref Unsafe.Add(ref Unsafe.As<byte, T>(ref JitHelpers.GetRawSzArrayData(destination)), startIndex)), this);
         }
 
         /// <summary>
@@ -419,28 +304,14 @@ namespace System.Numerics
             [Intrinsic]
             get
             {
-                if (index >= Count || index < 0)
+                if ((uint)index >= (uint)Count)
                 {
-                    throw new IndexOutOfRangeException(SR.Format(SR.Arg_ArgumentOutOfRangeException, index));
+                    ThrowHelper.ThrowArgumentOutOfRangeException(ExceptionArgument.index);
                 }
-<#
-    foreach (Type type in supportedTypes)
-    {
-#>
-                <#=GenerateIfStatementHeader(type)#>
-                {
-                    fixed (<#=typeAliases[type]#>* basePtr = &this.<#=GetRegisterFieldName(type, 0)#>)
-                    {
-                        return (T)(object)*(basePtr + index);
-                    }
-                }
-<#
-    }
-#>
-                else
-                {
-                    throw new NotSupportedException(SR.Arg_TypeNotSupported);
-                }
+
+                ThrowIfUnsupportedType();
+
+                return Unsafe.Add(ref Unsafe.As<Register, T>(ref register), index);
             }
         }
 
@@ -467,55 +338,25 @@ namespace System.Numerics
         [Intrinsic]
         public bool Equals(Vector<T> other)
         {
+            ThrowIfUnsupportedType();
+
             if (Vector.IsHardwareAccelerated)
             {
-                for (int g = 0; g < Count; g++)
-                {
-                    if (!ScalarEquals(this[g], other[g]))
-                    {
-                        return false;
-                    }
-                }
-                return true;
+                // This is an intrinsic operation and will not result in a recursive call.
+                return Equals(other);
+            }
+
+            if (IntPtr.Size == 4)
+            {
+                return this.register.int32_0 == other.register.int32_0
+                    && this.register.int32_1 == other.register.int32_1
+                    && this.register.int32_2 == other.register.int32_2
+                    && this.register.int32_3 == other.register.int32_3;
             }
             else
             {
-<#
-    foreach (Type type in supportedTypes)
-    {
-#>
-                <#=GenerateIfStatementHeader(type)#>
-                {
-                    return
-<#
-        for (int g = 0; g < GetNumFields(type, totalSize); g++)
-        {
-#>
-<#
-            if (g == 0)
-            {
-#>
-                        this.<#=GetRegisterFieldName(type, g)#> == other.<#=GetRegisterFieldName(type, g)#>
-<#
-            }
-            else
-            {
-#>
-                        && this.<#=GetRegisterFieldName(type, g)#> == other.<#=GetRegisterFieldName(type, g)#><#=(g == (GetNumFields(type, totalSize) -1)) ? ";" : ""#>
-<#
-            }
-#>
-<#
-        }
-#>
-                }
-<#
-    }
-#>
-                else
-                {
-                    throw new NotSupportedException(SR.Arg_TypeNotSupported);
-                }
+                return this.register.int64_0 == other.register.int64_0
+                    && this.register.int64_1 == other.register.int64_1;
             }
         }
 
@@ -525,56 +366,40 @@ namespace System.Numerics
         /// <returns>The hash code.</returns>
         public override int GetHashCode()
         {
-            int hash = 0;
+            int hash = HashHelpers.RandomSeed;
 
             if (Vector.IsHardwareAccelerated)
             {
-<#
-    foreach (Type type in supportedTypes)
-    {
-#>
-                <#=GenerateIfStatementHeader(type)#>
+                // We currently only support 128-bit and 256-bit vectors for hardware acceleration
+                Debug.Assert(Vector<int>.Count == 4 || Vector<int>.Count == 8);
+
+                hash = HashHelpers.Combine(hash, ((Vector<int>)this)[0]);
+                hash = HashHelpers.Combine(hash, ((Vector<int>)this)[1]);
+                hash = HashHelpers.Combine(hash, ((Vector<int>)this)[2]);
+                hash = HashHelpers.Combine(hash, ((Vector<int>)this)[3]);
+
+                // We have a 256-bit vector
+                if (Vector<int>.Count == 8)
                 {
-                    for (int g = 0; g < Count; g++)
-                    {
-                        hash = HashHelpers.Combine(hash, ((<#=typeAliases[type]#>)(object)this[g]).GetHashCode());
-                    }
-                    return hash;
-                }
-<#
-    }
-#>
-                else
-                {
-                    throw new NotSupportedException(SR.Arg_TypeNotSupported);
+                    hash = HashHelpers.Combine(hash, ((Vector<int>)this)[4]);
+                    hash = HashHelpers.Combine(hash, ((Vector<int>)this)[5]);
+                    hash = HashHelpers.Combine(hash, ((Vector<int>)this)[6]);
+                    hash = HashHelpers.Combine(hash, ((Vector<int>)this)[7]);
                 }
             }
             else
             {
 <#
-    foreach (Type type in supportedTypes)
-    {
+        for (int g = 0; g < GetNumFields(typeof(int), totalSize); g++)
+            {
 #>
-                <#=GenerateIfStatementHeader(type)#>
-                {
-<#
-        for (int g = 0; g < GetNumFields(type, totalSize); g++)
-        {
-#>
-                    hash = HashHelpers.Combine(hash, this.<#=GetRegisterFieldName(type, g)#>.GetHashCode());
+                hash = HashHelpers.Combine(hash, this.<#=GetRegisterFieldName(typeof(int), g)#>);
 <#
         }
 #>
-                    return hash;
-                }
-<#
-    }
-#>
-                else
-                {
-                    throw new NotSupportedException(SR.Arg_TypeNotSupported);
-                }
             }
+
+            return hash;
         }
 
         /// <summary>
@@ -631,30 +456,14 @@ namespace System.Numerics
         [Intrinsic]
         public static unsafe Vector<T> operator +(Vector<T> left, Vector<T> right)
         {
+            ThrowIfUnsupportedType();
+
             unchecked
             {
                 if (Vector.IsHardwareAccelerated)
                 {
-<#
-    foreach (Type type in supportedTypes)
-    {
-#>
-                    <#=GenerateIfStatementHeader(type)#>
-                    {
-                        <#=typeAliases[type]#>* dataPtr = stackalloc <#=typeAliases[type]#>[Count];
-                        for (int g = 0; g < Count; g++)
-                        {
-                            dataPtr[g] = (<#=typeAliases[type]#>)(object)ScalarAdd(left[g], right[g]);
-                        }
-                        return new Vector<T>(dataPtr);
-                    }
-<#
-    }
-#>
-                    else
-                    {
-                        throw new NotSupportedException(SR.Arg_TypeNotSupported);
-                    }
+                    // This is an intrinsic operation and will not result in a recursive call.
+                    return left + right;
                 }
                 else
                 {
@@ -691,30 +500,14 @@ namespace System.Numerics
         [Intrinsic]
         public static unsafe Vector<T> operator -(Vector<T> left, Vector<T> right)
         {
+            ThrowIfUnsupportedType();
+
             unchecked
             {
                 if (Vector.IsHardwareAccelerated)
                 {
-<#
-    foreach (Type type in supportedTypes)
-    {
-#>
-                    <#=GenerateIfStatementHeader(type)#>
-                    {
-                        <#=typeAliases[type]#>* dataPtr = stackalloc <#=typeAliases[type]#>[Count];
-                        for (int g = 0; g < Count; g++)
-                        {
-                            dataPtr[g] = (<#=typeAliases[type]#>)(object)ScalarSubtract(left[g], right[g]);
-                        }
-                        return new Vector<T>(dataPtr);
-                    }
-<#
-    }
-#>
-                    else
-                    {
-                        throw new NotSupportedException(SR.Arg_TypeNotSupported);
-                    }
+                    // This is an intrinsic operation and will not result in a recursive call.
+                    return left - right;
                 }
                 else
                 {
@@ -752,30 +545,14 @@ namespace System.Numerics
         [Intrinsic]
         public static unsafe Vector<T> operator *(Vector<T> left, Vector<T> right)
         {
+            ThrowIfUnsupportedType();
+
             unchecked
             {
                 if (Vector.IsHardwareAccelerated)
                 {
-<#
-    foreach (Type type in supportedTypes)
-    {
-#>
-                    <#=GenerateIfStatementHeader(type)#>
-                    {
-                        <#=typeAliases[type]#>* dataPtr = stackalloc <#=typeAliases[type]#>[Count];
-                        for (int g = 0; g < Count; g++)
-                        {
-                            dataPtr[g] = (<#=typeAliases[type]#>)(object)ScalarMultiply(left[g], right[g]);
-                        }
-                        return new Vector<T>(dataPtr);
-                    }
-<#
-    }
-#>
-                    else
-                    {
-                        throw new NotSupportedException(SR.Arg_TypeNotSupported);
-                    }
+                    // This is an intrinsic operation and will not result in a recursive call.
+                    return left * right;
                 }
                 else
                 {
@@ -837,30 +614,14 @@ namespace System.Numerics
         [Intrinsic]
         public static unsafe Vector<T> operator /(Vector<T> left, Vector<T> right)
         {
+            ThrowIfUnsupportedType();
+
             unchecked
             {
                 if (Vector.IsHardwareAccelerated)
                 {
-<#
-    foreach (Type type in supportedTypes)
-    {
-#>
-                    <#=GenerateIfStatementHeader(type)#>
-                    {
-                        <#=typeAliases[type]#>* dataPtr = stackalloc <#=typeAliases[type]#>[Count];
-                        for (int g = 0; g < Count; g++)
-                        {
-                            dataPtr[g] = (<#=typeAliases[type]#>)(object)ScalarDivide(left[g], right[g]);
-                        }
-                        return new Vector<T>(dataPtr);
-                    }
-<#
-    }
-#>
-                    else
-                    {
-                        throw new NotSupportedException(SR.Arg_TypeNotSupported);
-                    }
+                    // This is an intrinsic operation and will not result in a recursive call.
+                    return left / right;
                 }
                 else
                 {
@@ -909,26 +670,23 @@ namespace System.Numerics
         [Intrinsic]
         public static unsafe Vector<T> operator &(Vector<T> left, Vector<T> right)
         {
-            Vector<T> result = new Vector<T>();
+            ThrowIfUnsupportedType();
+
             unchecked
             {
                 if (Vector.IsHardwareAccelerated)
                 {
-                    long* resultBase = &result.register.int64_0;
-                    long* leftBase = &left.register.int64_0;
-                    long* rightBase = &right.register.int64_0;
-                    for (int g = 0; g < Vector<long>.Count; g++)
-                    {
-                        resultBase[g] = leftBase[g] & rightBase[g];
-                    }
+                    // This is an intrinsic operation and will not result in a recursive call.
+                    return left & right;
                 }
                 else
                 {
+                    Vector<T> result = new Vector<T>();
                     result.<#=GetRegisterFieldName(typeof(long), 0)#> = left.<#=GetRegisterFieldName(typeof(long), 0)#> & right.<#=GetRegisterFieldName(typeof(long), 0)#>;
                     result.<#=GetRegisterFieldName(typeof(long), 1)#> = left.<#=GetRegisterFieldName(typeof(long), 1)#> & right.<#=GetRegisterFieldName(typeof(long), 1)#>;
+                    return result;
                 }
             }
-            return result;
         }
 
         /// <summary>
@@ -940,18 +698,15 @@ namespace System.Numerics
         [Intrinsic]
         public static unsafe Vector<T> operator |(Vector<T> left, Vector<T> right)
         {
+            ThrowIfUnsupportedType();
+
             Vector<T> result = new Vector<T>();
             unchecked
             {
                 if (Vector.IsHardwareAccelerated)
                 {
-                    long* resultBase = &result.register.int64_0;
-                    long* leftBase = &left.register.int64_0;
-                    long* rightBase = &right.register.int64_0;
-                    for (int g = 0; g < Vector<long>.Count; g++)
-                    {
-                        resultBase[g] = leftBase[g] | rightBase[g];
-                    }
+                    // This is an intrinsic operation and will not result in a recursive call.
+                    return left | right;
                 }
                 else
                 {
@@ -971,18 +726,15 @@ namespace System.Numerics
         [Intrinsic]
         public static unsafe Vector<T> operator ^(Vector<T> left, Vector<T> right)
         {
+            ThrowIfUnsupportedType();
+
             Vector<T> result = new Vector<T>();
             unchecked
             {
                 if (Vector.IsHardwareAccelerated)
                 {
-                    long* resultBase = &result.register.int64_0;
-                    long* leftBase = &left.register.int64_0;
-                    long* rightBase = &right.register.int64_0;
-                    for (int g = 0; g < Vector<long>.Count; g++)
-                    {
-                        resultBase[g] = leftBase[g] ^ rightBase[g];
-                    }
+                    // This is an intrinsic operation and will not result in a recursive call.
+                    return left ^ right;
                 }
                 else
                 {
@@ -1067,28 +819,12 @@ namespace System.Numerics
         [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
         internal static unsafe Vector<T> Equals(Vector<T> left, Vector<T> right)
         {
+            ThrowIfUnsupportedType();
+
             if (Vector.IsHardwareAccelerated)
             {
-<#
-    foreach (Type type in supportedTypes)
-    {
-#>
-                <#=GenerateIfStatementHeader(type)#>
-                {
-                    <#=typeAliases[type]#>* dataPtr = stackalloc <#=typeAliases[type]#>[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = ScalarEquals(left[g], right[g]) ? ConstantHelper.Get<#=type.Name#>WithAllBitsSet() : (<#=typeAliases[type]#>)0;
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-<#
-    }
-#>
-                else
-                {
-                    throw new NotSupportedException(SR.Arg_TypeNotSupported);
-                }
+                // This is an intrinsic operation and will not result in a recursive call.
+                return Equals(left, right);
             }
             else
             {
@@ -1107,15 +843,11 @@ namespace System.Numerics
 <#
         }
 #>
-                    return new Vector<T>(ref register);
                 }
 <#
     }
 #>
-                else
-                {
-                    throw new NotSupportedException(SR.Arg_TypeNotSupported);
-                }
+                return new Vector<T>(ref register);
             }
         }
 
@@ -1123,28 +855,12 @@ namespace System.Numerics
         [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
         internal static unsafe Vector<T> LessThan(Vector<T> left, Vector<T> right)
         {
+            ThrowIfUnsupportedType();
+
             if (Vector.IsHardwareAccelerated)
             {
-<#
-    foreach (Type type in supportedTypes)
-    {
-#>
-                <#=GenerateIfStatementHeader(type)#>
-                {
-                    <#=typeAliases[type]#>* dataPtr = stackalloc <#=typeAliases[type]#>[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = ScalarLessThan(left[g], right[g]) ? ConstantHelper.Get<#=type.Name#>WithAllBitsSet() : (<#=typeAliases[type]#>)0;
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-<#
-    }
-#>
-                else
-                {
-                    throw new NotSupportedException(SR.Arg_TypeNotSupported);
-                }
+                // This is an intrinsic operation and will not result in a recursive call.
+                return LessThan(left, right);
             }
             else
             {
@@ -1163,15 +879,11 @@ namespace System.Numerics
 <#
                 }
 #>
-                    return new Vector<T>(ref register);
                 }
 <#
     }
 #>
-                else
-                {
-                    throw new NotSupportedException(SR.Arg_TypeNotSupported);
-                }
+                return new Vector<T>(ref register);
             }
         }
 
@@ -1179,28 +891,12 @@ namespace System.Numerics
         [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
         internal static unsafe Vector<T> GreaterThan(Vector<T> left, Vector<T> right)
         {
+            ThrowIfUnsupportedType();
+
             if (Vector.IsHardwareAccelerated)
             {
-<#
-    foreach (Type type in supportedTypes)
-    {
-#>
-                <#=GenerateIfStatementHeader(type)#>
-                {
-                    <#=typeAliases[type]#>* dataPtr = stackalloc <#=typeAliases[type]#>[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = ScalarGreaterThan(left[g], right[g]) ? ConstantHelper.Get<#=type.Name#>WithAllBitsSet() : (<#=typeAliases[type]#>)0;
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-<#
-    }
-#>
-                else
-                {
-                    throw new NotSupportedException(SR.Arg_TypeNotSupported);
-                }
+                // This is an intrinsic operation and will not result in a recursive call.
+                return GreaterThan(left, right);
             }
             else
             {
@@ -1219,34 +915,60 @@ namespace System.Numerics
 <#
         }
 #>
-                    return new Vector<T>(ref register);
                 }
 <#
     }
 #>
-                else
-                {
-                    throw new NotSupportedException(SR.Arg_TypeNotSupported);
-                }
+                return new Vector<T>(ref register);
             }
         }
 
         [Intrinsic]
         internal static Vector<T> GreaterThanOrEqual(Vector<T> left, Vector<T> right)
         {
-            return Equals(left, right) | GreaterThan(left, right);
+            ThrowIfUnsupportedType();
+
+            if (Vector.IsHardwareAccelerated)
+            {
+                // This is an intrinsic operation and will not result in a recursive call.
+                return GreaterThanOrEqual(left, right);
+            }
+            else
+            {
+                return Equals(left, right) | GreaterThan(left, right);
+            }
         }
 
         [Intrinsic]
         internal static Vector<T> LessThanOrEqual(Vector<T> left, Vector<T> right)
         {
-            return Equals(left, right) | LessThan(left, right);
+            ThrowIfUnsupportedType();
+
+            if (Vector.IsHardwareAccelerated)
+            {
+                // This is an intrinsic operation and will not result in a recursive call.
+                return LessThanOrEqual(left, right);
+            }
+            else
+            {
+                return Equals(left, right) | LessThan(left, right);
+            }
         }
 
         [Intrinsic]
         internal static Vector<T> ConditionalSelect(Vector<T> condition, Vector<T> left, Vector<T> right)
         {
-            return (left & condition) | (Vector.AndNot(right, condition));
+            ThrowIfUnsupportedType();
+
+            if (Vector.IsHardwareAccelerated)
+            {
+                // This is an intrinsic operation and will not result in a recursive call.
+                return ConditionalSelect(condition, left, right);
+            }
+            else
+            {
+                return (left & condition) | (Vector.AndNot(right, condition));
+            }
         }
         #endregion Comparison Methods
 
@@ -1254,6 +976,8 @@ namespace System.Numerics
         [Intrinsic]
         internal static unsafe Vector<T> Abs(Vector<T> value)
         {
+            ThrowIfUnsupportedType();
+
 <#
     foreach (Type type in supportedTypes)
     {
@@ -1268,28 +992,11 @@ namespace System.Numerics
         }
     }
 #>
+
             if (Vector.IsHardwareAccelerated)
             {
-<#
-    foreach (Type type in supportedTypes.Except(unsignedTypes))
-    {
-#>
-                <#=GenerateIfStatementHeader(type, supportedTypes.Except(unsignedTypes))#>
-                {
-                    <#=typeAliases[type]#>* dataPtr = stackalloc <#=typeAliases[type]#>[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = (<#=typeAliases[type]#>)(object)(Math.Abs((<#=typeAliases[type]#>)(object)value[g]));
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-<#
-    }
-#>
-                else
-                {
-                    throw new NotSupportedException(SR.Arg_TypeNotSupported);
-                }
+                // This is an intrinsic operation and will not result in a recursive call.
+                return Abs(value);
             }
             else
             {
@@ -1322,28 +1029,12 @@ namespace System.Numerics
         [Intrinsic]
         internal static unsafe Vector<T> Min(Vector<T> left, Vector<T> right)
         {
+            ThrowIfUnsupportedType();
+
             if (Vector.IsHardwareAccelerated)
             {
-<#
-    foreach (Type type in supportedTypes)
-    {
-#>
-                <#=GenerateIfStatementHeader(type)#>
-                {
-                    <#=typeAliases[type]#>* dataPtr = stackalloc <#=typeAliases[type]#>[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = ScalarLessThan(left[g], right[g]) ? (<#=typeAliases[type]#>)(object)left[g] : (<#=typeAliases[type]#>)(object)right[g];
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-<#
-    }
-#>
-                else
-                {
-                    throw new NotSupportedException(SR.Arg_TypeNotSupported);
-                }
+                // This is an intrinsic operation and will not result in a recursive call.
+                return Min(left, right);
             }
             else
             {
@@ -1362,43 +1053,23 @@ namespace System.Numerics
 <#
         }
 #>
-                    return vec;
                 }
 <#
     }
 #>
-                else
-                {
-                    throw new NotSupportedException(SR.Arg_TypeNotSupported);
-                }
+                return vec;
             }
         }
 
         [Intrinsic]
         internal static unsafe Vector<T> Max(Vector<T> left, Vector<T> right)
         {
+            ThrowIfUnsupportedType();
+
             if (Vector.IsHardwareAccelerated)
             {
-<#
-    foreach (Type type in supportedTypes)
-    {
-#>
-                <#=GenerateIfStatementHeader(type)#>
-                {
-                    <#=typeAliases[type]#>* dataPtr = stackalloc <#=typeAliases[type]#>[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = ScalarGreaterThan(left[g], right[g]) ? (<#=typeAliases[type]#>)(object)left[g] : (<#=typeAliases[type]#>)(object)right[g];
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-<#
-    }
-#>
-                else
-                {
-                    throw new NotSupportedException(SR.Arg_TypeNotSupported);
-                }
+                // This is an intrinsic operation and will not result in a recursive call.
+                return Max(left, right);
             }
             else
             {
@@ -1417,29 +1088,23 @@ namespace System.Numerics
 <#
         }
 #>
-                    return vec;
                 }
 <#
     }
 #>
-                else
-                {
-                    throw new NotSupportedException(SR.Arg_TypeNotSupported);
-                }
+                return vec;
             }
         }
 
         [Intrinsic]
         internal static T Dot(Vector<T> left, Vector<T> right)
         {
+            ThrowIfUnsupportedType();
+
             if (Vector.IsHardwareAccelerated)
             {
-                T product = default;
-                for (int g = 0; g < Count; g++)
-                {
-                    product = ScalarAdd(product, ScalarMultiply(left[g], right[g]));
-                }
-                return product;
+                // This is an intrinsic operation and will not result in a recursive call.
+                return Dot(left, right);
             }
             else
             {
@@ -1473,28 +1138,12 @@ namespace System.Numerics
         [Intrinsic]
         internal static unsafe Vector<T> SquareRoot(Vector<T> value)
         {
+            ThrowIfUnsupportedType();
+
             if (Vector.IsHardwareAccelerated)
             {
-<#
-    foreach (Type type in supportedTypes)
-    {
-#>
-                <#=GenerateIfStatementHeader(type)#>
-                {
-                    <#=typeAliases[type]#>* dataPtr = stackalloc <#=typeAliases[type]#>[Count];
-                    for (int g = 0; g < Count; g++)
-                    {
-                        dataPtr[g] = unchecked((<#=typeAliases[type]#>)Math.Sqrt((<#=typeAliases[type]#>)(object)value[g]));
-                    }
-                    return new Vector<T>(dataPtr);
-                }
-<#
-    }
-#>
-                else
-                {
-                    throw new NotSupportedException(SR.Arg_TypeNotSupported);
-                }
+                // This is an intrinsic operation and will not result in a recursive call.
+                return SquareRoot(value);
             }
             else
             {
@@ -1512,160 +1161,16 @@ namespace System.Numerics
 <#
         }
 #>
-                    return value;
                 }
 <#
     }
 #>
-                else
-                {
-                    throw new NotSupportedException(SR.Arg_TypeNotSupported);
-                }
+                return value;
             }
         }
         #endregion Internal Math Methods
 
         #region Helper Methods
-        [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
-        private static bool ScalarEquals(T left, T right)
-        {
-<#
-    foreach (Type type in supportedTypes)
-    {
-#>
-            <#=GenerateIfStatementHeader(type)#>
-            {
-                return (<#=typeAliases[type]#>)(object)left == (<#=typeAliases[type]#>)(object)right;
-            }
-<#
-    }
-#>
-            else
-            {
-                throw new NotSupportedException(SR.Arg_TypeNotSupported);
-            }
-        }
-
-        [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
-        private static bool ScalarLessThan(T left, T right)
-        {
-<#
-    foreach (Type type in supportedTypes)
-    {
-#>
-            <#=GenerateIfStatementHeader(type)#>
-            {
-                return (<#=typeAliases[type]#>)(object)left < (<#=typeAliases[type]#>)(object)right;
-            }
-<#
-    }
-#>
-            else
-            {
-                throw new NotSupportedException(SR.Arg_TypeNotSupported);
-            }
-        }
-
-        [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
-        private static bool ScalarGreaterThan(T left, T right)
-        {
-<#
-    foreach (Type type in supportedTypes)
-    {
-#>
-            <#=GenerateIfStatementHeader(type)#>
-            {
-                return (<#=typeAliases[type]#>)(object)left > (<#=typeAliases[type]#>)(object)right;
-            }
-<#
-    }
-#>
-            else
-            {
-                throw new NotSupportedException(SR.Arg_TypeNotSupported);
-            }
-        }
-
-        [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
-        private static T ScalarAdd(T left, T right)
-        {
-<#
-    foreach (Type type in supportedTypes)
-    {
-#>
-            <#=GenerateIfStatementHeader(type)#>
-            {
-                return (T)(object)unchecked((<#=typeAliases[type]#>)((<#=typeAliases[type]#>)(object)left + (<#=typeAliases[type]#>)(object)right));
-            }
-<#
-    }
-#>
-            else
-            {
-                throw new NotSupportedException(SR.Arg_TypeNotSupported);
-            }
-        }
-
-        [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
-        private static T ScalarSubtract(T left, T right)
-        {
-<#
-    foreach (Type type in supportedTypes)
-    {
-#>
-            <#=GenerateIfStatementHeader(type)#>
-            {
-                return (T)(object)(<#=typeAliases[type]#>)((<#=typeAliases[type]#>)(object)left - (<#=typeAliases[type]#>)(object)right);
-            }
-<#
-    }
-#>
-            else
-            {
-                throw new NotSupportedException(SR.Arg_TypeNotSupported);
-            }
-        }
-
-        [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
-        private static T ScalarMultiply(T left, T right)
-        {
-<#
-    foreach (Type type in supportedTypes)
-    {
-#>
-            <#=GenerateIfStatementHeader(type)#>
-            {
-                return (T)(object)unchecked((<#=typeAliases[type]#>)((<#=typeAliases[type]#>)(object)left * (<#=typeAliases[type]#>)(object)right));
-            }
-<#
-    }
-#>
-            else
-            {
-                throw new NotSupportedException(SR.Arg_TypeNotSupported);
-            }
-        }
-
-        [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
-        private static T ScalarDivide(T left, T right)
-        {
-<#
-    foreach (Type type in supportedTypes)
-    {
-#>
-            <#=GenerateIfStatementHeader(type)#>
-            {
-                return (T)(object)(<#=typeAliases[type]#>)((<#=typeAliases[type]#>)(object)left / (<#=typeAliases[type]#>)(object)right);
-            }
-<#
-    }
-#>
-            else
-            {
-                throw new NotSupportedException(SR.Arg_TypeNotSupported);
-            }
-        }
-
         [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
         private static T GetOneValue()
         {
@@ -1702,6 +1207,20 @@ namespace System.Numerics
     }
 #>
             else
+            {
+                throw new NotSupportedException(SR.Arg_TypeNotSupported);
+            }
+        }
+
+        [MethodImplAttribute(MethodImplOptions.AggressiveInlining)]
+        [StackTraceHiddenAttribute]
+        private static void ThrowIfUnsupportedType()
+        {
+            // These conditions are evaluated and collapsed during JIT, which means that
+            // ultimately this method ends up as empty (and is optimized away completely)
+            // or becomes a single unconditional throw statement.
+
+            <#=GenerateIfNotConditionAllTypes(supportedTypes)#>
             {
                 throw new NotSupportedException(SR.Arg_TypeNotSupported);
             }

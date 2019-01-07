@@ -4136,7 +4136,18 @@ GenTree* Compiler::impIntrinsic(GenTree*                newobjThis,
 
     if (mustExpand && (retNode == nullptr))
     {
-        NO_WAY("JIT must expand the intrinsic!");
+#ifdef FEATURE_SIMD
+        if (featureSIMD && isSIMDClass(clsHnd))
+        {
+            // This is a recursive method on a SIMD type; it'll be handled by impSIMDIntrinsic.
+            mustExpand = false;
+        }
+#endif // FEATURE_SIMD
+
+        if (mustExpand)
+        {
+            NO_WAY("JIT must expand the intrinsic!");
+        }
     }
 
     // Optionally report if this intrinsic is special
