@@ -213,6 +213,17 @@ namespace System.Text
 
         public override int GetHashCode() => Value;
 
+        public static Rune GetFirstRuneFromUtf8Bytes(ReadOnlySpan<byte> input)
+        {
+            int runeValue = Utf8Utility.ReadFirstScalarFromBuffer(input, out _);
+            if (runeValue < 0)
+            {
+                ThrowHelper.ThrowArgumentException_CannotExtractScalar(ExceptionArgument.index);
+            }
+
+            return UnsafeCreate((uint)runeValue);
+        }
+
         /// <summary>
         /// Gets the <see cref="Rune"/> which begins at index <paramref name="index"/> in
         /// string <paramref name="input"/>.

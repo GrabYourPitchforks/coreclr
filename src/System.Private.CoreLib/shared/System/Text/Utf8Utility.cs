@@ -14,7 +14,7 @@ namespace System.Text
         private const int SCALAR_INVALID = -1;
         private const int SCALAR_INCOMPLETE = -2;
 
-        private static int ReadFirstScalarFromBuffer(ReadOnlySpan<byte> utf8Input, out int bytesConsumed)
+        internal static int ReadFirstScalarFromBuffer(ReadOnlySpan<byte> utf8Input, out int bytesConsumed)
         {
             if (utf8Input.IsEmpty)
             {
@@ -174,13 +174,13 @@ namespace System.Text
             // - The Unicode Specification, Chapter 5, Sec. 5.22
             // - Unicode Technical Report #36 - Unicode Security Considerations, Sec. 3.1
 
-            if (dataLength == 0)
+            if (utf8Input.IsEmpty)
             {
                 bytesConsumed = 0;
                 return SCALAR_INCOMPLETE;
             }
 
-            uint firstByte = dataIn;
+            uint firstByte = utf8Input[0];
 
             if (firstByte <= 0xC1u)
             {
@@ -219,7 +219,7 @@ namespace System.Text
 
                 if (firstByte == 0xE0u)
                 {
-                    if (!IsBetweenInclusive(utf8Input[1], 0xA0u, 0xBFu))
+                    if (!UnicodeUtility.IsInRangeInclusive(utf8Input[1], 0xA0u, 0xBFu))
                     {
                         // 3-byte sequence marker not followed by a valid continuation byte (or overlong)
                         // maximally invalid subsequence of length 1
@@ -227,9 +227,9 @@ namespace System.Text
                         return SCALAR_INVALID;
                     }
                 }
-                else if (IsBetweenInclusive(firstByte, 0xE1u, 0xECu))
+                else if (UnicodeUtility.IsInRangeInclusive(firstByte, 0xE1u, 0xECu))
                 {
-                    if (!IsBetweenInclusive(utf8Input[1], 0x80u, 0xBFu))
+                    if (!UnicodeUtility.IsInRangeInclusive(utf8Input[1], 0x80u, 0xBFu))
                     {
                         // 3-byte sequence marker not followed by a valid continuation byte
                         // maximally invalid subsequence of length 1
@@ -239,7 +239,7 @@ namespace System.Text
                 }
                 else if (firstByte == 0xEDu)
                 {
-                    if (!IsBetweenInclusive(utf8Input[1], 0x80u, 0x9Fu))
+                    if (!UnicodeUtility.IsInRangeInclusive(utf8Input[1], 0x80u, 0x9Fu))
                     {
                         // 3-byte sequence marker not followed by a valid continuation byte (or surrogate)
                         // maximally invalid subsequence of length 1
@@ -249,7 +249,7 @@ namespace System.Text
                 }
                 else
                 {
-                    if (!IsBetweenInclusive(utf8Input[1], 0x80u, 0xBFu))
+                    if (!UnicodeUtility.IsInRangeInclusive(utf8Input[1], 0x80u, 0xBFu))
                     {
                         // 3-byte sequence marker not followed by a valid continuation byte
                         // maximally invalid subsequence of length 1
@@ -286,7 +286,7 @@ namespace System.Text
 
                 if (firstByte == 0xF0u)
                 {
-                    if (!IsBetweenInclusive(utf8Input[1], 0x90u, 0xBFu))
+                    if (!UnicodeUtility.IsInRangeInclusive(utf8Input[1], 0x90u, 0xBFu))
                     {
                         // 4-byte sequence marker not followed by a valid continuation byte (or overlong)
                         // maximally invalid subsequence of length 1
@@ -294,9 +294,9 @@ namespace System.Text
                         return SCALAR_INVALID;
                     }
                 }
-                else if (IsBetweenInclusive(firstByte, 0xF1u, 0xF3u))
+                else if (UnicodeUtility.IsInRangeInclusive(firstByte, 0xF1u, 0xF3u))
                 {
-                    if (!IsBetweenInclusive(utf8Input[1], 0x80u, 0xBFu))
+                    if (!UnicodeUtility.IsInRangeInclusive(utf8Input[1], 0x80u, 0xBFu))
                     {
                         // 4-byte sequence marker not followed by a valid continuation byte
                         // maximally invalid subsequence of length 1
@@ -306,7 +306,7 @@ namespace System.Text
                 }
                 else
                 {
-                    if (!IsBetweenInclusive(utf8Input[1], 0x80u, 0x8Fu))
+                    if (!UnicodeUtility.IsInRangeInclusive(utf8Input[1], 0x80u, 0x8Fu))
                     {
                         // 4-byte sequence marker not followed by a valid continuation byte (or out-of-range)
                         // maximally invalid subsequence of length 1
@@ -324,7 +324,7 @@ namespace System.Text
                     return SCALAR_INCOMPLETE;
                 }
 
-                if (!IsBetweenInclusive(utf8Input[2], 0x80u, 0xBFu))
+                if (!UnicodeUtility.IsInRangeInclusive(utf8Input[2], 0x80u, 0xBFu))
                 {
                     // 4-byte sequence marker with two valid starting bytes and a non-continuation third byte
                     // maximally invalid subsequence of length 2
