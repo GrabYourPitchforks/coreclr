@@ -86,6 +86,58 @@ namespace System.Text
         }
 
         /// <summary>
+        /// Returns a non-negative integer corresponding to the first scalar value in the buffer.
+        /// Returns -1 if the first subsequence is invalid; -2 if the buffer represents an incomplete
+        /// subsequence.
+        /// </summary>
+        internal static int ReadFirstScalarOrErrorCodeFromBuffer(ReadOnlySpan<char> buffer)
+        {
+            // Code is written so that control flows top-to-bottom without taking branches in
+            // the common case of non-empty BMP data, and with only one branch followed in
+            // the less-common case of a well-formed surrogate pair.
+
+            if (buffer.IsEmpty)
+            {
+                goto Incomplete;
+            }
+
+            // Optimistically check for BMP.
+
+            uint firstChar = buffer[0];
+            if (UnicodeUtility.IsSurrogateCodePoint(firstChar))
+            {
+                goto EncounteredSurrogate;
+            }
+
+            return (int)firstChar;
+
+        EncounteredSurrogate:
+            if (UnicodeUtility.IsLowSurrogateCodePoint(firstChar))
+            {
+                goto Invalid; // buffer cannot begin with a low surrogate
+            }
+
+            if (1 >= (uint)buffer.Length)
+            {
+                goto Incomplete; // ran out of data; couldn't check for next part of surrogate pair
+            }
+
+            uint secondChar = buffer[1];
+            if (!UnicodeUtility.IsLowSurrogateCodePoint(secondChar))
+            {
+                goto Invalid; // high surrogate not followed by low surrogate
+            }
+
+            return (int)UnicodeUtility.GetScalarFromUtf16SurrogatePair(firstChar, secondChar);
+
+        Invalid:
+            return -1;
+
+        Incomplete:
+            return -2;
+        }
+
+        /// <summary>
         /// Given a UInt32 that represents two ASCII UTF-16 characters, returns true iff
         /// the input contains one or more lowercase ASCII characters.
         /// </summary>

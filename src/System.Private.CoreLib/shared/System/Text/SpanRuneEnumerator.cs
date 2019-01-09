@@ -30,7 +30,7 @@ namespace System.Text
                 return false;
             }
 
-            int scalarValue = Rune.ReadFirstRuneFromUtf16Buffer(_remaining);
+            int scalarValue = Utf16Utility.ReadFirstScalarOrErrorCodeFromBuffer(_remaining);
             if (scalarValue < 0)
             {
                 // replace invalid sequences with U+FFFD
