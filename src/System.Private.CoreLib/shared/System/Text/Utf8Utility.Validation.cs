@@ -2,14 +2,13 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
-using System;
-using System.Runtime.CompilerServices;
-using Internal.Runtime.CompilerServices;
-using System.Numerics;
 using System.Diagnostics;
+using System.Numerics;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Runtime.Intrinsics;
 using System.Runtime.Intrinsics.X86;
-using System.Runtime.InteropServices;
+using Internal.Runtime.CompilerServices;
 
 #if BIT64
 using nint = System.Int64;
@@ -23,7 +22,161 @@ namespace System.Text
 {
     internal static partial class Utf8Utility
     {
-        private static unsafe ref byte GetRefToFirstInvalidUtf8Sequence(ref byte inputBuffer, int inputLength, out int utf16CodeUnitCountAdjustment, out int scalarCountAdjustment)
+        // This method will consume as many ASCII bytes as it can using fast vectorized processing, returning the number of
+        // consumed (ASCII) bytes. It's possible that the method exits early, perhaps because there is some non-ASCII byte
+        // later in the sequence or because we're running out of input to search. The intent is that the caller *skips over*
+        // the number of bytes returned by this method, then it continues data processing from the next byte.
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static unsafe IntPtr ConsumeAsciiBytesVectorized(ref byte buffer, int length)
+        {
+            if (Avx2.IsSupported)
+            {
+                return ConsumeAsciiBytesVectorized_Avx2(ref buffer, length);
+            }
+            else if (Vector.IsHardwareAccelerated)
+            {
+                return ConsumeAsciiBytesVectorized_DefaultHardwareAccelerated(ref buffer, length);
+            }
+            else
+            {
+                return IntPtr.Zero;
+            }
+        }
+
+        private static unsafe IntPtr ConsumeAsciiBytesVectorized_Avx2(ref byte buffer, int length)
+        {
+            // This routine uses AVX2 instructions (specifically, VPMOVMSKB) to speed up the "is ASCII?" check.
+            // The VPMOVMSKB instruction will return a 32-bit bitmask where each set bit in the bitmask corresponds
+            // to the high bit of the element at the corresponding vector index. We compare against zero to detect
+            // that no high bits are set, hence the data is all-ASCII.
+            //
+            // On processors that support AVX2, unaligned reads have approximately the same performance as aligned
+            // reads, so no need to align the data.
+
+            Debug.Assert(Avx2.IsSupported);
+
+            IntPtr retVal = IntPtr.Zero;
+
+            // Only allow vectorization if we have enough input buffer to allow a vectorized search.
+
+            if (length >= 3 * Unsafe.SizeOf<Vector256<byte>>())
+            {
+                // Quick check for non-ASCII data.
+
+                if (Avx2.MoveMask(Unsafe.ReadUnaligned<Vector256<byte>>(ref buffer)) == 0)
+                {
+                    ref byte currentPos = ref Unsafe.Add(ref buffer, Unsafe.SizeOf<Vector256<byte>>());
+                    ref byte finalPosAtWhichCanReadTwoVectors = ref Unsafe.Add(ref buffer, length - 2 * Unsafe.SizeOf<Vector256<byte>>());
+
+                    // Iterate and read two AVX2 vectors at a time. We can skip the first length check on the
+                    // first iteration of the loop since we already performed a length check at the very beginning of this
+                    // method.
+
+                    do
+                    {
+                        if (Avx2.MoveMask(
+                                Avx2.Or(
+                                    Unsafe.ReadUnaligned<Vector256<byte>>(ref currentPos),
+                                    Unsafe.ReadUnaligned<Vector256<byte>>(ref Unsafe.Add(ref currentPos, Unsafe.SizeOf<Vector256<byte>>())))) != 0)
+                        {
+                            break; // non-ASCII data incoming
+                        }
+                    } while (!Unsafe.IsAddressGreaterThan(ref currentPos = ref Unsafe.Add(ref currentPos, 2 * Unsafe.SizeOf<Vector256<byte>>()), ref finalPosAtWhichCanReadTwoVectors));
+
+                    retVal = Unsafe.ByteOffset(ref buffer, ref currentPos);
+                }
+            }
+
+            return retVal;
+        }
+
+        private static unsafe IntPtr ConsumeAsciiBytesVectorized_DefaultHardwareAccelerated(ref byte buffer, int length)
+        {
+            // This is a fallback path for runtimes / hardware which don't support AVX2.
+
+            Debug.Assert(Vector.IsHardwareAccelerated);
+
+            IntPtr retVal = IntPtr.Zero;
+
+            // Only allow vectorization if we have enough input buffer to allow a vectorized search.
+
+            if (length >= 3 * Unsafe.SizeOf<Vector256<byte>>())
+            {
+
+                // JITter will generate VMOVUPD instructions, which performs better when the memory to read
+                // is aligned. The GC may move the buffer around in memory, and while it will never cause
+                // moved data to be misaligned with respect to the natural word size, no such guarantee is
+                // made with respect to SIMD vector alignment. We'll pin the buffer so that we can enforce
+                // alignment manually.
+
+                fixed (byte* pbBuffer = &buffer)
+                {
+                    // [Potentially unaligned] single SIMD read and comparison, quick check for non-ASCII data.
+
+                    Vector<byte> mask = new Vector<byte>((byte)0x80);
+                    if ((Unsafe.ReadUnaligned<Vector<byte>>(pbBuffer) & mask) == Vector<byte>.Zero)
+                    {
+
+                        // Round 'pbBuffer' up to the *next* aligned address. If 'pbBuffer' was already aligned, this
+                        // just bumps the address up to the next vector. The read above guaranteed that we read all
+                        // data between 'pbBuffer' and 'pbAlignedBuffer' and checked it for non-ASCII bytes. It's
+                        // possible we'll duplicate a little bit of work if 'pbBuffer' wasn't already aligned since
+                        // its tail end may overlap with the immediate upcoming aligned read, but it's faster just to
+                        // perform the extra work and not worry about checking for this condition.
+
+                        // 'pbAlignedBuffer' will be somewhere between 1 and Vector<byte>.Count bytes ahead of 'pbBuffer',
+                        // hence the check for a length of >= 3 * Vector<byte>.Count at the beginning of this method.
+
+                        byte* pbAlignedBuffer;
+                        if (IntPtr.Size >= 8)
+                        {
+                            pbAlignedBuffer = (byte*)(((long)pbBuffer + Vector<byte>.Count) & ~((long)Vector<byte>.Count - 1));
+                        }
+                        else
+                        {
+                            pbAlignedBuffer = (byte*)(((int)pbBuffer + Vector<byte>.Count) & ~((int)Vector<byte>.Count - 1));
+                        }
+
+                        // Now iterate and read two aligned SIMD vectors at a time. We can skip the first length check on the
+                        // first iteration of the loop since we already performed a length check at the very beginning of this
+                        // method.
+
+                        byte* pbFinalPosAtWhichCanReadTwoVectors = &pbBuffer[length - 2 * Vector<byte>.Count];
+                        Debug.Assert(pbAlignedBuffer <= pbFinalPosAtWhichCanReadTwoVectors);
+
+                        do
+                        {
+                            if (((Unsafe.Read<Vector<byte>>(pbAlignedBuffer) | Unsafe.Read<Vector<byte>>(pbAlignedBuffer + Vector<byte>.Count)) & mask) != Vector<byte>.Zero)
+                            {
+                                break; // non-ASCII data incoming
+                            }
+                        } while ((pbAlignedBuffer += 2 * Vector<byte>.Count) <= pbFinalPosAtWhichCanReadTwoVectors);
+
+                        // We consumed all data up to 'pbAlignedBuffer' and know it to be non-ASCII.
+                        retVal = (IntPtr)(pbAlignedBuffer - pbBuffer);
+                    }
+                }
+            }
+
+            return retVal;
+        }
+
+        // Returns -1 if the buffers contains only valid data.
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static unsafe int GetIndexOfFirstInvalidSubsequence(ReadOnlySpan<byte> input, out int utf16CharCount, out int scalarCount)
+        {
+            ref byte firstInvalidSubsequenceRef = ref GetRefToFirstInvalidSubsequence(ref MemoryMarshal.GetReference(input), input.Length, out int utf16CodeUnitCountAdjustment, out int scalarCountAdjustment);
+            int idx = (int)(void*)Unsafe.ByteOffset(ref MemoryMarshal.GetReference(input), ref firstInvalidSubsequenceRef);
+
+            int tempUtf16CharCount = idx + utf16CodeUnitCountAdjustment;
+            utf16CharCount = tempUtf16CharCount;
+            scalarCount = tempUtf16CharCount + scalarCountAdjustment;
+
+            return idx | (~(idx - input.Length) >> 31); // branchlessly convert idx to -1 if it's >= input.Length
+        }
+
+        // Returns &inputBuffer[inputLength] if the input buffer is valid.
+        private static unsafe ref byte GetRefToFirstInvalidSubsequence(ref byte inputBuffer, int inputLength, out int utf16CodeUnitCountAdjustment, out int scalarCountAdjustment)
         {
             // The fields below control where we read from the buffer.
 
@@ -35,11 +188,10 @@ namespace System.Text
                 goto ProcessInputOfLessThanDWordSize;
             }
 
-            // The subtraction below is "safe" from the GC's perspective because if 'inputBuffer' references a managed object, it will always be
-            // an interior pointer, which means that we still have some wiggle room to back up a bit and still be within the range of the
-            // original object reference.
+            // The subtraction below is GC-safe since we already determined that the input length is greater than 32 bits,
+            // so backing up by 32 bits from the end will still put us within the real bounds of the input buffer.
 
-            ref byte finalPosWhereCanReadDWordFromInputBuffer = ref Unsafe.Add(ref Unsafe.Add(ref inputBuffer, inputLength), -sizeof(uint));
+            ref byte finalPosWhereCanReadDWordFromInputBuffer = ref Unsafe.Add(ref Unsafe.Add(ref inputBuffer, (IntPtr)(void*)inputLength), -sizeof(uint));
 
             // If the sequence is long enough, try running vectorized "is this sequence ASCII?"
             // logic. We perform a small test of the first few bytes to make sure they're all
@@ -195,7 +347,8 @@ namespace System.Text
                     // Per Table 3-7, valid sequences are:
                     // [ C2..DF ] [ 80..BF ]
 
-                    if (DWordBeginsWithOverlongUtf8TwoByteSequence(thisDWord)) { goto Error; }
+                    if (DWordBeginsWithOverlongUtf8TwoByteSequence(thisDWord))
+                    { goto Error; }
 
                 ProcessTwoByteSequenceSkipOverlongFormCheck:
 
@@ -340,13 +493,17 @@ namespace System.Text
 
                         // Code below becomes 5 instructions: test, jz, lea, test, jz
 
-                        if ((thisDWord & 0x0000200Fu) == 0) { goto Error; } // overlong
-                        if (((thisDWord - 0x0000200Du) & 0x0000200Fu) == 0) { goto Error; } // surrogate
+                        if (((thisDWord & 0x0000200Fu) == 0) || (((thisDWord - 0x0000200Du) & 0x0000200Fu) == 0))
+                        {
+                            goto Error; // overlong or surrogate
+                        }
                     }
                     else
                     {
-                        if ((thisDWord & 0x0F200000u) == 0) { goto Error; } // overlong
-                        if (((thisDWord - 0x0D200000u) & 0x0F200000u) == 0) { goto Error; } // surrogate
+                        if (((thisDWord & 0x0F200000u) == 0) || (((thisDWord - 0x0D200000u) & 0x0F200000u) == 0))
+                        {
+                            goto Error; // overlong or surrogate
+                        }
                     }
 
                 ProcessSingleThreeByteSequenceSkipOverlongAndSurrogateChecks:
@@ -394,7 +551,7 @@ namespace System.Text
                         // Is this three 3-byte sequences in a row?
                         // thisQWord = [ 10yyyyyy 1110zzzz | 10xxxxxx 10yyyyyy 1110zzzz | 10xxxxxx 10yyyyyy 1110zzzz ] [ 10xxxxxx ]
                         //               ---- CHAR 3  ----   --------- CHAR 2 ---------   --------- CHAR 1 ---------     -CHAR 3-
-                        if ((thisQWord & 0xC0F0C0C0F0C0C0F0UL) == 0x80E08080E08080E0UL && UnicodeHelpers.IsUtf8ContinuationByte(in Unsafe.Add(ref inputBuffer, 8)))
+                        if ((thisQWord & 0xC0F0C0C0F0C0C0F0ul) == 0x80E08080E08080E0ul && UnicodeUtility.IsUtf8ContinuationByte(in Unsafe.Add(ref inputBuffer, 8)))
                         {
                             // Saw a proper bitmask for three incoming 3-byte sequences, perform the
                             // overlong and surrogate sequence checking now.
@@ -402,8 +559,10 @@ namespace System.Text
                             // Check the first character.
                             // If the first character is overlong or a surrogate, fail immediately.
 
-                            if (((uint)thisQWord & 0x200FU) == 0) { goto Error; }
-                            if ((((uint)thisQWord - 0x200DU) & 0x200FU) == 0) { goto Error; }
+                            if ((((uint)thisQWord & 0x200Fu) == 0) || ((((uint)thisQWord - 0x200Du) & 0x200Fu) == 0))
+                            {
+                                goto Error;
+                            }
 
                             // Check the second character.
                             // If this character is overlong or a surrogate, process the first character (which we
@@ -412,16 +571,20 @@ namespace System.Text
                             thisDWord = (uint)thisQWord;
 
                             thisQWord >>= 24;
-                            if (((uint)thisQWord & 0x200FU) == 0) { goto ProcessSingleThreeByteSequenceSkipOverlongAndSurrogateChecks; }
-                            if ((((uint)thisQWord - 0x200DU) & 0x200FU) == 0) { goto ProcessSingleThreeByteSequenceSkipOverlongAndSurrogateChecks; }
+                            if ((((uint)thisQWord & 0x200Fu) == 0) || ((((uint)thisQWord - 0x200Du) & 0x200Fu) == 0))
+                            {
+                                goto ProcessSingleThreeByteSequenceSkipOverlongAndSurrogateChecks;
+                            }
 
                             // Check the third character (we already checked that it's followed by a continuation byte).
                             // If this character is overlong or a surrogate, process the first character (which we
                             // know to be good because the first check passed) before reporting an error.
 
                             thisQWord >>= 24;
-                            if (((uint)thisQWord & 0x200FU) == 0) { goto ProcessSingleThreeByteSequenceSkipOverlongAndSurrogateChecks; }
-                            if ((((uint)thisQWord - 0x200DU) & 0x200FU) == 0) { goto ProcessSingleThreeByteSequenceSkipOverlongAndSurrogateChecks; }
+                            if ((((uint)thisQWord & 0x200Fu) == 0) || ((((uint)thisQWord - 0x200Du) & 0x200Fu) == 0))
+                            {
+                                goto ProcessSingleThreeByteSequenceSkipOverlongAndSurrogateChecks;
+                            }
 
                             inputBuffer = ref Unsafe.Add(ref inputBuffer, 9);
                             tempUtf16CodeUnitCountAdjustment -= 6; // 9 UTF-8 bytes -> 3 UTF-16 code units (and 3 scalars)
@@ -432,7 +595,7 @@ namespace System.Text
                         // Is this two 3-byte sequences in a row?
                         // thisQWord = [ ######## ######## | 10xxxxxx 10yyyyyy 1110zzzz | 10xxxxxx 10yyyyyy 1110zzzz ]
                         //                                   --------- CHAR 2 ---------   --------- CHAR 1 ---------
-                        if ((thisQWord & 0xC0C0F0C0C0F0UL) == 0x8080E08080E0UL)
+                        if ((thisQWord & 0xC0C0F0C0C0F0ul) == 0x8080E08080E0ul)
                         {
                             // Saw a proper bitmask for two incoming 3-byte sequences, perform the
                             // overlong and surrogate sequence checking now.
@@ -440,8 +603,10 @@ namespace System.Text
                             // Check the first character.
                             // If the first character is overlong or a surrogate, fail immediately.
 
-                            if (((uint)thisQWord & 0x200FU) == 0) { goto Error; }
-                            if ((((uint)thisQWord - 0x200DU) & 0x200FU) == 0) { goto Error; }
+                            if ((((uint)thisQWord & 0x200Fu) == 0) || ((((uint)thisQWord - 0x200Du) & 0x200Fu) == 0))
+                            {
+                                goto Error;
+                            }
 
                             // Check the second character.
                             // If this character is overlong or a surrogate, process the first character (which we
@@ -450,8 +615,10 @@ namespace System.Text
                             thisDWord = (uint)thisQWord;
 
                             thisQWord >>= 24;
-                            if (((uint)thisQWord & 0x200FU) == 0) { goto ProcessSingleThreeByteSequenceSkipOverlongAndSurrogateChecks; }
-                            if ((((uint)thisQWord - 0x200DU) & 0x200FU) == 0) { goto ProcessSingleThreeByteSequenceSkipOverlongAndSurrogateChecks; }
+                            if ((((uint)thisQWord & 0x200Fu) == 0) || ((((uint)thisQWord - 0x200Du) & 0x200Fu) == 0))
+                            {
+                                goto ProcessSingleThreeByteSequenceSkipOverlongAndSurrogateChecks;
+                            }
 
                             inputBuffer = ref Unsafe.Add(ref inputBuffer, 6);
                             tempUtf16CodeUnitCountAdjustment -= 4; // 6 UTF-8 bytes -> 2 UTF-16 code units (and 2 scalars)
@@ -508,7 +675,8 @@ namespace System.Text
                     // [ F1..F3 ] [ 80..BF ] [ 80..BF ] [ 80..BF ]
                     // [   F4   ] [ 80..8F ] [ 80..BF ] [ 80..BF ]
 
-                    if (!DWordBeginsWithUtf8FourByteMask(thisDWord)) { goto Error; }
+                    if (!DWordBeginsWithUtf8FourByteMask(thisDWord))
+                    { goto Error; }
 
                     // Now check for overlong / out-of-range sequences.
 
@@ -528,11 +696,17 @@ namespace System.Text
 
                         // At this point, toCheck = [ 11110www 00000000 00000000 10zzzzzz ].
 
-                        if (!UnicodeHelpers.IsInRangeInclusive(toCheck, 0xF0000090U, 0xF400008FU)) { goto Error; }
+                        if (!UnicodeUtility.IsInRangeInclusive(toCheck, 0xF0000090U, 0xF400008FU))
+                        {
+                            goto Error;
+                        }
                     }
                     else
                     {
-                        if (!UnicodeHelpers.IsInRangeInclusive(thisDWord, 0xF0900000U, 0xF48FFFFFU)) { goto Error; }
+                        if (!UnicodeUtility.IsInRangeInclusive(thisDWord, 0xF0900000U, 0xF48FFFFFU))
+                        {
+                            goto Error;
+                        }
                     }
 
                     // Validation complete.
@@ -581,7 +755,7 @@ namespace System.Text
                     if (firstByte < 0xE0U)
                     {
                         // 2-byte case
-                        if (firstByte >= 0xC2U && UnicodeHelpers.IsUtf8ContinuationByte(secondByte))
+                        if (firstByte >= 0xC2U && UnicodeUtility.IsUtf8ContinuationByte(secondByte))
                         {
                             inputBuffer = ref Unsafe.Add(ref inputBuffer, 2);
                             tempUtf16CodeUnitCountAdjustment--; // 2 UTF-8 bytes -> 1 UTF-16 code unit (and 1 scalar)
@@ -596,18 +770,21 @@ namespace System.Text
                         {
                             if (firstByte == 0xE0U)
                             {
-                                if (!UnicodeHelpers.IsInRangeInclusive(secondByte, 0xA0U, 0xBFU)) { goto Error; }
+                                if (!UnicodeUtility.IsInRangeInclusive(secondByte, 0xA0U, 0xBFU))
+                                { goto Error; }
                             }
                             else if (firstByte == 0xEDU)
                             {
-                                if (!UnicodeHelpers.IsInRangeInclusive(secondByte, 0x80U, 0x9FU)) { goto Error; }
+                                if (!UnicodeUtility.IsInRangeInclusive(secondByte, 0x80U, 0x9FU))
+                                { goto Error; }
                             }
                             else
                             {
-                                if (!UnicodeHelpers.IsUtf8ContinuationByte(secondByte)) { goto Error; }
+                                if (!UnicodeUtility.IsUtf8ContinuationByte(secondByte))
+                                { goto Error; }
                             }
 
-                            if (UnicodeHelpers.IsUtf8ContinuationByte(thirdByte))
+                            if (UnicodeUtility.IsUtf8ContinuationByte(thirdByte))
                             {
                                 inputBuffer = ref Unsafe.Add(ref inputBuffer, 3);
                                 tempUtf16CodeUnitCountAdjustment -= 2; // 3 UTF-8 bytes -> 2 UTF-16 code units (and 2 scalars)
@@ -633,6 +810,14 @@ namespace System.Text
             utf16CodeUnitCountAdjustment = tempUtf16CodeUnitCountAdjustment;
             scalarCountAdjustment = tempScalarCountAdjustment;
             return ref inputBuffer;
+        }
+
+        // Returns -1 if the buffers contains only valid data.
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static bool IsWellFormedSequence(ReadOnlySpan<byte> input)
+        {
+            ref byte firstInvalidSubsequenceRef = ref GetRefToFirstInvalidSubsequence(ref MemoryMarshal.GetReference(input), input.Length, out _, out _);
+            return Unsafe.AreSame(ref Unsafe.Add(ref MemoryMarshal.GetReference(input), input.Length), ref firstInvalidSubsequenceRef);
         }
     }
 }

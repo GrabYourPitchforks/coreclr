@@ -730,6 +730,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)System\Text\UTF32Encoding.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)System\Text\UTF7Encoding.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)System\Text\UTF8Encoding.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)System\Text\Utf8Utility.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)System\Text\Utf8Utility.Validation.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)System\Text\ValueStringBuilder.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)System\TimeSpan.cs" />
