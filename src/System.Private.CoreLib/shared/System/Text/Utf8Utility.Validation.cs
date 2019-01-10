@@ -404,7 +404,7 @@ namespace System.Text
 
                 {
                     uint numLeadingAsciiBytes = CountNumberOfLeadingAsciiBytesFrom24BitInteger(thisDWord);
-                    inputBuffer = ref Unsafe.Add(ref inputBuffer, (int)numLeadingAsciiBytes);
+                    inputBuffer = ref Unsafe.AddByteOffset(ref inputBuffer, numLeadingAsciiBytes);
 
                     if (Unsafe.IsAddressLessThan(ref finalPosWhereCanReadDWordFromInputBuffer, ref inputBuffer))
                     {
@@ -610,7 +610,7 @@ namespace System.Text
                         asciiAdjustment = (nint)(sbyte)thisDWord >> 7; // smear most significant bit of least significant byte across entire value
                     }
 
-                    // asciiAdjustment = -1 if fourth byte is ASCII; 0 otherwise
+                    // asciiAdjustment = 0 if fourth byte is ASCII; -1 otherwise
 
                     // The two lines below *MUST NOT* be reordered. It's valid to add 4 before backing up since we
                     // already checked previously that the input buffer contains at least a DWORD's worth of data,
@@ -630,7 +630,7 @@ namespace System.Text
                     // three-byte sequences at a time.
 
                     // The check below is really "can we read 9 bytes from the input buffer?" since 'finalPos...' is already offset
-                    if (IntPtr.Size >= 8 && BitConverter.IsLittleEndian && (nuint)(void*)Unsafe.ByteOffset(ref inputBuffer, ref finalPosWhereCanReadDWordFromInputBuffer) >= 5)
+                    if (IntPtr.Size >= 8 && BitConverter.IsLittleEndian && (nint)(void*)Unsafe.ByteOffset(ref inputBuffer, ref finalPosWhereCanReadDWordFromInputBuffer) >= 5)
                     {
                         ulong thisQWord = Unsafe.ReadUnaligned<ulong>(ref inputBuffer);
 
