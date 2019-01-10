@@ -43,6 +43,92 @@ namespace System.Text
             }
         }
 
+        private static unsafe IntPtr ConsumeAsciiBytesVectorized_Intrinsic(ref byte buffer, nuint length)
+        {
+            // This routine uses the instructions movdqa, pmovmskb, and lzcnt to speed up the "is ASCII?" check.
+            // We pin the buffer to force all reads to be aligned. As a performance optimization we'll sometimes
+            // read before the beginning or past the end of the buffer, which is allowed since aligned vector
+            // reads will never cross a page boundary and result in an access violation. If we read outside the
+            // bounds of the input data we mask out the data that isn't relevant to us.
+
+            Debug.Assert(Sse2.IsSupported);
+            Debug.Assert(Lzcnt.IsSupported);
+            Debug.Assert(length >= (nuint)(3 * Unsafe.SizeOf<Vector128<byte>>()));
+            Debug.Assert(BitConverter.IsLittleEndian);
+
+            fixed (byte* pBuffer = &buffer)
+            {
+                // Start reading from the aligned vector which contains the first part of the buffer data.
+                // We shift the current mask to clear out any out-of-bounds data we may have read.
+
+                byte* pCurrentAlignedVector = (byte*)((nuint)pBuffer & ~(nuint)Unsafe.SizeOf<Vector128<byte>>());
+                int currentMask = Sse2.MoveMask(Sse2.LoadAlignedVector128(pCurrentAlignedVector)) >> (int)(pBuffer - pCurrentAlignedVector);
+                if (currentMask != 0)
+                {
+                    goto FoundNonAsciiDataInFirstVector;
+                }
+
+                // We know from our precondition check that there's enough data for us to make at least one
+                // iteration of the main loop. All reads here are aligned and don't need any shifting to account
+                // for out-of-bounds reads.
+
+                pCurrentAlignedVector += Unsafe.SizeOf<Vector128<byte>>();
+                byte* pFinalPosWhereCanReadTwoVectors = (byte*)((nuint)(&pBuffer[length - (nuint)Unsafe.SizeOf<Vector128<byte>>()]) & ~(nuint)Unsafe.SizeOf<Vector128<byte>>());
+                do
+                {
+                    var firstVector = Sse2.LoadAlignedVector128(pCurrentAlignedVector);
+                    var secondVector = Sse2.LoadAlignedVector128(pCurrentAlignedVector + Unsafe.SizeOf<Vector128<byte>>());
+                    if ((Sse2.MoveMask(firstVector) | Sse2.MoveMask(secondVector)) != 0)
+                    {
+                        goto FoundNonAsciiDataInInnerLoop;
+                    }
+                    pCurrentAlignedVector += 2 * Unsafe.SizeOf<Vector128<byte>>();
+                } while (pCurrentAlignedVector < pFinalPosWhereCanReadTwoVectors);
+
+                // We know that there's at least *one full vector* that we can read.
+                Debug.Assert(&pBuffer[length] - pCurrentAlignedVector >= Unsafe.SizeOf<Vector128<byte>>());
+
+                currentMask = Sse2.MoveMask(Sse2.LoadAlignedVector128(pCurrentAlignedVector));
+                if (currentMask != 0)
+                {
+                    goto Return;
+                }
+
+                // There are anywhere from 0 - 16 bytes remaining in the input buffer.
+                // We don't want to read a vector if there are 0 bytes left, as it could AV.
+
+                pCurrentAlignedVector += Unsafe.SizeOf<Vector128<byte>>();
+                if (pCurrentAlignedVector < &pBuffer[length])
+                {
+                    currentMask = Sse2.MoveMask(Sse2.LoadAlignedVector128(pCurrentAlignedVector));
+                }
+                currentMask |= 1 << (int)(&pBuffer[length] - pCurrentAlignedVector);
+
+            Return:
+                return (IntPtr)(void*)(pCurrentAlignedVector - pBuffer) + (int)Lzcnt.LeadingZeroCount((uint)currentMask);
+
+            FoundNonAsciiDataInFirstVector:
+                pCurrentAlignedVector = pBuffer;
+                goto Return;
+
+            FoundNonAsciiDataInInnerLoop:
+                currentMask = Sse2.MoveMask(Sse2.LoadAlignedVector128(pCurrentAlignedVector));
+                if (currentMask != 0)
+                {
+                    goto Return;
+                }
+
+                // There's a potential race condition in that between the initial check and the check below,
+                // another thread may have updated the buffer to contain ASCII data. We'll forcibly set the
+                // appropriate bit in the below mask to ensure that lzcnt never returns greater than 16.
+
+                pCurrentAlignedVector += Unsafe.SizeOf<Vector128<byte>>();
+                currentMask = Sse2.MoveMask(Sse2.LoadAlignedVector128(pCurrentAlignedVector));
+                currentMask |= 1 << Unsafe.SizeOf<Vector128<byte>>();
+                goto Return;
+            }
+        }
+
         private static unsafe IntPtr ConsumeAsciiBytesVectorized_Avx2(ref byte buffer, int length)
         {
             // This routine uses AVX2 instructions (specifically, VPMOVMSKB) to speed up the "is ASCII?" check.
@@ -728,12 +814,12 @@ namespace System.Text
         ProcessInputOfLessThanDWordSize:
 
             Debug.Assert(inputLength < 4);
-            inputBufferRemainingBytes = (nuint)inputLength;
+            inputBufferRemainingBytes = (nuint)(uint)inputLength;
             goto ProcessSmallBufferCommon;
 
         ProcessRemainingBytesSlow:
 
-            inputBufferRemainingBytes = (nuint)Unsafe.ByteOffset(ref inputBuffer, ref finalPosWhereCanReadDWordFromInputBuffer) + 4;
+            inputBufferRemainingBytes = (nuint)(void*)Unsafe.ByteOffset(ref inputBuffer, ref finalPosWhereCanReadDWordFromInputBuffer) + 4;
 
         ProcessSmallBufferCommon:
 

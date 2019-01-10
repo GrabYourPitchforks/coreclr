@@ -33,12 +33,12 @@ namespace System.Text
 
         public static OperationStatus FromUtf8Bytes(ReadOnlySpan<byte> source, Span<char> destination, bool replaceInvalidSequences, bool isFinalChunk, out int numCharsRead, out int numBytesWritten)
         {
-
+            throw new NotImplementedException();
         }
 
         public static OperationStatus ToUtf8Bytes(ReadOnlySpan<char> source, Span<byte> destination, bool replaceInvalidSequences, bool isFinalChunk, out int numCharsRead, out int numBytesWritten)
         {
-
+            throw new NotImplementedException();
         }
     }
 }
