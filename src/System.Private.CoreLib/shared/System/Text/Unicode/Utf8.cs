@@ -11,44 +11,38 @@ namespace System.Text.Unicode
     /// </summary>
     public static class Utf8
     {
+        /// <summary>
+        /// Determines whether <paramref name="source"/> represents a well-formed UTF-8 sequence.
+        /// </summary>
+        /// <returns>
+        /// <see langword="true"/> if the sequence is well-formed UTF-8; <see langword="false"/> otherwise.
+        /// </returns>
+        /// <remarks>
+        /// Returns <see langword="true"/> if given an empty input.
+        /// </remarks>
         public static bool IsWellFormed(ReadOnlySpan<byte> source)
         {
             return Utf8Utility.IsWellFormedSequence(source);
         }
 
+        /// <summary>
+        /// Returns the index of the first byte in <paramref name="source"/> that represents the start of an
+        /// invalid UTF-8 subsequence, along with the UTF-16 code unit count and <see cref="Rune"/> count of
+        /// the sequence.
+        /// </summary>
+        /// <returns>
+        /// A non-negative integer representing the index of the first byte in <paramref name="source"/> that
+        /// begins an invalid UTF-8 subsequence, or -1 if <paramref name="source"/> is well-formed.
+        /// </returns>
+        /// <remarks>
+        /// <paramref name="utf16CharCount"/> and <paramref name="runeCount"/> represent the UTF-16 code unit count
+        /// and the <see cref="Rune"/> count from the beginning of the <paramref name="source"/> buffer up until
+        /// the reported first invalid subsequence. If <paramref name="source"/> is well-formed, <paramref name="utf16CharCount"/>
+        /// and <paramref name="runeCount"/> represent the respective counts for the entire buffer.
+        /// </remarks>
         public static int GetIndexOfFirstInvalidByte(ReadOnlySpan<byte> source, out int utf16CharCount, out int runeCount)
         {
             return Utf8Utility.GetIndexOfFirstInvalidSubsequence(source, out utf16CharCount, out runeCount);
-        }
-
-        /*
-         * OperationStatus-based APIs for transcoding of chunked data.
-         * This method is similar to Encoding.UTF8.GetBytes / GetChars but has a
-         * different calling convention, different error handling mechanisms, and
-         * different performance characteristics.
-         *
-         * If 'replaceInvalidSequences' is true, the method will replace any ill-formed
-         * subsequence in the source with U+FFFD when transcoding to the destination,
-         * then it will continue processing the remainder of the buffers. Otherwise
-         * the method will return OperationStatus.InvalidData.
-         *
-         * If the method does return an error code, the out parameters will represent
-         * how much of the data was successfully transcoded, and the location of the
-         * ill-formed subsequence can be deduced from these values.
-         *
-         * If 'replaceInvalidSequences' is true, the method is guaranteed never to return
-         * OperationStatus.InvalidData. If 'isFinalChunk' is true, the method is
-         * guaranteed never to return OperationStatus.NeedMoreData.
-         */
-
-        public static OperationStatus ToChars(ReadOnlySpan<byte> source, Span<char> destination, bool replaceInvalidSequences, bool isFinalChunk, out int numCharsRead, out int numBytesWritten)
-        {
-            throw new NotImplementedException();
-        }
-
-        public static OperationStatus FromChars(ReadOnlySpan<char> source, Span<byte> destination, bool replaceInvalidSequences, bool isFinalChunk, out int numCharsRead, out int numBytesWritten)
-        {
-            throw new NotImplementedException();
         }
     }
 }

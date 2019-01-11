@@ -377,35 +377,6 @@ namespace System.Text
         }
 
         /// <summary>
-        /// Returns <see langword="true"/> iff all bytes in <paramref name="value"/> are ASCII.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static bool QWordAllBytesAreAscii(ulong value)
-        {
-            return ((value & 0x8080808080808080ul) == 0);
-        }
-
-        /// <summary>
-        /// Returns the OR of the next two DWORDs in the buffer.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static uint ReadAndFoldTwoDWordsUnaligned(ref byte buffer)
-        {
-            return Unsafe.ReadUnaligned<uint>(ref buffer)
-                | Unsafe.ReadUnaligned<uint>(ref Unsafe.Add(ref buffer, sizeof(uint)));
-        }
-
-        /// <summary>
-        /// Returns the OR of the next two QWORDs in the buffer.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static ulong ReadAndFoldTwoQWordsUnaligned(ref byte buffer)
-        {
-            return Unsafe.ReadUnaligned<ulong>(ref buffer)
-                | Unsafe.ReadUnaligned<ulong>(ref Unsafe.Add(ref buffer, sizeof(ulong)));
-        }
-
-        /// <summary>
         /// Rotates a DWORD left. The JITter is smart enough to turn this into a ROL / ROR instruction.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
