@@ -2946,9 +2946,13 @@ void Compiler::impBashVarAddrsToI(GenTree* tree1, GenTree* tree2)
  *  exist in the IL (at least on 64-bit where TYP_I_IMPL != TYP_INT) are
  *  turned into explicit casts here.
  *  We also allow an implicit conversion of a ldnull into a TYP_I_IMPL(0)
+ *  
+ *  If zeroExtend = false (default), if a non-const 32-bit input is
+ *  widened to 64 bits it will be sign-extended. If zeroExtend = true, it
+ *  will instead be zero-extended.
  */
 
-GenTree* Compiler::impImplicitIorI4Cast(GenTree* tree, var_types dstTyp)
+GenTree* Compiler::impImplicitIorI4Cast(GenTree* tree, var_types dstTyp, bool zeroExtend)
 {
     var_types currType   = genActualType(tree->gtType);
     var_types wantedType = genActualType(dstTyp);
@@ -2967,7 +2971,7 @@ GenTree* Compiler::impImplicitIorI4Cast(GenTree* tree, var_types dstTyp)
         else if (varTypeIsI(wantedType) && (currType == TYP_INT))
         {
             // Note that this allows TYP_INT to be cast to a TYP_I_IMPL when wantedType is a TYP_BYREF or TYP_REF
-            tree = gtNewCastNode(TYP_I_IMPL, tree, false, TYP_I_IMPL);
+            tree = gtNewCastNode(TYP_I_IMPL, tree, zeroExtend /* fromUnsigned */, TYP_I_IMPL);
         }
         else if ((wantedType == TYP_INT) && varTypeIsI(currType))
         {
@@ -3885,7 +3889,7 @@ GenTree* Compiler::impIntrinsic(GenTree*                newobjThis,
                 GenTreeBoundsChk(GT_ARR_BOUNDS_CHECK, TYP_VOID, index, length, SCK_RNGCHK_FAIL);
 
             // Element access
-            GenTree*             indexIntPtr = impImplicitIorI4Cast(indexClone, TYP_I_IMPL);
+            GenTree*             indexIntPtr = impImplicitIorI4Cast(indexClone, TYP_I_IMPL, true /* zeroExtend */);
             GenTree*             sizeofNode  = gtNewIconNode(elemSize);
             GenTree*             mulNode     = gtNewOperNode(GT_MUL, TYP_I_IMPL, indexIntPtr, sizeofNode);
             CORINFO_FIELD_HANDLE ptrHnd      = info.compCompHnd->getFieldInClass(clsHnd, 0);
