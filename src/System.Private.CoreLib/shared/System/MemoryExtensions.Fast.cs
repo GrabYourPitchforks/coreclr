@@ -397,7 +397,7 @@ namespace System
             if ((uint)start > (uint)array.Length)
                 ThrowHelper.ThrowArgumentOutOfRangeException();
 
-            return new Span<T>(ref Unsafe.Add(ref Unsafe.As<byte, T>(ref array.GetRawSzArrayData()), start), array.Length - start);
+            return new Span<T>(ref Unsafe.Add(ref Unsafe.As<byte, T>(ref array.GetRawSzArrayData()), (uint)start), array.Length - start);
         }
 
         /// <summary>
@@ -421,7 +421,7 @@ namespace System
             if ((uint)actualIndex > (uint)array.Length)
                 ThrowHelper.ThrowArgumentOutOfRangeException();
 
-            return new Span<T>(ref Unsafe.Add(ref Unsafe.As<byte, T>(ref array.GetRawSzArrayData()), actualIndex), array.Length - actualIndex);
+            return new Span<T>(ref Unsafe.Add(ref Unsafe.As<byte, T>(ref array.GetRawSzArrayData()), (uint)actualIndex), array.Length - actualIndex);
         }
 
         /// <summary>
@@ -484,7 +484,7 @@ namespace System
             if ((uint)start > (uint)text.Length)
                 ThrowHelper.ThrowArgumentOutOfRangeException(ExceptionArgument.start);
 
-            return new ReadOnlySpan<char>(ref Unsafe.Add(ref text.GetRawStringData(), start), text.Length - start);
+            return new ReadOnlySpan<char>(ref Unsafe.Add(ref text.GetRawStringData(), (uint)start), text.Length - start);
         }
 
         /// <summary>
@@ -516,7 +516,7 @@ namespace System
                 ThrowHelper.ThrowArgumentOutOfRangeException(ExceptionArgument.start);
 #endif
 
-            return new ReadOnlySpan<char>(ref Unsafe.Add(ref text.GetRawStringData(), start), length);
+            return new ReadOnlySpan<char>(ref Unsafe.Add(ref text.GetRawStringData(), (uint)start), length);
         }
 
         /// <summary>Creates a new <see cref="ReadOnlyMemory{T}"/> over the portion of the target string.</summary>

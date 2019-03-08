@@ -115,6 +115,22 @@ namespace Internal.Runtime.CompilerServices
         [Intrinsic]
         [NonVersionable]
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static ref T Add<T>(ref T source, uint elementOffset)
+        {
+#if CORECLR
+            typeof(T).ToString(); // Type token used by the actual method body
+            throw new PlatformNotSupportedException();
+#else
+            return ref AddByteOffset(ref source, (IntPtr)(nint)(elementOffset * (nuint)SizeOf<T>()));
+#endif
+        }
+
+        /// <summary>
+        /// Adds an element offset to the given reference.
+        /// </summary>
+        [Intrinsic]
+        [NonVersionable]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static ref T Add<T>(ref T source, IntPtr elementOffset)
         {
 #if CORECLR

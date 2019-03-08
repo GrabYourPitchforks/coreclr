@@ -88,7 +88,7 @@ namespace System
                 ThrowHelper.ThrowArgumentOutOfRangeException();
 #endif
 
-            _pointer = new ByReference<T>(ref Unsafe.Add(ref Unsafe.As<byte, T>(ref array.GetRawSzArrayData()), start));
+            _pointer = new ByReference<T>(ref Unsafe.Add(ref Unsafe.As<byte, T>(ref array.GetRawSzArrayData()), (uint)start));
             _length = length;
         }
 
@@ -153,7 +153,7 @@ namespace System
             {
                 if ((uint)index >= (uint)_length)
                     ThrowHelper.ThrowIndexOutOfRangeException();
-                return ref Unsafe.Add(ref _pointer.Value, index);
+                return ref Unsafe.Add(ref _pointer.Value, (uint)index);
             }
 #endif
         }
@@ -341,7 +341,7 @@ namespace System
             if ((uint)start > (uint)_length)
                 ThrowHelper.ThrowArgumentOutOfRangeException();
 
-            return new Span<T>(ref Unsafe.Add(ref _pointer.Value, start), _length - start);
+            return new Span<T>(ref Unsafe.Add(ref _pointer.Value, (uint)start), _length - start);
         }
 
         /// <summary>
@@ -369,7 +369,7 @@ namespace System
                 ThrowHelper.ThrowArgumentOutOfRangeException();
 #endif
 
-            return new Span<T>(ref Unsafe.Add(ref _pointer.Value, start), length);
+            return new Span<T>(ref Unsafe.Add(ref _pointer.Value, (uint)start), length);
         }
 
         /// <summary>

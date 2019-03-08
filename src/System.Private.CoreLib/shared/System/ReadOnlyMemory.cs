@@ -288,7 +288,7 @@ namespace System
                     }
 #endif
 
-                    refToReturn = ref Unsafe.Add(ref refToReturn, desiredStartIndex);
+                    refToReturn = ref Unsafe.Add(ref refToReturn, (uint)desiredStartIndex);
                     lengthOfUnderlyingSpan = desiredLength;
                 }
 

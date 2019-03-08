@@ -1642,7 +1642,7 @@ namespace System.Runtime.Intrinsics
             }
 
             ref T e0 = ref Unsafe.As<Vector128<T>, T>(ref vector);
-            return Unsafe.Add(ref e0, index);
+            return Unsafe.Add(ref e0, (uint)index);
         }
 
         /// <summary>Creates a new <see cref="Vector128{T}" /> with the element at the specified index set to the specified value and the remaining elements set to the same value as that in the given vector.</summary>
@@ -1666,7 +1666,7 @@ namespace System.Runtime.Intrinsics
 
             Vector128<T> result = vector;
             ref T e0 = ref Unsafe.As<Vector128<T>, T>(ref result);
-            Unsafe.Add(ref e0, index) = value;
+            Unsafe.Add(ref e0, (uint)index) = value;
             return result;
         }
 
