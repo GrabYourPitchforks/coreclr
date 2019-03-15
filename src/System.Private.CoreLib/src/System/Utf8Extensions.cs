@@ -13,9 +13,19 @@ namespace System
         /// <summary>
         /// Projects <paramref name="text"/> as a <see cref="ReadOnlySpan{Byte}"/>.
         /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static ReadOnlySpan<byte> AsBytes(this ReadOnlySpan<Char8> text)
         {
             return MemoryMarshal.Cast<Char8, byte>(text);
+        }
+
+        /// <summary>
+        /// Projects <paramref name="text"/> as a <see cref="ReadOnlySpan{Byte}"/>.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static ReadOnlySpan<byte> AsBytes(this Span<Char8> text)
+        {
+            return AsBytes((ReadOnlySpan<Char8>)text);
         }
 
         /// <summary>
@@ -362,6 +372,36 @@ namespace System
 
             (int start, int length) = range.GetOffsetAndLength(text.Length);
             return new ReadOnlyMemory<byte>(text, start, length);
+        }
+
+        /// <summary>
+        /// Projects <paramref name="text"/> as a <see cref="Span{Byte}"/>. The caller should
+        /// take care not to overwrite the original buffer with ill-formed UTF-8 data.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Span<byte> AsMutableBytes(this Span<Char8> text)
+        {
+            return MemoryMarshal.Cast<Char8, byte>(text);
+        }
+
+        /// <summary>
+        /// Projects <paramref name="utf8Text"/> as a <see cref="ReadOnlySpan{Char8}"/>.
+        /// The buffer is not validated for well-formedness.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static ReadOnlySpan<Char8> AsUnvalidatedUtf8(this ReadOnlySpan<byte> utf8Text)
+        {
+            return MemoryMarshal.Cast<byte, Char8>(utf8Text);
+        }
+
+        /// <summary>
+        /// Projects <paramref name="utf8Text"/> as a <see cref="Span{Char8}"/>.
+        /// The buffer is not validated for well-formedness.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Span<Char8> AsUnvalidatedUtf8(this Span<byte> utf8Text)
+        {
+            return MemoryMarshal.Cast<byte, Char8>(utf8Text);
         }
     }
 }
