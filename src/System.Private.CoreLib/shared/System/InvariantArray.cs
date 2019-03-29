@@ -28,6 +28,12 @@ namespace System
             _array = new T[count];
         }
 
+        public T[] Array
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => _array;
+        }
+
         public bool IsNull
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -38,6 +44,22 @@ namespace System
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             get => _array.Length;
+        }
+
+        public Span<T> Span
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get
+            {
+                if (IsNull)
+                {
+                    return default;
+                }
+                else
+                {
+                    return new Span<T>(ref Unsafe.As<byte, T>(ref _array.GetRawSzArrayData()), _array.Length);
+                }
+            }
         }
 
         public ref T this[int index]
@@ -55,5 +77,8 @@ namespace System
                 }
             }
         }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public T[] GetBackingArray() => _array;
     }
 }
