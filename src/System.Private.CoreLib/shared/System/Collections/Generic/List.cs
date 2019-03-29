@@ -114,7 +114,7 @@ namespace System.Collections.Generic
                         InvariantArray<T> newItems = new InvariantArray<T>(value);
                         if (_size > 0)
                         {
-                            _items.Span.Slice(0, _size).CopyTo(newItems.Span);
+                            _items.SpanNotNull.Slice(0, _size).CopyTo(newItems.SpanNotNull);
                         }
                         _items = newItems;
                     }
@@ -300,7 +300,7 @@ namespace System.Collections.Generic
                 _size = 0;
                 if (size > 0)
                 {
-                    _items.Span.Slice(0, size).Clear(); // Clear the elements so that the gc can reclaim the references.
+                    _items.SpanNotNull.Slice(0, size).Clear(); // Clear the elements so that the gc can reclaim the references.
                 }
             }
             else
@@ -602,7 +602,7 @@ namespace System.Collections.Generic
             }
 
             List<T> list = new List<T>(count);
-            _items.Span.Slice(index, count).CopyTo(list._items.Span);
+            _items.SpanNotNull.Slice(index, count).CopyTo(list._items.SpanNotNull);
             list._size = count;
             return list;
         }
@@ -678,7 +678,7 @@ namespace System.Collections.Generic
             if (_size == _items.Length) EnsureCapacity(_size + 1);
             if (index < _size)
             {
-                _items.Span.Slice(index, _size - index).CopyTo(_items.Span.Slice(index + 1));
+                _items.SpanNotNull.Slice(index, _size - index).CopyTo(_items.SpanNotNull.Slice(index + 1));
             }
             _items[index] = item;
             _size++;
@@ -724,16 +724,16 @@ namespace System.Collections.Generic
                     EnsureCapacity(_size + count);
                     if (index < _size)
                     {
-                        _items.Span.Slice(index, _size - index).CopyTo(_items.Span.Slice(index + count));
+                        _items.SpanNotNull.Slice(index, _size - index).CopyTo(_items.SpanNotNull.Slice(index + count));
                     }
 
                     // If we're inserting a List into itself, we want to be able to deal with that.
                     if (this == c)
                     {
                         // Copy first part of _items to insert location
-                        _items.Span.Slice(0, index).CopyTo(_items.Span.Slice(index));
+                        _items.SpanNotNull.Slice(0, index).CopyTo(_items.SpanNotNull.Slice(index));
                         // Copy last part of _items back to inserted location
-                        _items.Span.Slice(index + count, _size - index).CopyTo(_items.Span.Slice(index * 2));
+                        _items.SpanNotNull.Slice(index + count, _size - index).CopyTo(_items.SpanNotNull.Slice(index * 2));
                     }
                     else
                     {
@@ -882,7 +882,7 @@ namespace System.Collections.Generic
 
             if (RuntimeHelpers.IsReferenceOrContainsReferences<T>())
             {
-                _items.Span.Slice(freeIndex, _size - freeIndex).Clear(); // Clear the elements so that the gc can reclaim the references.
+                _items.SpanNotNull.Slice(freeIndex, _size - freeIndex).Clear(); // Clear the elements so that the gc can reclaim the references.
             }
 
             int result = _size - freeIndex;
@@ -902,7 +902,7 @@ namespace System.Collections.Generic
             _size--;
             if (index < _size)
             {
-                _items.Span.Slice(index + 1, _size - index).CopyTo(_items.Span.Slice(index));
+                _items.SpanNotNull.Slice(index + 1, _size - index).CopyTo(_items.SpanNotNull.Slice(index));
             }
             if (RuntimeHelpers.IsReferenceOrContainsReferences<T>())
             {
@@ -932,13 +932,13 @@ namespace System.Collections.Generic
                 _size -= count;
                 if (index < _size)
                 {
-                    _items.Span.Slice(index + count, _size - index).CopyTo(_items.Span.Slice(index));
+                    _items.SpanNotNull.Slice(index + count, _size - index).CopyTo(_items.SpanNotNull.Slice(index));
                 }
 
                 _version++;
                 if (RuntimeHelpers.IsReferenceOrContainsReferences<T>())
                 {
-                    _items.Span.Slice(_size, count).Clear();
+                    _items.SpanNotNull.Slice(_size, count).Clear();
                 }
             }
         }
@@ -1037,7 +1037,7 @@ namespace System.Collections.Generic
                 return s_emptyArray.Array;
             }
 
-            return _items.Span.Slice(0, _size).ToArray();
+            return _items.SpanNotNull.Slice(0, _size).ToArray();
         }
 
         // Sets the capacity of this list to the size of the list. This method can

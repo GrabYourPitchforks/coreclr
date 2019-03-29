@@ -62,6 +62,15 @@ namespace System
             }
         }
 
+        public Span<T> SpanNotNull
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get
+            {
+                return new Span<T>(ref Unsafe.As<byte, T>(ref _array.GetRawSzArrayData()), _array.Length);
+            }
+        }
+
         public ref T this[int index]
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
