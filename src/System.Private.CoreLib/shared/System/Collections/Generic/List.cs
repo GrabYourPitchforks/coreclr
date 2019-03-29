@@ -616,7 +616,8 @@ namespace System.Collections.Generic
         // This method uses the Array.IndexOf method to perform the
         // search.
         // 
-        public int IndexOf(T item) => _items.Span.Slice(0, _size).IndexOf(item);
+        public int IndexOf(T item)
+         => Array.IndexOf(_items.Array, item, 0, _size);
 
         int IList.IndexOf(object item)
         {
@@ -640,7 +641,7 @@ namespace System.Collections.Generic
         {
             if (index > _size)
                 ThrowHelper.ThrowArgumentOutOfRange_IndexException();
-            return _items.Span.Slice(index, _size - index).IndexOf(item);
+            return Array.IndexOf(_items.Array, item, index, _size - index);
         }
 
         // Returns the index of the first occurrence of a given value in a range of
@@ -660,7 +661,7 @@ namespace System.Collections.Generic
             if (count < 0 || index > _size - count)
                 ThrowHelper.ThrowCountArgumentOutOfRange_ArgumentOutOfRange_Count();
 
-            return _items.Span.Slice(index, count).IndexOf(item);
+            return Array.IndexOf(_items.Array, item, index, count);
         }
 
         // Inserts an element into this list at a given index. The size of the list
@@ -826,7 +827,7 @@ namespace System.Collections.Generic
                 ThrowHelper.ThrowArgumentOutOfRangeException(ExceptionArgument.count, ExceptionResource.ArgumentOutOfRange_BiggerThanCollection);
             }
 
-            return _items.Span.Slice(index, count).LastIndexOf(item);
+            return Array.LastIndexOf(_items.Array, item, index, count);
         }
 
         // Removes the element at the given index. The size of the list is
