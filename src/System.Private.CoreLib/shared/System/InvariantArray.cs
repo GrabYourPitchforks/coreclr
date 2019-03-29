@@ -31,6 +31,14 @@ namespace System
             _array = array;
         }
 
+        // non-validating ctor
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private InvariantArray(T[] array, bool unused)
+        {
+            Debug.Assert(array is null || array.GetType() == typeof(T[]));
+            _array = array;
+        }
+
         /// <summary>
         /// Allocates a new array of the specified length and creates an invariant
         /// wrapper around it.
@@ -167,6 +175,14 @@ namespace System
                 }
             }
         }
+
+        /// <summary>
+        /// Wraps a T[] array inside an <see cref="InvariantArray{T}"/> without performing
+        /// any covariance or contravariance checks. The caller is responsible for ensuring
+        /// that <paramref name="array"/>'s true type is T[] (or null).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static InvariantArray<T> UnsafeWrap(T[] array) => new InvariantArray<T>(array, false /* unused */);
     }
 
     internal readonly struct InvariantArrayObjectWrapper

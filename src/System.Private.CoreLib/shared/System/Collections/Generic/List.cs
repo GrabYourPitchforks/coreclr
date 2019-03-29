@@ -23,11 +23,11 @@ namespace System.Collections.Generic
     {
         private const int DefaultCapacity = 4;
 
-        private InvariantArray<T> _items; // Do not rename (binary serialization)
+        private T[] _items; // Do not rename (binary serialization)
         private int _size; // Do not rename (binary serialization)
         private int _version; // Do not rename (binary serialization)
 
-        private static readonly InvariantArray<T> s_emptyArray = new InvariantArray<T>(0);
+        private static readonly T[] s_emptyArray = new T[0];
 
         // Constructs a List. The list is initially empty and has a capacity
         // of zero. Upon adding the first element to the list the capacity is
@@ -50,7 +50,7 @@ namespace System.Collections.Generic
             if (capacity == 0)
                 _items = s_emptyArray;
             else
-                _items = new InvariantArray<T>(capacity);
+                _items = new T[capacity];
         }
 
         // Constructs a List, copying the contents of the given collection. The
@@ -71,8 +71,8 @@ namespace System.Collections.Generic
                 }
                 else
                 {
-                    _items = new InvariantArray<T>(count);
-                    c.CopyTo(_items.Array, 0);
+                    _items = new T[count];
+                    c.CopyTo(_items, 0);
                     _size = count;
                 }
             }
@@ -111,10 +111,10 @@ namespace System.Collections.Generic
                 {
                     if (value > 0)
                     {
-                        InvariantArray<T> newItems = new InvariantArray<T>(value);
+                        T[] newItems = new T[value];
                         if (_size > 0)
                         {
-                            _items.SpanNotNull.Slice(0, _size).CopyTo(newItems.SpanNotNull);
+                            Array.Copy(_items, 0, newItems, 0, _size);
                         }
                         _items = newItems;
                     }
@@ -161,7 +161,8 @@ namespace System.Collections.Generic
                 {
                     ThrowHelper.ThrowArgumentOutOfRange_IndexException();
                 }
-                _items[index] = value;
+                var invariantArray = InvariantArray<T>.UnsafeWrap(_items);
+                invariantArray[index] = value;
                 _version++;
             }
         }
@@ -202,7 +203,7 @@ namespace System.Collections.Generic
         public void Add(T item)
         {
             _version++;
-            InvariantArray<T> array = _items;
+            T[] array = _items;
             int size = _size;
             if ((uint)size < (uint)array.Length)
             {
@@ -222,7 +223,8 @@ namespace System.Collections.Generic
             int size = _size;
             EnsureCapacity(size + 1);
             _size = size + 1;
-            _items[size] = item;
+            var invariantArray = InvariantArray<T>.UnsafeWrap(_items);
+            invariantArray[size] = item;
         }
 
         int IList.Add(object item)
@@ -280,7 +282,7 @@ namespace System.Collections.Generic
             if (_size - index < count)
                 ThrowHelper.ThrowArgumentException(ExceptionResource.Argument_InvalidOffLen);
 
-            return Array.BinarySearch<T>(_items.Array, index, count, item, comparer);
+            return Array.BinarySearch<T>(_items, index, count, item, comparer);
         }
 
         public int BinarySearch(T item)
@@ -300,7 +302,7 @@ namespace System.Collections.Generic
                 _size = 0;
                 if (size > 0)
                 {
-                    _items.SpanNotNull.Slice(0, size).Clear(); // Clear the elements so that the gc can reclaim the references.
+                    Array.Clear(_items, 0, size); // Clear the elements so that the gc can reclaim the references.
                 }
             }
             else
@@ -345,7 +347,8 @@ namespace System.Collections.Generic
             List<TOutput> list = new List<TOutput>(_size);
             for (int i = 0; i < _size; i++)
             {
-                list._items[i] = converter(_items[i]);
+                var invariantListArray = InvariantArray<TOutput>.UnsafeWrap(list._items);
+                invariantListArray[i] = converter(_items[i]);
             }
             list._size = _size;
             return list;
@@ -368,7 +371,7 @@ namespace System.Collections.Generic
             try
             {
                 // Array.Copy will check for NULL.
-                Array.Copy(_items.Array, 0, array, arrayIndex, _size);
+                Array.Copy(_items, 0, array, arrayIndex, _size);
             }
             catch (ArrayTypeMismatchException)
             {
@@ -388,13 +391,13 @@ namespace System.Collections.Generic
             }
 
             // Delegate rest of error checking to Array.Copy.
-            Array.Copy(_items.Array, index, array, arrayIndex, count);
+            Array.Copy(_items, index, array, arrayIndex, count);
         }
 
         public void CopyTo(T[] array, int arrayIndex)
         {
             // Delegate rest of error checking to Array.Copy.
-            Array.Copy(_items.Array, 0, array, arrayIndex, _size);
+            Array.Copy(_items, 0, array, arrayIndex, _size);
         }
 
         // Ensures that the capacity of this list is at least the given minimum
@@ -602,7 +605,7 @@ namespace System.Collections.Generic
             }
 
             List<T> list = new List<T>(count);
-            _items.SpanNotNull.Slice(index, count).CopyTo(list._items.SpanNotNull);
+            Array.Copy(_items, index, list._items, 0, count);
             list._size = count;
             return list;
         }
@@ -617,7 +620,7 @@ namespace System.Collections.Generic
         // search.
         // 
         public int IndexOf(T item)
-         => Array.IndexOf(_items.Array, item, 0, _size);
+            => Array.IndexOf(_items, item, 0, _size);
 
         int IList.IndexOf(object item)
         {
@@ -641,7 +644,7 @@ namespace System.Collections.Generic
         {
             if (index > _size)
                 ThrowHelper.ThrowArgumentOutOfRange_IndexException();
-            return Array.IndexOf(_items.Array, item, index, _size - index);
+            return Array.IndexOf(_items, item, index, _size - index);
         }
 
         // Returns the index of the first occurrence of a given value in a range of
@@ -661,7 +664,7 @@ namespace System.Collections.Generic
             if (count < 0 || index > _size - count)
                 ThrowHelper.ThrowCountArgumentOutOfRange_ArgumentOutOfRange_Count();
 
-            return Array.IndexOf(_items.Array, item, index, count);
+            return Array.IndexOf(_items, item, index, count);
         }
 
         // Inserts an element into this list at a given index. The size of the list
@@ -678,9 +681,11 @@ namespace System.Collections.Generic
             if (_size == _items.Length) EnsureCapacity(_size + 1);
             if (index < _size)
             {
-                _items.SpanNotNull.Slice(index, _size - index).CopyTo(_items.SpanNotNull.Slice(index + 1));
+                Array.Copy(_items, index, _items, index + 1, _size - index);
             }
-            _items[index] = item;
+
+            var invariantArray = InvariantArray<T>.UnsafeWrap(_items);
+            invariantArray[index] = item;
             _size++;
             _version++;
         }
@@ -724,20 +729,20 @@ namespace System.Collections.Generic
                     EnsureCapacity(_size + count);
                     if (index < _size)
                     {
-                        _items.SpanNotNull.Slice(index, _size - index).CopyTo(_items.SpanNotNull.Slice(index + count));
+                        Array.Copy(_items, index, _items, index + count, _size - index);
                     }
 
                     // If we're inserting a List into itself, we want to be able to deal with that.
                     if (this == c)
                     {
                         // Copy first part of _items to insert location
-                        _items.SpanNotNull.Slice(0, index).CopyTo(_items.SpanNotNull.Slice(index));
+                        Array.Copy(_items, 0, _items, index, index);
                         // Copy last part of _items back to inserted location
-                        _items.SpanNotNull.Slice(index + count, _size - index).CopyTo(_items.SpanNotNull.Slice(index * 2));
+                        Array.Copy(_items, index + count, _items, index * 2, _size - index);
                     }
                     else
                     {
-                        c.CopyTo(_items.Array, index);
+                        c.CopyTo(_items, index);
                     }
                     _size += count;
                 }
@@ -827,7 +832,7 @@ namespace System.Collections.Generic
                 ThrowHelper.ThrowArgumentOutOfRangeException(ExceptionArgument.count, ExceptionResource.ArgumentOutOfRange_BiggerThanCollection);
             }
 
-            return Array.LastIndexOf(_items.Array, item, index, count);
+            return Array.LastIndexOf(_items, item, index, count);
         }
 
         // Removes the element at the given index. The size of the list is
@@ -876,13 +881,14 @@ namespace System.Collections.Generic
                 if (current < _size)
                 {
                     // copy item to the free slot.
-                    _items[freeIndex++] = _items[current++];
+                    var invariantArray = InvariantArray<T>.UnsafeWrap(_items);
+                    invariantArray[freeIndex++] = _items[current++];
                 }
             }
 
             if (RuntimeHelpers.IsReferenceOrContainsReferences<T>())
             {
-                _items.SpanNotNull.Slice(freeIndex, _size - freeIndex).Clear(); // Clear the elements so that the gc can reclaim the references.
+                Array.Clear(_items, freeIndex, _size - freeIndex); // Clear the elements so that the gc can reclaim the references.
             }
 
             int result = _size - freeIndex;
@@ -902,7 +908,7 @@ namespace System.Collections.Generic
             _size--;
             if (index < _size)
             {
-                _items.SpanNotNull.Slice(index + 1, _size - index).CopyTo(_items.SpanNotNull.Slice(index));
+                Array.Copy(_items, index + 1, _items, index, _size - index);
             }
             if (RuntimeHelpers.IsReferenceOrContainsReferences<T>())
             {
@@ -932,13 +938,13 @@ namespace System.Collections.Generic
                 _size -= count;
                 if (index < _size)
                 {
-                    _items.SpanNotNull.Slice(index + count, _size - index).CopyTo(_items.SpanNotNull.Slice(index));
+                    Array.Copy(_items, index + count, _items, index, _size - index);
                 }
 
                 _version++;
                 if (RuntimeHelpers.IsReferenceOrContainsReferences<T>())
                 {
-                    _items.SpanNotNull.Slice(_size, count).Clear();
+                    Array.Clear(_items, _size, count);
                 }
             }
         }
@@ -969,7 +975,7 @@ namespace System.Collections.Generic
 
             if (count > 1)
             {
-                Array.Reverse(_items.Array, index, count);
+                Array.Reverse(_items, index, count);
             }
             _version++;
         }
@@ -1009,7 +1015,7 @@ namespace System.Collections.Generic
 
             if (count > 1)
             {
-                Array.Sort<T>(_items.Array, index, count, comparer);
+                Array.Sort<T>(_items, index, count, comparer);
             }
             _version++;
         }
@@ -1023,7 +1029,7 @@ namespace System.Collections.Generic
 
             if (_size > 1)
             {
-                ArraySortHelper<T>.Sort(_items.Array, 0, _size, comparison);
+                ArraySortHelper<T>.Sort(_items, 0, _size, comparison);
             }
             _version++;
         }
@@ -1034,10 +1040,12 @@ namespace System.Collections.Generic
         {
             if (_size == 0)
             {
-                return s_emptyArray.Array;
+                return s_emptyArray;
             }
 
-            return _items.SpanNotNull.Slice(0, _size).ToArray();
+            T[] array = new T[_size];
+            Array.Copy(_items, 0, array, 0, _size);
+            return array;
         }
 
         // Sets the capacity of this list to the size of the list. This method can
