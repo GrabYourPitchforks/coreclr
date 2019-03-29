@@ -77,8 +77,5 @@ namespace System
                 }
             }
         }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public T[] GetBackingArray() => _array;
     }
 }

@@ -72,7 +72,7 @@ namespace System.Collections.Generic
                 else
                 {
                     _items = new InvariantArray<T>(count);
-                    c.CopyTo(_items.GetBackingArray(), 0);
+                    c.CopyTo(_items.Array, 0);
                     _size = count;
                 }
             }
@@ -114,7 +114,7 @@ namespace System.Collections.Generic
                         InvariantArray<T> newItems = new InvariantArray<T>(value);
                         if (_size > 0)
                         {
-                            Array.Copy(_items.GetBackingArray(), 0, newItems.GetBackingArray(), 0, _size);
+                            _items.Span.Slice(0, _size).CopyTo(newItems.Span);
                         }
                         _items = newItems;
                     }
@@ -280,7 +280,7 @@ namespace System.Collections.Generic
             if (_size - index < count)
                 ThrowHelper.ThrowArgumentException(ExceptionResource.Argument_InvalidOffLen);
 
-            return Array.BinarySearch<T>(_items.GetBackingArray(), index, count, item, comparer);
+            return Array.BinarySearch<T>(_items.Array, index, count, item, comparer);
         }
 
         public int BinarySearch(T item)
@@ -300,7 +300,7 @@ namespace System.Collections.Generic
                 _size = 0;
                 if (size > 0)
                 {
-                    Array.Clear(_items.GetBackingArray(), 0, size); // Clear the elements so that the gc can reclaim the references.
+                    _items.Span.Slice(0, size).Clear(); // Clear the elements so that the gc can reclaim the references.
                 }
             }
             else
@@ -368,7 +368,7 @@ namespace System.Collections.Generic
             try
             {
                 // Array.Copy will check for NULL.
-                Array.Copy(_items.GetBackingArray(), 0, array, arrayIndex, _size);
+                Array.Copy(_items.Array, 0, array, arrayIndex, _size);
             }
             catch (ArrayTypeMismatchException)
             {
@@ -388,13 +388,13 @@ namespace System.Collections.Generic
             }
 
             // Delegate rest of error checking to Array.Copy.
-            Array.Copy(_items.GetBackingArray(), index, array, arrayIndex, count);
+            Array.Copy(_items.Array, index, array, arrayIndex, count);
         }
 
         public void CopyTo(T[] array, int arrayIndex)
         {
             // Delegate rest of error checking to Array.Copy.
-            Array.Copy(_items.GetBackingArray(), 0, array, arrayIndex, _size);
+            Array.Copy(_items.Array, 0, array, arrayIndex, _size);
         }
 
         // Ensures that the capacity of this list is at least the given minimum
@@ -602,7 +602,7 @@ namespace System.Collections.Generic
             }
 
             List<T> list = new List<T>(count);
-            Array.Copy(_items.GetBackingArray(), index, list._items.GetBackingArray(), 0, count);
+            _items.Span.Slice(index, count).CopyTo(list._items.Span);
             list._size = count;
             return list;
         }
@@ -616,8 +616,7 @@ namespace System.Collections.Generic
         // This method uses the Array.IndexOf method to perform the
         // search.
         // 
-        public int IndexOf(T item)
-            => Array.IndexOf(_items.GetBackingArray(), item, 0, _size);
+        public int IndexOf(T item) => _items.Span.Slice(0, _size).IndexOf(item);
 
         int IList.IndexOf(object item)
         {
@@ -641,7 +640,7 @@ namespace System.Collections.Generic
         {
             if (index > _size)
                 ThrowHelper.ThrowArgumentOutOfRange_IndexException();
-            return Array.IndexOf(_items.GetBackingArray(), item, index, _size - index);
+            return _items.Span.Slice(index, _size - index).IndexOf(item);
         }
 
         // Returns the index of the first occurrence of a given value in a range of
@@ -661,7 +660,7 @@ namespace System.Collections.Generic
             if (count < 0 || index > _size - count)
                 ThrowHelper.ThrowCountArgumentOutOfRange_ArgumentOutOfRange_Count();
 
-            return Array.IndexOf(_items.GetBackingArray(), item, index, count);
+            return _items.Span.Slice(index, count).IndexOf(item);
         }
 
         // Inserts an element into this list at a given index. The size of the list
@@ -678,7 +677,7 @@ namespace System.Collections.Generic
             if (_size == _items.Length) EnsureCapacity(_size + 1);
             if (index < _size)
             {
-                Array.Copy(_items.GetBackingArray(), index, _items.GetBackingArray(), index + 1, _size - index);
+                _items.Span.Slice(index, _size - index).CopyTo(_items.Span.Slice(index + 1));
             }
             _items[index] = item;
             _size++;
@@ -724,20 +723,20 @@ namespace System.Collections.Generic
                     EnsureCapacity(_size + count);
                     if (index < _size)
                     {
-                        Array.Copy(_items.GetBackingArray(), index, _items.GetBackingArray(), index + count, _size - index);
+                        _items.Span.Slice(index, _size - index).CopyTo(_items.Span.Slice(index + count));
                     }
 
                     // If we're inserting a List into itself, we want to be able to deal with that.
                     if (this == c)
                     {
                         // Copy first part of _items to insert location
-                        Array.Copy(_items.GetBackingArray(), 0, _items.GetBackingArray(), index, index);
+                        _items.Span.Slice(0, index).CopyTo(_items.Span.Slice(index));
                         // Copy last part of _items back to inserted location
-                        Array.Copy(_items.GetBackingArray(), index + count, _items.GetBackingArray(), index * 2, _size - index);
+                        _items.Span.Slice(index + count, _size - index).CopyTo(_items.Span.Slice(index * 2));
                     }
                     else
                     {
-                        c.CopyTo(_items.GetBackingArray(), index);
+                        c.CopyTo(_items.Array, index);
                     }
                     _size += count;
                 }
@@ -827,7 +826,7 @@ namespace System.Collections.Generic
                 ThrowHelper.ThrowArgumentOutOfRangeException(ExceptionArgument.count, ExceptionResource.ArgumentOutOfRange_BiggerThanCollection);
             }
 
-            return Array.LastIndexOf(_items.GetBackingArray(), item, index, count);
+            return _items.Span.Slice(index, count).LastIndexOf(item);
         }
 
         // Removes the element at the given index. The size of the list is
@@ -882,7 +881,7 @@ namespace System.Collections.Generic
 
             if (RuntimeHelpers.IsReferenceOrContainsReferences<T>())
             {
-                Array.Clear(_items.GetBackingArray(), freeIndex, _size - freeIndex); // Clear the elements so that the gc can reclaim the references.
+                _items.Span.Slice(freeIndex, _size - freeIndex).Clear(); // Clear the elements so that the gc can reclaim the references.
             }
 
             int result = _size - freeIndex;
@@ -902,7 +901,7 @@ namespace System.Collections.Generic
             _size--;
             if (index < _size)
             {
-                Array.Copy(_items.GetBackingArray(), index + 1, _items.GetBackingArray(), index, _size - index);
+                _items.Span.Slice(index + 1, _size - index).CopyTo(_items.Span.Slice(index));
             }
             if (RuntimeHelpers.IsReferenceOrContainsReferences<T>())
             {
@@ -932,13 +931,13 @@ namespace System.Collections.Generic
                 _size -= count;
                 if (index < _size)
                 {
-                    Array.Copy(_items.GetBackingArray(), index + count, _items.GetBackingArray(), index, _size - index);
+                    _items.Span.Slice(index + count, _size - index).CopyTo(_items.Span.Slice(index));
                 }
 
                 _version++;
                 if (RuntimeHelpers.IsReferenceOrContainsReferences<T>())
                 {
-                    Array.Clear(_items.GetBackingArray(), _size, count);
+                    _items.Span.Slice(_size, count).Clear();
                 }
             }
         }
@@ -969,7 +968,7 @@ namespace System.Collections.Generic
 
             if (count > 1)
             {
-                Array.Reverse(_items.GetBackingArray(), index, count);
+                Array.Reverse(_items.Array, index, count);
             }
             _version++;
         }
@@ -1009,7 +1008,7 @@ namespace System.Collections.Generic
 
             if (count > 1)
             {
-                Array.Sort<T>(_items.GetBackingArray(), index, count, comparer);
+                Array.Sort<T>(_items.Array, index, count, comparer);
             }
             _version++;
         }
@@ -1023,7 +1022,7 @@ namespace System.Collections.Generic
 
             if (_size > 1)
             {
-                ArraySortHelper<T>.Sort(_items.GetBackingArray(), 0, _size, comparison);
+                ArraySortHelper<T>.Sort(_items.Array, 0, _size, comparison);
             }
             _version++;
         }
@@ -1034,7 +1033,7 @@ namespace System.Collections.Generic
         {
             if (_size == 0)
             {
-                return s_emptyArray;
+                return s_emptyArray.Array;
             }
 
             return _items.Span.Slice(0, _size).ToArray();
