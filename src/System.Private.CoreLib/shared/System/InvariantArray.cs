@@ -71,18 +71,21 @@ namespace System
             }
         }
 
-        public ref T this[int index]
+        public T this[int index]
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get
+            get => _array[index];
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            set
             {
                 if (default(T) is null)
                 {
-                    return ref Unsafe.As<IntPtr, T>(ref Unsafe.As<IntPtr[]>(_array)[index]);
+                    Unsafe.As<IntPtr, T>(ref Unsafe.As<IntPtr[]>(_array)[index]) = value;
                 }
                 else
                 {
-                    return ref _array[index];
+                    _array[index] = value;
                 }
             }
         }
