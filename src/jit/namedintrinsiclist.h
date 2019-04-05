@@ -17,6 +17,7 @@ enum NamedIntrinsic : unsigned short
     NI_System_MathF_Round,
     NI_System_Collections_Generic_EqualityComparer_get_Default,
     NI_System_Buffers_Binary_BinaryPrimitives_ReverseEndianness,
+    NI_System_Runtime_CompilerServices_RuntimeHelpers_GetRefToObjectOffset,
 
 #ifdef FEATURE_HW_INTRINSICS
     NI_HW_INTRINSIC_START,

@@ -4,7 +4,14 @@
 
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
 using Internal.Runtime.CompilerServices;
+
+#if BIT64
+using nuint = System.UInt64;
+#else
+using nuint = System.UInt32;
+#endif
 
 namespace System.Runtime.CompilerServices
 {
@@ -162,6 +169,22 @@ namespace System.Runtime.CompilerServices
             throw new InvalidOperationException();
         }
 
+        /// <summary>
+        /// Given an object <paramref name="obj"/> and a field offset <paramref name="fieldOffset"/>, returns
+        /// a reference to the field at the specified offset within the given object. The caller is responsible
+        /// for ensuring that <paramref name="obj"/> is non-null and that <paramref name="fieldOffset"/>
+        /// represents a valid, addressable offset within <paramref name="obj"/>.
+        /// </summary>
+        [Intrinsic]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [NonVersionable]
+        internal static ref byte GetRefToObjectOffset(object obj, nuint fieldOffset)
+        {
+            // This function is implemented by the runtime.
+            // See src\jit\importer.cpp, search "CORINFO_INTRINSIC_RuntimeHelpers_GetRefToObjectOffset".
+            throw new InvalidOperationException();
+        }
+
         // Returns true iff the object has a component size;
         // i.e., is variable length like System.String or Array.
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -179,27 +202,7 @@ namespace System.Runtime.CompilerServices
             // return ((MethodTable*)(*obj))->IsStringOrArray();
 
             Debug.Assert(obj != null);
-            return *(int*)GetObjectMethodTablePointer(obj) < 0;
-        }
-
-        // Given an object reference, returns its MethodTable* as an IntPtr.
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static IntPtr GetObjectMethodTablePointer(object obj)
-        {
-            Debug.Assert(obj != null);
-
-            // We know that the first data field in any managed object is immediately after the
-            // method table pointer, so just back up one pointer and immediately deref.
-            // This is not ideal in terms of minimizing instruction count but is the best we can do at the moment.
-
-            return Unsafe.Add(ref Unsafe.As<byte, IntPtr>(ref obj.GetRawData()), -1);
-
-            // The JIT currently implements this as:
-            // lea tmp, [rax + 8h] ; assume rax contains the object reference, tmp is type IntPtr&
-            // mov tmp, qword ptr [tmp - 8h] ; tmp now contains the MethodTable* pointer
-            //
-            // Ideally this would just be a single dereference:
-            // mov tmp, qword ptr [rax] ; rax = obj ref, tmp = MethodTable* pointer
+            return *(int*)Unsafe.As<byte, IntPtr>(ref GetRefToObjectOffset(obj, 0)) < 0;
         }
 
         [MethodImplAttribute(MethodImplOptions.InternalCall)]

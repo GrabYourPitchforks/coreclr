@@ -4094,6 +4094,20 @@ GenTree* Compiler::impIntrinsic(GenTree*                newobjThis,
                 break;
             }
 
+            case NI_System_Runtime_CompilerServices_RuntimeHelpers_GetRefToObjectOffset:
+            {
+                assert(sig->numArgs == 2);
+
+                GenTree* op2 = impPopStack().val; // offset
+                GenTree* op1 = impPopStack().val; // object (caller verified non-null)
+
+                // Create the expression "(obj_addr + field_offset)"
+                // Unlike the StringLength intrinsic, we're returning the address, not dereferencing it.
+                retNode = gtNewOperNode(GT_ADD, TYP_BYREF, op1, op2);
+
+                break;
+            }
+
             default:
                 break;
         }
@@ -4267,6 +4281,13 @@ NamedIntrinsic Compiler::lookupNamedIntrinsic(CORINFO_METHOD_HANDLE method)
         if ((strcmp(className, "EqualityComparer`1") == 0) && (strcmp(methodName, "get_Default") == 0))
         {
             result = NI_System_Collections_Generic_EqualityComparer_get_Default;
+        }
+    }
+    else if (strcmp(namespaceName, "System.Runtime.CompilerServices") == 0)
+    {
+        if ((strcmp(className, "RuntimeHelpers") == 0) && (strcmp(methodName, "GetRefToObjectOffset") == 0))
+        {
+            result = NI_System_Runtime_CompilerServices_RuntimeHelpers_GetRefToObjectOffset;
         }
     }
 #ifdef FEATURE_HW_INTRINSICS
