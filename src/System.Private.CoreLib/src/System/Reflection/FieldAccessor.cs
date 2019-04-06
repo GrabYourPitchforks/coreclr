@@ -52,12 +52,24 @@ namespace System.Reflection
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ref TField GetRef(TObject obj)
         {
+            // Normally, the JIT would perform a null check on "this" before invoking the instance method.
+            // By moving the this._fieldOffset dereference to the beginning of the method and storing it
+            // as a local copy, the JIT is able to elide the earlier null check because the line immediately
+            // following would cause the correct NullReferenceException if the caller called (null).GetRef(...).
+
+            nuint fieldOffset = _fieldOffset;
+
+            // We need to perform an additional null check on 'obj' so that we don't hand out a reference
+            // to garbage memory. The easiest way to do this is through a dummy call to GetType(), which
+            // the JIT converts into a simple dereference. The JIT will elide this check entirely if it
+            // has other ways of proving that 'obj' cannot be null here.
+
             if (obj.GetType() == typeof(object))
             {
-                // intentionally left blank - we only want the side effect of GetType() performing a null check on obj
+                // intentionally left empty - we only care about the null check
             }
 
-            return ref Unsafe.As<byte, TField>(ref RuntimeHelpers.GetRefToObjectOffset(obj, _fieldOffset));
+            return ref Unsafe.As<byte, TField>(ref RuntimeHelpers.GetRefToObjectOffset(obj, fieldOffset));
         }
     }
 }
