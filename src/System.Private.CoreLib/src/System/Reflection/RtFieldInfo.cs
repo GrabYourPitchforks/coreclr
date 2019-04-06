@@ -119,6 +119,15 @@ namespace System.Reflection
             return m.m_fieldHandle == m_fieldHandle;
         }
 
+        // Returns the offset (in bytes) from the start of the object to the data represented by this field.
+        internal IntPtr GetOffsetInBytes()
+        {
+            // The start of the object is the pointer to the method table, so we need to advance
+            // by one pointer length before we add the actual field handle's byte offset.
+
+            return (IntPtr)((byte*)IntPtr.Size + RuntimeFieldHandle.GetFieldOffset(new RuntimeFieldHandleInternal(m_fieldHandle)));
+        }
+
         #endregion
 
         #region MemberInfo Overrides
