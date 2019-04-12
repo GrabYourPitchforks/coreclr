@@ -158,6 +158,18 @@ namespace System.Globalization
             return ChangeCase(c, toUpper: false);
         }
 
+        public Rune ToLower(Rune value)
+        {
+            if (GlobalizationMode.Invariant || (value.IsAscii && IsAsciiCasingSameAsInvariant))
+            {
+                return Rune.ToLowerInvariant(value);
+            }
+            else
+            {
+                return Rune.ChangeCaseCultureAware(value, this, toUpper: false);
+            }
+        }
+
         public virtual string ToLower(string str)
         {
             if (str == null)
@@ -548,6 +560,18 @@ namespace System.Globalization
             }
 
             return ChangeCase(c, toUpper: true);
+        }
+
+        public Rune ToUpper(Rune value)
+        {
+            if (GlobalizationMode.Invariant || (value.IsAscii && IsAsciiCasingSameAsInvariant))
+            {
+                return Rune.ToUpperInvariant(value);
+            }
+            else
+            {
+                return Rune.ChangeCaseCultureAware(value, this, toUpper: true);
+            }
         }
 
         public virtual string ToUpper(string str)

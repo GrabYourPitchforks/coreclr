@@ -175,7 +175,7 @@ namespace System.Text
         /// </summary>
         public int Value => (int)_value;
 
-        private static Rune ChangeCaseCultureAware(Rune rune, TextInfo textInfo, bool toUpper)
+        internal static Rune ChangeCaseCultureAware(Rune rune, TextInfo textInfo, bool toUpper)
         {
             Debug.Assert(!GlobalizationMode.Invariant, "This should've been checked by the caller.");
             Debug.Assert(textInfo != null, "This should've been checked by the caller.");
