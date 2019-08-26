@@ -28,6 +28,24 @@ namespace System.Text
 
         /// <summary>
         /// Returns a value stating whether the current <see cref="Utf8Span"/> instance contains
+        /// <paramref name="value"/>. An ordinal comparison is used.
+        /// </summary>
+        public bool Contains(char value)
+        {
+            return Rune.TryCreate(value, out Rune rune) && Contains(rune);
+        }
+
+        /// <summary>
+        /// Returns a value stating whether the current <see cref="Utf8Span"/> instance contains
+        /// <paramref name="value"/>. The specified comparison is used.
+        /// </summary>
+        public bool Contains(char value, StringComparison comparison)
+        {
+            return Rune.TryCreate(value, out Rune rune) && Contains(rune, comparison);
+        }
+
+        /// <summary>
+        /// Returns a value stating whether the current <see cref="Utf8Span"/> instance contains
         /// the specified <see cref="Rune"/>. An ordinal comparison is used.
         /// </summary>
         public bool Contains(Rune value)
@@ -75,6 +93,24 @@ namespace System.Text
 
         /// <summary>
         /// Returns a value stating whether the current <see cref="Utf8Span"/> instance ends with
+        /// <paramref name="value"/>. An ordinal comparison is used.
+        /// </summary>
+        public bool EndsWith(char value)
+        {
+            return Rune.TryCreate(value, out Rune rune) && EndsWith(rune);
+        }
+
+        /// <summary>
+        /// Returns a value stating whether the current <see cref="Utf8Span"/> instance ends with
+        /// <paramref name="value"/>. The specified comparison is used.
+        /// </summary>
+        public bool EndsWith(char value, StringComparison comparison)
+        {
+            return Rune.TryCreate(value, out Rune rune) && EndsWith(rune, comparison);
+        }
+
+        /// <summary>
+        /// Returns a value stating whether the current <see cref="Utf8Span"/> instance ends with
         /// the specified <see cref="Rune"/>. An ordinal comparison is used.
         /// </summary>
         public bool EndsWith(Rune value)
@@ -118,6 +154,24 @@ namespace System.Text
             // TODO_UTF8STRING: Optimize me to avoid allocations.
 
             return this.ToString().EndsWith(value.ToString(), comparison);
+        }
+
+        /// <summary>
+        /// Returns a value stating whether the current <see cref="Utf8Span"/> instance begins with
+        /// <paramref name="value"/>. An ordinal comparison is used.
+        /// </summary>
+        public bool StartsWith(char value)
+        {
+            return Rune.TryCreate(value, out Rune rune) && StartsWith(rune);
+        }
+
+        /// <summary>
+        /// Returns a value stating whether the current <see cref="Utf8Span"/> instance begins with
+        /// <paramref name="value"/>. The specified comparison is used.
+        /// </summary>
+        public bool StartsWith(char value, StringComparison comparison)
+        {
+            return Rune.TryCreate(value, out Rune rune) && StartsWith(rune, comparison);
         }
 
         /// <summary>
