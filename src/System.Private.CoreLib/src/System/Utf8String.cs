@@ -57,6 +57,12 @@ namespace System
         /// </summary>
         public static implicit operator ReadOnlySpan<Char8>(Utf8String? value) => value.AsSpan();
 
+        /// <summary>
+        /// Projects a <see cref="Utf8String"/> instance as a <see cref="Utf8Span"/>.
+        /// </summary>
+        /// <param name="value"></param>
+        public static implicit operator Utf8Span(Utf8String? value) => new Utf8Span(value);
+
         /*
          * INSTANCE PROPERTIES
          */

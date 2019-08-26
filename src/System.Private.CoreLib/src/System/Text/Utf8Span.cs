@@ -15,6 +15,21 @@ namespace System.Text
     public readonly ref partial struct Utf8Span
     {
         /// <summary>
+        /// Creates a <see cref="Utf8Span"/> from an existing <see cref="Utf8String"/> instance.
+        /// </summary>
+        public Utf8Span(Utf8String? value)
+        {
+            if (!(value is null))
+            {
+                Bytes = new ReadOnlySpan<byte>(ref value.DangerousGetMutableReference(), value.Length);
+            }
+            else
+            {
+                Bytes = default;
+            }
+        }
+
+        /// <summary>
         /// Ctor for internal use only. Caller _must_ validate both invariants hold:
         /// (a) the buffer represents well-formed UTF-8 data, and
         /// (b) the buffer is immutable.

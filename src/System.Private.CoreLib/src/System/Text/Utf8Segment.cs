@@ -14,6 +14,21 @@ namespace System.Text
         private readonly ReadOnlyMemory<byte> _rawData;
 
         /// <summary>
+        /// Creates a <see cref="Utf8Segment"/> from an existing <see cref="Utf8String"/> instance.
+        /// </summary>
+        public Utf8Segment(Utf8String? value)
+        {
+            if (!(value is null))
+            {
+                _rawData = value.AsMemoryBytes();
+            }
+            else
+            {
+                _rawData = default;
+            }
+        }
+
+        /// <summary>
         /// Ctor for internal use only. Caller _must_ validate both invariants hold:
         /// (a) the buffer represents well-formed UTF-8 data, and
         /// (b) the buffer is immutable.
