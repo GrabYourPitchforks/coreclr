@@ -12,7 +12,7 @@ using System.Text.Unicode;
 
 namespace System.Text
 {
-    public readonly ref struct Utf8Span
+    public readonly ref partial struct Utf8Span
     {
         /// <summary>
         /// Ctor for internal use only. Caller _must_ validate both invariants hold:
@@ -31,6 +31,18 @@ namespace System.Text
         }
 
         public ReadOnlySpan<byte> Bytes { get; }
+
+        public bool IsEmpty => Bytes.IsEmpty;
+
+        public bool IsEmptyOrWhiteSpace
+        {
+            get
+            {
+                // TODO_UTF8STRING: Use a non-allocating implementation.
+
+                return string.IsNullOrWhiteSpace(ToString());
+            }
+        }
 
         public static bool operator ==(Utf8Span left, Utf8Span right) => Equals(left, right);
         public static bool operator !=(Utf8Span left, Utf8Span right) => !Equals(left, right);
@@ -88,6 +100,27 @@ namespace System.Text
             // the virtual dispatch by putting the switch directly in this method.
 
             return Utf8StringComparer.FromComparison(comparison).GetHashCode(this);
+        }
+
+        /// <summary>
+        /// Returns <see langword="true"/> if this UTF-8 text consists of all-ASCII data,
+        /// <see langword="false"/> if there is any non-ASCII data within this UTF-8 text.
+        /// </summary>
+        /// <remarks>
+        /// ASCII text is defined as text consisting only of scalar values in the range [ U+0000..U+007F ].
+        /// The runtime of this method is O(n).
+        /// </remarks>
+        public bool IsAscii()
+        {
+            // TODO_UTF8STRING: Use an API that takes 'ref byte' instead of a 'byte*' as a parameter.
+
+            unsafe
+            {
+                fixed (byte* pData = &MemoryMarshal.GetReference(Bytes))
+                {
+                    return (ASCIIUtility.GetIndexOfFirstNonAsciiByte(pData, (uint)Bytes.Length) >= 0);
+                }
+            }
         }
 
         [EditorBrowsable(EditorBrowsableState.Never)]
