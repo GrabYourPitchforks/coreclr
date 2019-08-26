@@ -56,6 +56,28 @@ namespace System.Text
         }
 
         /// <summary>
+        /// Converts this <see cref="Utf8Span"/> instance to its UTF-16 equivalent, writing the result into
+        /// the buffer <paramref name="destination"/>.
+        /// </summary>
+        /// <returns>
+        /// The number of bytes written to <paramref name="destination"/>, or -1 if <paramref name="destination"/>
+        /// is not large enough to hold the result of the transcoding operation.
+        /// </returns>
+        public int ToChars(Span<char> destination)
+        {
+            OperationStatus status = Utf8.ToUtf16(Bytes, destination, out int _, out int charsWritten, replaceInvalidSequences: false, isFinalBlock: true);
+
+            Debug.Assert(status == OperationStatus.Done || status == OperationStatus.DestinationTooSmall, "Utf8Spans shouldn't contain ill-formed UTF-8 data.");
+
+            if (status != OperationStatus.Done)
+            {
+                charsWritten = -1; // "destination too small"
+            }
+
+            return charsWritten;
+        }
+
+        /// <summary>
         /// Returns a new <see cref="Utf8String"/> instance which represents this <see cref="Utf8Span"/> instance
         /// converted to lowercase using <paramref name="culture"/>.
         /// </summary>
