@@ -44,17 +44,6 @@ namespace System.Text
             }
         }
 
-        public static bool operator ==(Utf8Span left, Utf8Span right) => Equals(left, right);
-        public static bool operator !=(Utf8Span left, Utf8Span right) => !Equals(left, right);
-
-        public int CompareTo(Utf8Span other)
-        {
-            // TODO_UTF8STRING: This is ordinal, but String.CompareTo uses CurrentCulture.
-            // Is this acceptable? Should we perhaps just remove the interface?
-
-            return Utf8StringComparer.Ordinal.Compare(this, other);
-        }
-
         /// <summary>
         /// This method is not supported as spans cannot be boxed. To compare two spans, use operator==.
         /// <exception cref="System.NotSupportedException">

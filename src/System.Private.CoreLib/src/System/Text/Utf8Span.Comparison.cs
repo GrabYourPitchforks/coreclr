@@ -8,6 +8,24 @@ namespace System.Text
 {
     public readonly ref partial struct Utf8Span
     {
+        public static bool operator ==(Utf8Span left, Utf8Span right) => Equals(left, right);
+        public static bool operator !=(Utf8Span left, Utf8Span right) => !Equals(left, right);
+
+        public int CompareTo(Utf8Span other)
+        {
+            // TODO_UTF8STRING: This is ordinal, but String.CompareTo uses CurrentCulture.
+            // Is this acceptable?
+
+            return Utf8StringComparer.Ordinal.Compare(this, other);
+        }
+
+        public int CompareTo(Utf8Span other, StringComparison comparison)
+        {
+            // TODO_UTF8STRING: We can avoid the virtual dispatch by moving the switch into this method.
+
+            return Utf8StringComparer.FromComparison(comparison).Compare(this, other);
+        }
+
         /// <summary>
         /// Returns a value stating whether the current <see cref="Utf8Span"/> instance contains
         /// the specified <see cref="Rune"/>. An ordinal comparison is used.
