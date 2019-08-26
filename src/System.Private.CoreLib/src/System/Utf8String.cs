@@ -9,6 +9,20 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using Internal.Runtime.CompilerServices;
 
+#pragma warning disable SA1121 // explicitly using type aliases instead of built-in types
+#if BIT64
+using nuint = System.UInt64;
+#else
+using nuint = System.UInt32;
+#endif
+#if !CORECLR
+#if BIT64
+using nint = System.Int64;
+#else
+using nint = System.Int32;
+#endif
+#endif
+
 namespace System
 {
     /// <summary>
@@ -109,12 +123,20 @@ namespace System
         /// Returns a <em>mutable</em> reference to the element at index <paramref name="index"/>
         /// of this <see cref="Utf8String"/> instance. The index is not bounds-checked.
         /// </summary>
-        internal ref byte DangerousGetMutableReference(int index)
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal ref byte DangerousGetMutableReference(int index) => ref DangerousGetMutableReference((uint)index);
+
+        /// <summary>
+        /// Returns a <em>mutable</em> reference to the element at index <paramref name="index"/>
+        /// of this <see cref="Utf8String"/> instance. The index is not bounds-checked.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal ref byte DangerousGetMutableReference(nuint index)
         {
             // Allow retrieving references to the null terminator.
-            Debug.Assert((uint)index <= (uint)Length, "Caller should've performed bounds checking.");
+            Debug.Assert(index <= (uint)Length, "Caller should've performed bounds checking.");
 
-            return ref Unsafe.Add(ref DangerousGetMutableReference(), index);
+            return ref Unsafe.AddByteOffset(ref DangerousGetMutableReference(), index);
         }
 
         /// <summary>

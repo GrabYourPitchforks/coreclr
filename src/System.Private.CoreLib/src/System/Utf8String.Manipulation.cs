@@ -4,6 +4,7 @@
 
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using System.Text.Unicode;
 
 namespace System
 {
@@ -21,9 +22,35 @@ namespace System
 
             Debug.Assert(length != 0 && length != this.Length, "Caller should handle Length boundary conditions.");
 
+            // Since Utf8String instances must contain well-formed UTF-8 data, we cannot allow a substring such that
+            // either boundary of the new substring splits a multi-byte UTF-8 subsequence. Fortunately this is a very
+            // easy check: since we assume the original buffer consisted entirely of well-formed UTF-8 data, all we
+            // need to do is check that neither the substring we're about to create nor the substring that would
+            // follow immediately thereafter begins with a UTF-8 continuation byte. Should this occur, it means that
+            // the UTF-8 lead byte is in a prior substring, which would indicate a multi-byte sequence has been split.
+            // It's ok for us to dereference the element immediately after the end of the Utf8String instance since
+            // we know it's a null terminator.
+            //
+            // TODO_UTF8STRING: Can skip the second check if only the start index (no length) is provided. Would
+            // need to duplicate this method and have those callers invoke the duplicate method instead of this one.
+
+            if (Utf8Utility.IsUtf8ContinuationByte(DangerousGetMutableReference(startIndex))
+                || Utf8Utility.IsUtf8ContinuationByte(DangerousGetMutableReference(startIndex + length)))
+            {
+                ThrowImproperStringSplit();
+            }
+
             Utf8String newString = FastAllocate(length);
             Buffer.Memmove(ref newString.DangerousGetMutableReference(), ref this.DangerousGetMutableReference(startIndex), (uint)length);
             return newString;
+        }
+
+        [StackTraceHidden]
+        public void ThrowImproperStringSplit()
+        {
+            // TODO_UTF8STRING: Make this an actual resource string.
+
+            throw new InvalidOperationException("Cannot create the desired substring because it would split a multi-byte UTF-8 subsequence.");
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
