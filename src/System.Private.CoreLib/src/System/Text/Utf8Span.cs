@@ -123,6 +123,13 @@ namespace System.Text
             }
         }
 
+        public bool IsNormalized(NormalizationForm normalizationForm = NormalizationForm.FormC)
+        {
+            // TODO_UTF8STRING: Avoid allocations in this code path.
+
+            return ToString().IsNormalized(normalizationForm);
+        }
+
         [EditorBrowsable(EditorBrowsableState.Never)]
         public ref readonly byte GetPinnableReference()
         {

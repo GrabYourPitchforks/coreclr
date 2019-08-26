@@ -303,6 +303,7 @@
     <Compile Include="$(BclSourcesRoot)\System\Text\Utf8Segment.cs" />
     <Compile Include="$(BclSourcesRoot)\System\Text\Utf8Span.cs" />
     <Compile Include="$(BclSourcesRoot)\System\Text\Utf8Span.Comparison.cs" />
+    <Compile Include="$(BclSourcesRoot)\System\Text\Utf8Span.Conversion.cs" />
     <Compile Include="$(BclSourcesRoot)\System\Text\Utf8StringComparer.cs" />
   </ItemGroup>
   <ItemGroup>
