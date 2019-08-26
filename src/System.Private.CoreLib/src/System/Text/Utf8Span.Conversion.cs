@@ -13,6 +13,50 @@ namespace System.Text
     {
         /// <summary>
         /// Returns a new <see cref="Utf8String"/> instance which represents this <see cref="Utf8Span"/> instance
+        /// normalized using the specified Unicode normalization form.
+        /// </summary>
+        /// <remarks>
+        /// The original <see cref="Utf8Span"/> is left unchanged by this operation.
+        /// </remarks>
+        public Utf8String Normalize(NormalizationForm normalizationForm = NormalizationForm.FormC)
+        {
+            // TODO_UTF8STRING: Reduce allocations in this code path.
+
+            return new Utf8String(this.ToString().Normalize(normalizationForm));
+        }
+
+        /// <summary>
+        /// Converts this <see cref="Utf8Span"/> to the desired Unicode normalization form, writing the
+        /// UTF-8 result to the buffer <paramref name="destination"/>.
+        /// </summary>
+        /// <returns>
+        /// The number of bytes written to <paramref name="destination"/>, or -1 if <paramref name="destination"/>
+        /// is not large enough to hold the result of the normalization operation.
+        /// </returns>
+        /// <remarks>
+        /// The original <see cref="Utf8Span"/> is left unchanged by this operation. Note that the the required
+        /// length of <paramref name="destination"/> may be longer or shorter (in terms of UTF-8 byte count)
+        /// than the input <see cref="Utf8Span"/>.
+        /// </remarks>
+        public int Normalize(Span<byte> destination, NormalizationForm normalizationForm = NormalizationForm.FormC)
+        {
+            // TODO_UTF8STRING: Reduce allocations in this code path.
+
+            ReadOnlySpan<char> normalized = this.ToString().Normalize(normalizationForm);
+            OperationStatus status = Utf8.FromUtf16(normalized, destination, out int _, out int bytesWritten, replaceInvalidSequences: false, isFinalBlock: true);
+
+            Debug.Assert(status == OperationStatus.Done || status == OperationStatus.DestinationTooSmall, "Normalize shouldn't have produced malformed Unicode string.");
+
+            if (status != OperationStatus.Done)
+            {
+                bytesWritten = -1; // "destination too small"
+            }
+
+            return bytesWritten;
+        }
+
+        /// <summary>
+        /// Returns a new <see cref="Utf8String"/> instance which represents this <see cref="Utf8Span"/> instance
         /// converted to lowercase using <paramref name="culture"/>.
         /// </summary>
         /// <remarks>
@@ -54,10 +98,10 @@ namespace System.Text
                 ThrowHelper.ThrowArgumentNullException(ExceptionArgument.culture);
             }
 
-            ReadOnlySpan<char> asLowerInvariant = this.ToString().ToLower(culture);
-            OperationStatus status = Utf8.FromUtf16(asLowerInvariant, destination, out int _, out int bytesWritten, replaceInvalidSequences: false, isFinalBlock: true);
+            ReadOnlySpan<char> asLower = this.ToString().ToLower(culture);
+            OperationStatus status = Utf8.FromUtf16(asLower, destination, out int _, out int bytesWritten, replaceInvalidSequences: false, isFinalBlock: true);
 
-            Debug.Assert(status == OperationStatus.Done || status == OperationStatus.DestinationTooSmall, "ToLowerInvariant shouldn't have produced malformed Unicode string.");
+            Debug.Assert(status == OperationStatus.Done || status == OperationStatus.DestinationTooSmall, "ToLower shouldn't have produced malformed Unicode string.");
 
             if (status != OperationStatus.Done)
             {
@@ -158,10 +202,10 @@ namespace System.Text
                 ThrowHelper.ThrowArgumentNullException(ExceptionArgument.culture);
             }
 
-            ReadOnlySpan<char> asLowerInvariant = this.ToString().ToUpper(culture);
-            OperationStatus status = Utf8.FromUtf16(asLowerInvariant, destination, out int _, out int bytesWritten, replaceInvalidSequences: false, isFinalBlock: true);
+            ReadOnlySpan<char> asUpper = this.ToString().ToUpper(culture);
+            OperationStatus status = Utf8.FromUtf16(asUpper, destination, out int _, out int bytesWritten, replaceInvalidSequences: false, isFinalBlock: true);
 
-            Debug.Assert(status == OperationStatus.Done || status == OperationStatus.DestinationTooSmall, "ToLowerInvariant shouldn't have produced malformed Unicode string.");
+            Debug.Assert(status == OperationStatus.Done || status == OperationStatus.DestinationTooSmall, "ToUpper shouldn't have produced malformed Unicode string.");
 
             if (status != OperationStatus.Done)
             {
@@ -206,10 +250,10 @@ namespace System.Text
         {
             // TODO_UTF8STRING: Avoid intermediate allocations.
 
-            ReadOnlySpan<char> asLowerInvariant = this.ToString().ToUpperInvariant();
-            OperationStatus status = Utf8.FromUtf16(asLowerInvariant, destination, out int _, out int bytesWritten, replaceInvalidSequences: false, isFinalBlock: true);
+            ReadOnlySpan<char> asUpperInvariant = this.ToString().ToUpperInvariant();
+            OperationStatus status = Utf8.FromUtf16(asUpperInvariant, destination, out int _, out int bytesWritten, replaceInvalidSequences: false, isFinalBlock: true);
 
-            Debug.Assert(status == OperationStatus.Done || status == OperationStatus.DestinationTooSmall, "ToLowerInvariant shouldn't have produced malformed Unicode string.");
+            Debug.Assert(status == OperationStatus.Done || status == OperationStatus.DestinationTooSmall, "ToUpperInvariant shouldn't have produced malformed Unicode string.");
 
             if (status != OperationStatus.Done)
             {

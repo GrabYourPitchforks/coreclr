@@ -111,15 +111,35 @@ namespace System.Text
                 return;
             }
 
-            // We assume the incoming slice is a part of (or the entirety of)
-            // a larger buffer which contains only well-formed UTF-8 data. All
-            // we want to do is check the boundaries of the incoming slice to
-            // ensure that it didn't split a multi-byte UTF-8 subsequence within
-            // the larger buffer.
+            // The ROM<byte> that backs the Utf8Segment instance is backed by one of three objects:
+            // a) a Utf8String instance, or
+            // b) a byte[], or
+            // c) a MemoryManager<byte>.
             //
-            // First, see if the first byte of the slice is a UTF-8 continuation
-            // byte. If so, then the lead UTF-8 byte was somewhere before the
-            // beginning of the buffer, and this indicates a torn buffer.
+            // In the normal "safe" course of operation, the Utf8Segment is backed by a Utf8String,
+            // where the entirety of the contents is guaranteed to be immutable, well-formed UTF-8.
+            // There's still the possibility that the Utf8Segment could be "torn" within a multi-
+            // threaded application, but since the backing fields are Utf8String instances we know
+            // that the entirety of the backing buffer is still well-formed UTF-8. Then all we need
+            // to check is that the tearing process didn't create a ROM<byte> whose boundary splits
+            // a multibyte UTF-8 subsequence. That's a fairly straightforward O(1) check.
+            //
+            // There's also "unsafe" usage, where the caller creates a Utf8Segment around an arbitrary
+            // ROM<byte> instance. The caller must guarantee immutability and well-formedness.
+            // However, when tearing the underlying ROM<byte> instance, it's possible that the segment
+            // now points to a valid sub-array within the underlying byte[], but that sub-array never
+            // contained well-formed UTF-8 data because it wasn't part of the original ROM<byte> segment
+            // passed to the unsafe creation API. In theory this means that it's possible our checks
+            // below will succeed (since they're only checking the boundaries) even though the segment
+            // does not actually contain well-formed UTF-8 data. This could lead to undefined behavior
+            // since we assume Utf8Span instances always contain well-formed UTF-8 data.
+            //
+            // Even so, I think we should march forward with a design which allows the runtime and our
+            // consumers to assume that Utf8Span data is well-formed. The aforementioned problem can
+            // only ever occur if somebody wrote the word "unsafe" in their code, and there's a general
+            // belief that Mem<T> and ROM<T> are "unsafe" types anyway. The typical way we expect folks
+            // to use these APIs ends up creating Utf8Segment instances from Utf8String instances, which
+            // as mentioned earlier is safe, even with simple tearing detection.
 
             if (Utf8Utility.IsUtf8ContinuationByte(utf8CandidateData[0]))
             {
