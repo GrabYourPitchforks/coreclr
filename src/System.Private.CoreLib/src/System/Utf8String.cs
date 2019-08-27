@@ -11,16 +11,11 @@ using Internal.Runtime.CompilerServices;
 
 #pragma warning disable SA1121 // explicitly using type aliases instead of built-in types
 #if BIT64
+using nint = System.Int64;
 using nuint = System.UInt64;
 #else
-using nuint = System.UInt32;
-#endif
-#if !CORECLR
-#if BIT64
-using nint = System.Int64;
-#else
 using nint = System.Int32;
-#endif
+using nuint = System.UInt32;
 #endif
 
 namespace System
@@ -28,7 +23,7 @@ namespace System
     /// <summary>
     /// Represents an immutable string of UTF-8 code units.
     /// </summary>
-    public sealed partial class Utf8String :
+    public sealed partial class Utf8String : IComparable<Utf8String?>,
 #nullable disable // see comment on String
         IEquatable<Utf8String>
 #nullable restore
@@ -111,6 +106,14 @@ namespace System
         /*
          * METHODS
          */
+
+        public int CompareTo(Utf8String? other)
+        {
+            // TODO_UTF8STRING: This is ordinal, but String.CompareTo uses CurrentCulture.
+            // Is this acceptable? Should we perhaps just remove the interface?
+
+            return Utf8StringComparer.Ordinal.Compare(this, other);
+        }
 
         /// <summary>
         /// Returns a <em>mutable</em> reference to the first byte of this <see cref="Utf8String"/>
