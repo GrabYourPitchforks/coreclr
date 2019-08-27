@@ -4,7 +4,18 @@
 
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Text.Unicode;
+using Internal.Runtime.CompilerServices;
+
+#pragma warning disable SA1121 // explicitly using type aliases instead of built-in types
+#if BIT64
+using nint = System.Int64;
+using nuint = System.UInt64;
+#else
+using nint = System.Int32;
+using nuint = System.UInt32;
+#endif
 
 namespace System.Text
 {
@@ -118,10 +129,13 @@ namespace System.Text
 
         private static void ThrowIfTorn(ReadOnlySpan<byte> utf8CandidateData)
         {
+            ref byte startOfData = ref MemoryMarshal.GetReference(utf8CandidateData);
+            nuint length = (uint)utf8CandidateData.Length;
+
             // Empty spans are by definition well-formed UTF-8.
             // Let them go through.
 
-            if (utf8CandidateData.IsEmpty)
+            if ((uint)length == 0)
             {
                 return;
             }
@@ -156,17 +170,21 @@ namespace System.Text
             // to use these APIs ends up creating Utf8Segment instances from Utf8String instances, which
             // as mentioned earlier is safe, even with simple tearing detection.
 
-            if (Utf8Utility.IsUtf8ContinuationByte(utf8CandidateData[0]))
+            if (Utf8Utility.IsUtf8ContinuationByte(startOfData))
             {
                 goto Torn;
             }
+
+            // TODO_UTF8STRING: We avoid bounds checks below because we assume the underlying buffer
+            // contains well-formed UTF-8 data (though we may only be seeing a slice of it). That means
+            // that as we walk backward from the end of the buffer we should terminate on or before
+            // the point where we hit the beginning of the sequence. Is this a valid assumption?
 
             // The common case is that the final byte of the buffer is an ASCII byte.
             // If this is true, we know the end of the slice was not torn, so we
             // can return immediately without any further checks.
 
-            // TODO_UTF8STRING: Consider using unsafe APIs to elide the bounds check below?
-            if ((sbyte)utf8CandidateData[utf8CandidateData.Length - 1] >= 0)
+            if ((sbyte)Unsafe.AddByteOffset(ref startOfData, length - 1) >= 0)
             {
                 return;
             }
@@ -175,7 +193,7 @@ namespace System.Text
             // invalid bytes), then the end of the slice was torn since we expect a
             // continuation byte to follow it.
 
-            if (utf8CandidateData[utf8CandidateData.Length - 1] >= 0xC0)
+            if (Unsafe.AddByteOffset(ref startOfData, length - 1) >= 0xC0)
             {
                 goto Torn;
             }
@@ -184,7 +202,7 @@ namespace System.Text
             // (we don't care about invalid bytes), then the end of the slice was torn
             // since we expect multiple continuation bytes to follow it.
 
-            if (utf8CandidateData[utf8CandidateData.Length - 2] >= 0xE0)
+            if (Unsafe.AddByteOffset(ref startOfData, length - 2) >= 0xE0)
             {
                 goto Torn;
             }
@@ -193,7 +211,7 @@ namespace System.Text
             // (we don't care about invalid bytes), then the end of the slide was torn
             // since we expect multiple continuation bytes to follow it.
 
-            if (utf8CandidateData[utf8CandidateData.Length - 3] >= 0xF0)
+            if (Unsafe.AddByteOffset(ref startOfData, length - 3) >= 0xF0)
             {
                 goto Torn;
             }
