@@ -116,6 +116,12 @@ namespace System
         }
 
         /// <summary>
+        /// Returns a <em>mutable</em> <see cref="Span{Byte}"/> that can be used to populate this
+        /// <see cref="Utf8String"/> instance. Only to be used during construction.
+        /// </summary>
+        internal Span<byte> DangerousGetMutableSpan() => new Span<byte>(ref DangerousGetMutableReference(), Length);
+
+        /// <summary>
         /// Returns a <em>mutable</em> reference to the first byte of this <see cref="Utf8String"/>
         /// (or the null terminator if the string is empty).
         /// </summary>

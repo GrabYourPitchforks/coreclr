@@ -4,7 +4,6 @@
 
 using System.Buffers;
 using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -49,12 +48,11 @@ namespace System.Text.Unicode
         /// Returns <paramref name="value"/> if it is null or contains only well-formed UTF-8 data;
         /// otherwises allocates a new <see cref="Utf8String"/> instance containing the same data as
         /// <paramref name="value"/> but where all invalid UTF-8 sequences have been replaced
-        /// with U+FFD.
+        /// with U+FFFD.
         /// </summary>
-        [return: NotNullIfNotNull("value")]
-        public static Utf8String? ValidateAndFixupUtf8String(Utf8String? value)
+        public static Utf8String ValidateAndFixupUtf8String(Utf8String value)
         {
-            if (Utf8String.IsNullOrEmpty(value))
+            if (value.Length == 0)
             {
                 return value;
             }

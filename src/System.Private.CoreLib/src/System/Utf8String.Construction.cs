@@ -2,6 +2,8 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+using System.Buffers;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -108,10 +110,15 @@ namespace System
                 return Empty;
             }
 
-            // TODO_UTF8STRING: Call into optimized transcoding routine when it's available.
-
             Utf8String newString = FastAllocate(Encoding.UTF8.GetByteCount(value));
-            Encoding.UTF8.GetBytes(value, new Span<byte>(ref newString.DangerousGetMutableReference(), newString.Length));
+            OperationStatus status = Utf8.FromUtf16(value, newString.DangerousGetMutableSpan(), out int _, out int bytesWritten);
+
+            if (status != OperationStatus.Done || bytesWritten != newString.Length)
+            {
+                // TODO_UTF8STRING: Better exception message here.
+                throw new InvalidOperationException("Transcoding error - was the input buffer unexpectedly mutated?");
+            }
+
             return newString;
         }
 
@@ -168,6 +175,125 @@ namespace System
         static
 #endif
         private Utf8String Ctor(string? value) => Ctor(value.AsSpan());
+
+        /*
+         * STATIC FACTORIES
+         */
+
+        /// <summary>
+        /// Creates a new <see cref="Utf8String"/> instance, allowing the provided delegate to populate the
+        /// instance data of the returned object.
+        /// </summary>
+        /// <typeparam name="TState">Type of the state object provided to <paramref name="action"/>.</typeparam>
+        /// <param name="length">The length, in bytes, of the <see cref="Utf8String"/> instance to create.</param>
+        /// <param name="state">The state object to provide to <paramref name="action"/>.</param>
+        /// <param name="action">The callback which will be invoked to populate the returned <see cref="Utf8String"/>.</param>
+        /// <param name="throwOnInvalidData">
+        /// <see langword="true"/> if this method should throw an exception if <paramref name="action"/> provides ill-formed
+        /// UTF-8 subsequences; <see langword="false"/> if ill-formed UTF-8 subsequences should be substituted with <see cref="Rune.ReplacementChar"/>
+        /// in the returned <see cref="Utf8String"/>.
+        /// </param>
+        /// <remarks>
+        /// The runtime will perform UTF-8 validation over the contents provided by the <paramref name="action"/> delegate.
+        /// If an invalid UTF-8 subsequence is detected, the <paramref name="throwOnInvalidData"/> parameter dictates the
+        /// corrective action that will be taken.
+        /// </remarks>
+        public static Utf8String Create<TState>(int length, TState state, SpanAction<byte, TState> action, bool throwOnInvalidData = false)
+        {
+            if (length < 0)
+            {
+                ThrowHelper.ThrowLengthArgumentOutOfRange_ArgumentOutOfRange_NeedNonNegNum();
+            }
+
+            if (action is null)
+            {
+                ThrowHelper.ThrowArgumentNullException(ExceptionArgument.action);
+            }
+
+            // Create and populate the Utf8String instance.
+
+            Utf8String newString = FastAllocate(length);
+            action(newString.DangerousGetMutableSpan(), state);
+
+            // Now perform validation.
+            // TODO_UTF8STRING: Consider calling a different overload of the validation routine
+            // if we want to skip fixup and just go straight to the throwing step.
+
+            Utf8String objectToReturn = Utf8Utility.ValidateAndFixupUtf8String(newString);
+            if (throwOnInvalidData && !ReferenceEquals(newString, objectToReturn))
+            {
+                // TODO_UTF8STRING: Localize this exception.
+                throw new InvalidOperationException("Utf8String.Create delegate provided invalid UTF-8 data.");
+            }
+
+            return objectToReturn;
+        }
+
+        /// <summary>
+        /// Creates a new <see cref="Utf8String"/> instance populated with a copy of the provided contents.
+        /// Please see remarks for important safety information about this method.
+        /// </summary>
+        /// <param name="utf8Contents">The contents to copy to the new <see cref="Utf8String"/>.</param>
+        /// <remarks>
+        /// This factory method can be used as an optimization to skip the validation step that the
+        /// <see cref="Utf8String"/> constructors normally perform. The contract of this method requires that
+        /// <paramref name="utf8Contents"/> contain only well-formed UTF-8 data, as <see cref="Utf8String"/>
+        /// contractually guarantees that it contains only well-formed UTF-8 data, and runtime instability
+        /// could occur if a caller violates this guarantee.
+        /// </remarks>
+        public static Utf8String UnsafeCreateWithoutValidation(ReadOnlySpan<byte> utf8Contents)
+        {
+            // Create and populate the Utf8String instance.
+
+            Utf8String newString = FastAllocate(utf8Contents.Length);
+            utf8Contents.CopyTo(newString.DangerousGetMutableSpan());
+
+            // The line below is removed entirely in release builds.
+
+            Debug.Assert(Utf8Utility.GetIndexOfFirstInvalidUtf8Sequence(newString.AsBytes(), out bool _) < 0, "Buffer contained ill-formed UTF-8 data.");
+
+            return newString;
+        }
+
+        /// <summary>
+        /// Creates a new <see cref="Utf8String"/> instance, allowing the provided delegate to populate the
+        /// instance data of the returned object. Please see remarks for important safety information about
+        /// this method.
+        /// </summary>
+        /// <typeparam name="TState">Type of the state object provided to <paramref name="action"/>.</typeparam>
+        /// <param name="length">The length, in bytes, of the <see cref="Utf8String"/> instance to create.</param>
+        /// <param name="state">The state object to provide to <paramref name="action"/>.</param>
+        /// <param name="action">The callback which will be invoked to populate the returned <see cref="Utf8String"/>.</param>
+        /// <remarks>
+        /// This factory method can be used as an optimization to skip the validation step that
+        /// <see cref="Create{TState}(int, TState, SpanAction{byte, TState}, bool)"/> normally performs. The contract
+        /// of this method requires that <paramref name="action"/> populate the buffer with well-formed UTF-8
+        /// data, as <see cref="Utf8String"/> contractually guarantees that it contains only well-formed UTF-8 data,
+        /// and runtime instability could occur if a caller violates this guarantee.
+        /// </remarks>
+        public static Utf8String UnsafeCreateWithoutValidation<TState>(int length, TState state, SpanAction<byte, TState> action)
+        {
+            if (length < 0)
+            {
+                ThrowHelper.ThrowLengthArgumentOutOfRange_ArgumentOutOfRange_NeedNonNegNum();
+            }
+
+            if (action is null)
+            {
+                ThrowHelper.ThrowArgumentNullException(ExceptionArgument.action);
+            }
+
+            // Create and populate the Utf8String instance.
+
+            Utf8String newString = FastAllocate(length);
+            action(newString.DangerousGetMutableSpan(), state);
+
+            // The line below is removed entirely in release builds.
+
+            Debug.Assert(Utf8Utility.GetIndexOfFirstInvalidUtf8Sequence(newString.AsBytes(), out bool _) < 0, "Callback populated the buffer with ill-formed UTF-8 data.");
+
+            return newString;
+        }
 
         /*
          * HELPER METHODS
