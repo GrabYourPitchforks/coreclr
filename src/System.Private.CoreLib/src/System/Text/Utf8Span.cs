@@ -131,6 +131,14 @@ namespace System.Text
             return ToString().IsNormalized(normalizationForm);
         }
 
+        /// <summary>
+        /// Gets an immutable reference that can be used in a <see langword="fixed"/> statement. Unlike
+        /// <see cref="Utf8String"/>, the resulting reference is not guaranteed to be null-terminated.
+        /// </summary>
+        /// <remarks>
+        /// If this <see cref="Utf8Span"/> instance is empty, returns <see langword="null"/>. Dereferencing
+        /// such a reference will result in a <see cref="NullReferenceException"/> being generated.
+        /// </remarks>
         [EditorBrowsable(EditorBrowsableState.Never)]
         public ref readonly byte GetPinnableReference()
         {
