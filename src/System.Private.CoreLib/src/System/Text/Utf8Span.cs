@@ -49,14 +49,11 @@ namespace System.Text
 
         public bool IsEmpty => Bytes.IsEmpty;
 
-        public bool IsEmptyOrWhiteSpace
+        public bool IsEmptyOrWhiteSpace()
         {
-            get
-            {
-                // TODO_UTF8STRING: Use a non-allocating implementation.
+            // TODO_UTF8STRING: Use a non-allocating implementation.
 
-                return string.IsNullOrWhiteSpace(ToString());
-            }
+            return string.IsNullOrWhiteSpace(ToString());
         }
 
         /// <summary>
