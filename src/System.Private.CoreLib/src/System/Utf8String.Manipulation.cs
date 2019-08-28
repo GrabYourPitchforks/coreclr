@@ -46,7 +46,7 @@ namespace System
         }
 
         [StackTraceHidden]
-        public void ThrowImproperStringSplit()
+        internal static void ThrowImproperStringSplit()
         {
             throw new InvalidOperationException(
                 message: SR.Utf8String_CannotSplitMultibyteSubsequence);

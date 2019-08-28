@@ -63,11 +63,6 @@ namespace System
         public static explicit operator ReadOnlySpan<byte>(Utf8String? value) => value.AsBytes();
 
         /// <summary>
-        /// Projects a <see cref="Utf8String"/> instance as a <see cref="ReadOnlySpan{Char8}"/>.
-        /// </summary>
-        public static implicit operator ReadOnlySpan<Char8>(Utf8String? value) => value.AsSpan();
-
-        /// <summary>
         /// Projects a <see cref="Utf8String"/> instance as a <see cref="Utf8Span"/>.
         /// </summary>
         /// <param name="value"></param>
@@ -81,28 +76,6 @@ namespace System
         /// Returns the length (in UTF-8 code units) of this instance.
         /// </summary>
         public int Length => _length;
-
-        /*
-         * INSTANCE INDEXERS
-         */
-
-        /// <summary>
-        /// Gets the <see cref="Char8"/> at the specified position.
-        /// </summary>
-        public Char8 this[int index]
-        {
-            get
-            {
-                // Just like String, we don't allow indexing into the null terminator itself.
-
-                if ((uint)index >= (uint)Length)
-                {
-                    ThrowHelper.ThrowArgumentOutOfRange_IndexException();
-                }
-
-                return Unsafe.Add(ref DangerousGetMutableReference(), index);
-            }
-        }
 
         /*
          * METHODS

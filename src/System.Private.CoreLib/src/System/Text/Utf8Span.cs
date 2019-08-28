@@ -17,6 +17,7 @@ namespace System.Text
         /// <summary>
         /// Creates a <see cref="Utf8Span"/> from an existing <see cref="Utf8String"/> instance.
         /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public Utf8Span(Utf8String? value)
         {
             if (!(value is null))
@@ -34,6 +35,7 @@ namespace System.Text
         /// (a) the buffer represents well-formed UTF-8 data, and
         /// (b) the buffer is immutable.
         /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private Utf8Span(ReadOnlySpan<byte> rawData)
         {
             // In debug builds, we want to ensure that the callers really did validate
@@ -180,6 +182,7 @@ namespace System.Text
         /// If these invariants are not maintained, the runtime may exhibit undefined behavior.
         /// </remarks>
         [UnsafeMember]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Utf8Span UnsafeCreateWithoutValidation(ReadOnlySpan<byte> buffer)
         {
             return new Utf8Span(buffer);
