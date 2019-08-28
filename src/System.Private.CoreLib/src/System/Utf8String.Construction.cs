@@ -85,10 +85,15 @@ namespace System
         /// <summary>
         /// Creates a <see cref="Utf8String"/> instance from existing UTF-8 data.
         /// </summary>
+        /// <exception cref="ArgumentException">
+        /// Thrown if <paramref name="value"/> does not represent well-formed UTF-8 data.
+        /// </exception>
         /// <remarks>
-        /// The UTF-8 data in <paramref name="value"/> is validated for well-formedness upon construction.
-        /// Invalid code unit sequences are replaced with U+FFFD in the resulting <see cref="Utf8String"/>.
+        /// The UTF-8 data in <paramref name="value"/> is validated for well-formedness upon construction,
+        /// and an exception is thrown if the input is ill-formed. To avoid this exception, consider using
+        /// <see cref="TryCreateFrom(ReadOnlySpan{byte}, out Utf8String)"/> or <see cref="CreateFromLoose(ReadOnlySpan{byte})"/>.
         /// </remarks>
+
         [MethodImpl(MethodImplOptions.InternalCall)]
         public extern Utf8String(byte[]? value, int startIndex, int length);
 
@@ -100,10 +105,15 @@ namespace System
         /// <summary>
         /// Creates a <see cref="Utf8String"/> instance from existing null-terminated UTF-8 data.
         /// </summary>
+        /// <exception cref="ArgumentException">
+        /// Thrown if <paramref name="value"/> does not represent well-formed UTF-8 data.
+        /// </exception>
         /// <remarks>
-        /// The UTF-8 data in <paramref name="value"/> is validated for well-formedness upon construction.
-        /// Invalid code unit sequences are replaced with U+FFFD in the resulting <see cref="Utf8String"/>.
+        /// The UTF-8 data in <paramref name="value"/> is validated for well-formedness upon construction,
+        /// and an exception is thrown if the input is ill-formed. To avoid this exception, consider using
+        /// <see cref="TryCreateFrom(ReadOnlySpan{byte}, out Utf8String)"/> or <see cref="CreateFromLoose(ReadOnlySpan{byte})"/>.
         /// </remarks>
+
         [MethodImpl(MethodImplOptions.InternalCall)]
         [CLSCompliant(false)]
         public extern unsafe Utf8String(byte* value);
@@ -159,9 +169,13 @@ namespace System
         /// <summary>
         /// Creates a <see cref="Utf8String"/> instance from existing UTF-16 data.
         /// </summary>
+        /// <exception cref="ArgumentException">
+        /// Thrown if <paramref name="value"/> does not represent well-formed UTF-16 data.
+        /// </exception>
         /// <remarks>
-        /// The UTF-16 data in <paramref name="value"/> is validated for well-formedness upon construction.
-        /// Invalid code unit sequences are replaced with U+FFFD in the resulting <see cref="Utf8String"/>.
+        /// The UTF-16 data in <paramref name="value"/> is validated for well-formedness upon construction,
+        /// and an exception is thrown if the input is ill-formed. To avoid this exception, consider using
+        /// <see cref="TryCreateFrom(ReadOnlySpan{char}, out Utf8String)"/> or <see cref="CreateFromLoose(ReadOnlySpan{char})"/>.
         /// </remarks>
         [MethodImpl(MethodImplOptions.InternalCall)]
         public extern Utf8String(char[]? value, int startIndex, int length);
@@ -174,9 +188,13 @@ namespace System
         /// <summary>
         /// Creates a <see cref="Utf8String"/> instance from existing null-terminated UTF-16 data.
         /// </summary>
+        /// <exception cref="ArgumentException">
+        /// Thrown if <paramref name="value"/> does not represent well-formed UTF-16 data.
+        /// </exception>
         /// <remarks>
-        /// The UTF-16 data in <paramref name="value"/> is validated for well-formedness upon construction.
-        /// Invalid code unit sequences are replaced with U+FFFD in the resulting <see cref="Utf8String"/>.
+        /// The UTF-16 data in <paramref name="value"/> is validated for well-formedness upon construction,
+        /// and an exception is thrown if the input is ill-formed. To avoid this exception, consider using
+        /// <see cref="TryCreateFrom(ReadOnlySpan{char}, out Utf8String)"/> or <see cref="CreateFromLoose(ReadOnlySpan{char})"/>.
         /// </remarks>
         [MethodImpl(MethodImplOptions.InternalCall)]
         [CLSCompliant(false)]
