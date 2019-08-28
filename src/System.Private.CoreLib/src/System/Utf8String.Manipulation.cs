@@ -40,7 +40,7 @@ namespace System
                 ThrowImproperStringSplit();
             }
 
-            Utf8String newString = FastAllocate(length);
+            Utf8String newString = FastAllocateSkipZeroInit(length);
             Buffer.Memmove(ref newString.DangerousGetMutableReference(), ref this.DangerousGetMutableReference(startIndex), (uint)length);
             return newString;
         }
