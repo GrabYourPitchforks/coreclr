@@ -99,7 +99,7 @@ namespace System.Text
 
         public bool Equals(Utf8Segment other, StringComparison comparison) => Equals(this, other, comparison);
 
-        public static bool Equals(Utf8Segment left, Utf8Segment right) => Utf8StringComparer.Ordinal.Equals(left, right);
+        public static bool Equals(Utf8Segment left, Utf8Segment right) => left.Span.Equals(right.Span);
 
         public static bool Equals(Utf8Segment left, Utf8Segment right, StringComparison comparison)
         {
