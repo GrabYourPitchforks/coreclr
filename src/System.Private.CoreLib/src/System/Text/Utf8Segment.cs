@@ -240,7 +240,7 @@ namespace System.Text
         /// If these invariants are not maintained, the runtime may exhibit undefined behavior.
         /// </remarks>
         [UnsafeMember]
-        internal static Utf8Segment UnsafeCreateWithoutValidation(ReadOnlyMemory<byte> buffer)
+        public static Utf8Segment UnsafeCreateWithoutValidation(ReadOnlyMemory<byte> buffer)
         {
             return new Utf8Segment(buffer);
         }

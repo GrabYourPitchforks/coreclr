@@ -180,7 +180,7 @@ namespace System.Text
         /// If these invariants are not maintained, the runtime may exhibit undefined behavior.
         /// </remarks>
         [UnsafeMember]
-        internal static Utf8Span UnsafeCreateWithoutValidation(ReadOnlySpan<byte> buffer)
+        public static Utf8Span UnsafeCreateWithoutValidation(ReadOnlySpan<byte> buffer)
         {
             return new Utf8Span(buffer);
         }
