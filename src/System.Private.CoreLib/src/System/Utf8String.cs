@@ -5,6 +5,7 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Text;
 using Internal.Runtime.CompilerServices;
@@ -204,6 +205,70 @@ namespace System
 
             ulong seed = Marvin.DefaultSeed;
             return Marvin.ComputeHash32(ref DangerousGetMutableReference(), (uint)_length /* in bytes */, (uint)seed, (uint)(seed >> 32));
+        }
+
+        /// <summary>
+        /// Like <see cref="string.GetNonRandomizedHashCode"/>, this should only be used when DoS
+        /// isn't a concern. It's trivial for a malicious agent to create hash collisions using
+        /// this algorithm.
+        /// </summary>
+        internal int GetNonRandomizedHashCode()
+        {
+            // This algorithm is essentially a carbon copy of string.GetNonRandomizedHashCode,
+            // which itself is a modification of djb2.
+
+            int length = Length;
+            ref uint ptr = ref Unsafe.As<byte, uint>(ref DangerousGetMutableReference());
+
+            unsafe
+            {
+                Debug.Assert(((uint)Unsafe.AsPointer(ref ptr) % sizeof(uint)) == 0, "Start of Utf8String data should be 32-bit aligned.");
+                Debug.Assert(DangerousGetMutableReference(length) == 0, "Utf8String data should be null-terminated.");
+            }
+
+            uint hash1 = (5381 << 16) + 5381;
+            uint hash2 = hash1;
+
+            // We'll read 64 bits at a time. Endianness doesn't matter within the loop.
+            // If the length is one byte short of a multiple of 8 (e.g., 7, 15, or 23 bytes),
+            // this loop will additionally consume the null terminator.
+
+            while (length >= 7)
+            {
+                length -= 8;
+                hash1 = (BitOperations.RotateLeft(hash1, 5) + hash1) ^ ptr;
+                hash2 = (BitOperations.RotateLeft(hash2, 5) + hash2) ^ Unsafe.Add(ref ptr, 1);
+                ptr = ref Unsafe.Add(ref ptr, 2);
+            }
+
+            // n.b. at this point 'length' could be negative if we've already consumed the
+            // null terminator in the main loop above.
+
+            if (length >= 3)
+            {
+                // Read 32 bits and fold them into hash1. Endianness doesn't matter here.
+                // If the remaining length is 3 bytes we'll also end up consuming the null
+                // terminator here.
+
+                length -= 4;
+                hash1 = (BitOperations.RotateLeft(hash1, 5) + hash1) ^ ptr;
+                ptr = ref Unsafe.Add(ref ptr, 1);
+            }
+
+            Debug.Assert(length >= -1, "Shouldn't have read beyond the null terminator.");
+            Debug.Assert(length <= 2, "Should have no more than 2 bytes left to read.");
+
+            if (length > 0)
+            {
+                // There's between 1 and 2 bytes (not including the null terminator)
+                // remaining to be read. So we'll perform a single aligned 16-bit read
+                // to drain the remaining data. If there's only 1 byte remaining then
+                // this will also consume the null terminator. Endianness doesn't matter.
+
+                hash2 = (BitOperations.RotateLeft(hash2, 5) + hash2) ^ Unsafe.As<uint, ushort>(ref ptr);
+            }
+
+            return (int)(hash1 + (hash2 * 1566083941u));
         }
 
         /// <summary>
