@@ -48,9 +48,8 @@ namespace System
         [StackTraceHidden]
         public void ThrowImproperStringSplit()
         {
-            // TODO_UTF8STRING: Make this an actual resource string.
-
-            throw new InvalidOperationException("Cannot create the desired substring because it would split a multi-byte UTF-8 subsequence.");
+            throw new InvalidOperationException(
+                message: SR.Utf8String_CannotSplitMultibyteSubsequence);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
