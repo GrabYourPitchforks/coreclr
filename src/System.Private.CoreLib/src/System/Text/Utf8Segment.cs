@@ -127,6 +127,20 @@ namespace System.Text
             return Span.ToString();
         }
 
+        /// <summary>
+        /// Creates a new <see cref="Utf8String"/> instance whose contents are equivalent
+        /// to the contents of this <see cref="Utf8Segment"/>.
+        /// </summary>
+        public Utf8String ToUtf8String()
+        {
+            // If we're backed by a Utf8String instance, its Substring method is optimized for
+            // returning values without new allocations if at all possible. Otherwise, rely on
+            // the Utf8Span methods to perform allocations in the most optimal fashion.
+
+            Utf8String? backingUtf8String = _rawData.GetObjectStartLength(out int start, out int length) as Utf8String;
+            return (!(backingUtf8String is null)) ? backingUtf8String.Substring(start, length) : Span.ToUtf8String();
+        }
+
         private static void ThrowIfTorn(ReadOnlySpan<byte> utf8CandidateData)
         {
             ref byte startOfData = ref MemoryMarshal.GetReference(utf8CandidateData);
