@@ -9,14 +9,14 @@ namespace System.Collections.Generic
     /// code collisions. Only to be used when the container has other protections
     /// against DoS attacks.
     /// </summary>
-    internal interface INonRandomizedEqualityComparer<T> : IEqualityComparer<T>
+    internal interface INonRandomizedEqualityComparer<T>
     {
         /// <summary>
         /// Gets the normal DoS-resistant <see cref="IEqualityComparer{T}"/>
         /// that the container should switch to if it detects hash code collision DoS.
         /// </summary>
         /// <remarks>
-        /// Could return <see langword="null"/>, which means <see cref="T.GetHashCode"/>
+        /// Could return <see langword="null"/>, which means <see cref="object.GetHashCode"/>
         /// should be used instead.
         /// </remarks>
         IEqualityComparer<T>? GetNormalComparer();

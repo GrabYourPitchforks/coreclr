@@ -54,7 +54,9 @@ namespace System.Text
         public abstract bool Equals(Utf8String? x, Utf8String? y);
         public abstract bool Equals(Utf8Span x, Utf8Span y);
         public abstract int GetHashCode(Utf8Segment obj);
+#pragma warning disable CS8614 // Remove warning disable when nullable attributes are respected
         public abstract int GetHashCode(Utf8String obj);
+#pragma warning restore CS8614
         public abstract int GetHashCode(Utf8Span obj);
 
         private sealed class CultureAwareComparer : Utf8StringComparer

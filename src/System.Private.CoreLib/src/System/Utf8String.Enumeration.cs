@@ -172,8 +172,11 @@ namespace System
                         return false; // no more data
                     }
 
+                    // TODO_UTF8STRING: Since we assume Utf8String instances are well-formed, we should instead
+                    // call an optimized version of the "decode" routine below which skips well-formedness checks.
+
                     Rune.DecodeFromUtf8(new ReadOnlySpan<byte>(ref obj.DangerousGetMutableReference(nextByteIdx), obj.Length - (int)nextByteIdx), out Rune currentRune, out int bytesConsumedJustNow);
-                    _nextByteIdx = nextByteIdx + (uint)bytesConsumedJustNow;
+                    _nextByteIdx = (uint)nextByteIdx + (uint)bytesConsumedJustNow;
 
                     if (currentRune.IsBmp)
                     {
@@ -253,8 +256,11 @@ namespace System
                         return false; // no more data
                     }
 
+                    // TODO_UTF8STRING: Since we assume Utf8String instances are well-formed, we should instead
+                    // call an optimized version of the "decode" routine below which skips well-formedness checks.
+
                     Rune.DecodeFromUtf8(new ReadOnlySpan<byte>(ref obj.DangerousGetMutableReference(nextByteIdx), obj.Length - (int)nextByteIdx), out _currentRune, out int bytesConsumedJustNow);
-                    _nextByteIdx = nextByteIdx + (uint)bytesConsumedJustNow;
+                    _nextByteIdx = (uint)nextByteIdx + (uint)bytesConsumedJustNow;
                     return true;
                 }
 

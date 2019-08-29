@@ -23,7 +23,9 @@ namespace System.Collections.Generic
 
         public sealed override bool Equals(string? x, string? y) => string.Equals(x, y);
 
-        public sealed override int GetHashCode(string? obj) => obj?.GetNonRandomizedHashCode() ?? 0;
+#pragma warning disable CS8610 // Remove warning disable when nullable attributes are respected
+        public sealed override int GetHashCode(string obj) => obj.GetNonRandomizedHashCode();
+#pragma warning restore CS8610
 
         // Returning null means that container should use string.GetHashCode.
         public IEqualityComparer<string?>? GetNormalComparer() => null;
