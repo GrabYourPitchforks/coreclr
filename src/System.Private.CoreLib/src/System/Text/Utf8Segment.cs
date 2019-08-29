@@ -57,25 +57,83 @@ namespace System.Text
 
         public ReadOnlyMemory<byte> Bytes
         {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
             get
             {
-                // Make a copy of the underlying struct to avoid race conditions
-                // where we end up performing tear-checking on an instance other
-                // than the one we return to our caller.
+                if (_rawData.GetObjectStartLength(out int start, out int length) is Utf8String utf8String)
+                {
+                    // Special-casing Utf8String as out backing store allows us to perform an
+                    // optimization: we can simply check for continuation bytes at the beginning
+                    // of the segment or just after the end of the segment. This is the same
+                    // check that Utf8String.Substring would have performed. The rest of the bounds
+                    // checking logic is from ReadOnlyMemory<T>.get_Span.
 
-                ReadOnlyMemory<byte> structCopy = _rawData;
-                ThrowIfTorn(structCopy.Span);
-                return structCopy;
+                    nuint desiredLength = (uint)length;
+                    nuint desiredStartIndex = (uint)start & (uint)ReadOnlyMemory<byte>.RemoveFlagsBitMask;
+
+#if BIT64
+                    nuint desiredEndIndex = desiredStartIndex + desiredLength;
+                    if (desiredEndIndex > (uint)utf8String.Length
+                        || Utf8Utility.IsUtf8ContinuationByte(utf8String.DangerousGetMutableReference(desiredStartIndex))
+                        || Utf8Utility.IsUtf8ContinuationByte(utf8String.DangerousGetMutableReference(desiredEndIndex)))
+                    {
+                        ThrowHelper.ThrowArgumentOutOfRangeException(); // same exception as ROM<T>.Span getter for torn structs
+                    }
+#else
+                    if (desiredStartIndex > (uint)utf8String.Length
+                        || desiredLength > (uint)utf8String.Length - desiredStartIndex
+                        || Utf8Utility.IsUtf8ContinuationByte(utf8String.DangerousGetMutableReference(desiredStartIndex))
+                        || Utf8Utility.IsUtf8ContinuationByte(utf8String.DangerousGetMutableReference(desiredStartIndex + desiredLength)))
+                    {
+                        ThrowHelper.ThrowArgumentOutOfRangeException(); // same exception as ROM<T>.Span getter for torn structs
+                    }
+#endif
+
+                    return new ReadOnlyMemory<byte>(utf8String, (int)desiredStartIndex, (int)desiredLength);
+                }
+
+                // If the backing store wasn't Utf8String, perform the more complex check.
+
+                return GetMemorySlow();
             }
         }
 
         public Utf8Span Span
         {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
             get
             {
-                ReadOnlySpan<byte> byteSpan = _rawData.Span;
-                ThrowIfTorn(byteSpan);
-                return Utf8Span.UnsafeCreateWithoutValidation(byteSpan);
+                // See comments in the Bytes property getter for how this works.
+
+                if (_rawData.GetObjectStartLength(out int start, out int length) is Utf8String utf8String)
+                {
+                    nuint desiredLength = (uint)length;
+                    nuint desiredStartIndex = (uint)start & (uint)ReadOnlyMemory<byte>.RemoveFlagsBitMask;
+
+#if BIT64
+                    nuint desiredEndIndex = desiredStartIndex + desiredLength;
+                    if (desiredEndIndex > (uint)utf8String.Length
+                        || Utf8Utility.IsUtf8ContinuationByte(utf8String.DangerousGetMutableReference(desiredStartIndex))
+                        || Utf8Utility.IsUtf8ContinuationByte(utf8String.DangerousGetMutableReference(desiredEndIndex)))
+                    {
+                        ThrowHelper.ThrowArgumentOutOfRangeException(); // same exception as ROM<T>.Span getter for torn structs
+                    }
+#else
+                    if (desiredStartIndex > (uint)utf8String.Length
+                        || desiredLength > (uint)utf8String.Length - desiredStartIndex
+                        || Utf8Utility.IsUtf8ContinuationByte(utf8String.DangerousGetMutableReference(desiredStartIndex))
+                        || Utf8Utility.IsUtf8ContinuationByte(utf8String.DangerousGetMutableReference(desiredStartIndex + desiredLength)))
+                    {
+                        ThrowHelper.ThrowArgumentOutOfRangeException(); // same exception as ROM<T>.Span getter for torn structs
+                    }
+#endif
+
+                    return Utf8Span.UnsafeCreateWithoutValidation(new ReadOnlySpan<byte>(ref utf8String.DangerousGetMutableReference(desiredStartIndex), (int)desiredLength));
+                }
+
+                // If the backing store wasn't Utf8String, go down the slow path.
+
+                return GetSpanSlow();
             }
         }
 
@@ -120,6 +178,30 @@ namespace System.Text
             // the virtual dispatch by putting the switch directly in this method.
 
             return Utf8StringComparer.FromComparison(comparison).GetHashCode(this);
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private ReadOnlyMemory<byte> GetMemorySlow()
+        {
+            // Used when the backing store isn't a Utf8String instance and we can't optimize
+            // the tear checking logic. We make a copy of the underlying struct to avoid
+            // race conditions where we end up performing tear-checking on an instance other
+            // than the one we return to our caller.
+
+            ReadOnlyMemory<byte> structCopy = _rawData;
+            ThrowIfTorn(structCopy.Span);
+            return structCopy;
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private ReadOnlySpan<byte> GetSpanSlow()
+        {
+            // Used when the backing store isn't a Utf8String instance and we can't optimize
+            // the tear checking logic.
+
+            ReadOnlySpan<byte> byteSpan = _rawData.Span;
+            ThrowIfTorn(byteSpan);
+            return byteSpan;
         }
 
         public override string ToString()

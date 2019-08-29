@@ -93,6 +93,7 @@ namespace System
         /// Returns a <em>mutable</em> <see cref="Span{Byte}"/> that can be used to populate this
         /// <see cref="Utf8String"/> instance. Only to be used during construction.
         /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal Span<byte> DangerousGetMutableSpan() => new Span<byte>(ref DangerousGetMutableReference(), Length);
 
         /// <summary>
@@ -100,6 +101,7 @@ namespace System
         /// (or the null terminator if the string is empty).
         /// </summary>
         /// <returns></returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal ref byte DangerousGetMutableReference() => ref Unsafe.AsRef(in _firstByte);
 
         /// <summary>
