@@ -133,7 +133,7 @@ namespace System.Text
 
                 // If the backing store wasn't Utf8String, go down the slow path.
 
-                return GetSpanSlow();
+                return Utf8Span.UnsafeCreateWithoutValidation(GetSpanSlow());
             }
         }
 
