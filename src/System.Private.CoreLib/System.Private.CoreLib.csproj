@@ -302,6 +302,7 @@
   <ItemGroup Condition="'$(FeatureUtf8String)' == 'true'">
     <Compile Include="$(BclSourcesRoot)\System\Utf8Extensions.cs" />
     <Compile Include="$(BclSourcesRoot)\System\Utf8String.cs" />
+    <Compile Include="$(BclSourcesRoot)\System\Utf8String.Comparison.cs" />
     <Compile Include="$(BclSourcesRoot)\System\Utf8String.Construction.cs" />
     <Compile Include="$(BclSourcesRoot)\System\Utf8String.Enumeration.cs" />
     <Compile Include="$(BclSourcesRoot)\System\Utf8String.Manipulation.cs" />
@@ -462,10 +463,7 @@
   </Target>
 
   <!-- This is working around dotnet/coreclr#26371 until dotnet/sourcelink#392 gets solved -->
-  <Target Name="AddUntrackedResourcesForSourceLink"
-    BeforeTargets="CoreCompile"
-    DependsOnTargets="SetEmbeddedFilesFromSourceControlManagerUntrackedFiles;
-                      _GenerateResxSource" >
+  <Target Name="AddUntrackedResourcesForSourceLink" BeforeTargets="CoreCompile" DependsOnTargets="SetEmbeddedFilesFromSourceControlManagerUntrackedFiles;                       _GenerateResxSource">
     <ItemGroup>
       <EmbeddedFiles Include="@(GeneratedResxSource)" />
     </ItemGroup>

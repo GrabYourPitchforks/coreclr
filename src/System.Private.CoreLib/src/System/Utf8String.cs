@@ -73,7 +73,7 @@ namespace System
          */
 
         /// <summary>
-        /// Returns the length (in UTF-8 code units) of this instance.
+        /// Returns the length (in UTF-8 code units, or <see cref="byte"/>s) of this instance.
         /// </summary>
         public int Length => _length;
 
