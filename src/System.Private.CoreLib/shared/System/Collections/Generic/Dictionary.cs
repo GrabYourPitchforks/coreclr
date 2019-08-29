@@ -6,6 +6,8 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.Serialization;
+using System.Text;
+using Internal.Runtime.CompilerServices;
 
 namespace System.Collections.Generic
 {
@@ -81,9 +83,19 @@ namespace System.Collections.Generic
 
             if (typeof(TKey) == typeof(string) && _comparer == null)
             {
-                // To start, move off default comparer for string which is randomised
-                _comparer = (IEqualityComparer<TKey>)NonRandomizedStringEqualityComparer.Default;
+                // To start, move off default comparer for string which is randomized.
+                // We know the Unsafe.As call below will succeed.
+                _comparer = Unsafe.As<IEqualityComparer<TKey>>(NonRandomizedStringEqualityComparer.Default);
             }
+
+#if FEATURE_UTF8STRING
+            if (typeof(TKey) == typeof(Utf8String) && _comparer == null)
+            {
+                // To start, move off default comparer for Utf8String which is randomized.
+                // We know the Unsafe.As call below will succeed.
+                _comparer = Unsafe.As<IEqualityComparer<TKey>>(Utf8StringComparer.OrdinalNonRandomized);
+            }
+#endif
         }
 
         public Dictionary(IDictionary<TKey, TValue> dictionary) : this(dictionary, null) { }
@@ -145,10 +157,20 @@ namespace System.Collections.Generic
             HashHelpers.SerializationInfoTable.Add(this, info);
         }
 
-        public IEqualityComparer<TKey> Comparer =>
-            (_comparer == null || _comparer is NonRandomizedStringEqualityComparer) ?
-                EqualityComparer<TKey>.Default :
-                _comparer;
+        public IEqualityComparer<TKey> Comparer
+        {
+            get
+            {
+                IEqualityComparer<TKey>? toReturn = _comparer;
+                if (toReturn is INonRandomizedEqualityComparer<TKey> nonRandomizedComparer)
+                {
+                    // Don't expose our non-randomized comparer to the caller.
+                    toReturn = nonRandomizedComparer.GetNormalComparer();
+                }
+
+                return toReturn ?? EqualityComparer<TKey>.Default;
+            }
+        }
 
         public int Count => _count - _freeCount;
 
@@ -346,6 +368,21 @@ namespace System.Collections.Generic
             if (info == null)
             {
                 ThrowHelper.ThrowArgumentNullException(ExceptionArgument.info);
+            }
+
+            // If we're using a non-randomized comparer, drop it and switch back to the
+            // standard (randomized) comparer for the type. This will end up serializing
+            // out the standard comparer instead of the non-randomized comparer, which
+            // is what we want. If the dictionary is non-empty, we'll also need to recompute
+            // the hash codes at this time.
+
+            if (_comparer is INonRandomizedEqualityComparer<TKey> nonRandomizedComparer)
+            {
+                _comparer = nonRandomizedComparer.GetNormalComparer();
+                if (_entries != null)
+                {
+                    Resize(_entries.Length, forceNewHashCodes: true);
+                }
             }
 
             info.AddValue(VersionName, _version);
@@ -656,11 +693,11 @@ namespace System.Collections.Generic
             _version++;
 
             // Value types never rehash
-            if (default(TKey)! == null && collisionCount > HashHelpers.HashCollisionThreshold && comparer is NonRandomizedStringEqualityComparer) // TODO-NULLABLE: default(T) == null warning (https://github.com/dotnet/roslyn/issues/34757)
+            if (default(TKey)! == null && collisionCount > HashHelpers.HashCollisionThreshold && comparer is INonRandomizedEqualityComparer<TKey> nonRandomizedComparer) // TODO-NULLABLE: default(T) == null warning (https://github.com/dotnet/roslyn/issues/34757)
             {
                 // If we hit the collision threshold we'll need to switch to the comparer which is using randomized string hashing
                 // i.e. EqualityComparer<string>.Default.
-                _comparer = null;
+                _comparer = nonRandomizedComparer.GetNormalComparer();
                 Resize(entries.Length, true);
             }
 

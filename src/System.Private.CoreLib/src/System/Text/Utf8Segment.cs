@@ -193,6 +193,13 @@ namespace System.Text
             return structCopy;
         }
 
+        internal int GetNonRandomizedHashCode()
+        {
+            // TODO_UTF8STRING: Avoid allocation in this code path.
+
+            return ToUtf8String().GetNonRandomizedHashCode();
+        }
+
         [MethodImpl(MethodImplOptions.NoInlining)]
         private ReadOnlySpan<byte> GetSpanSlow()
         {

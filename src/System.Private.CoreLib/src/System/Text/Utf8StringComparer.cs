@@ -8,7 +8,7 @@ using System.Globalization;
 
 namespace System.Text
 {
-    public abstract class Utf8StringComparer : IComparer<Utf8Segment>, IComparer<Utf8String>, IEqualityComparer<Utf8Segment>, IEqualityComparer<Utf8String>
+    public abstract class Utf8StringComparer : IComparer<Utf8Segment>, IComparer<Utf8String?>, IEqualityComparer<Utf8Segment>, IEqualityComparer<Utf8String?>
     {
         // Nobody except for nested classes can create instances of this type.
         private Utf8StringComparer() { }
@@ -19,6 +19,7 @@ namespace System.Text
         public static Utf8StringComparer InvariantCultureIgnoreCase => CultureAwareComparer.InvariantIgnoreCase;
         public static Utf8StringComparer Ordinal => OrdinalComparer.Instance;
         public static Utf8StringComparer OrdinalIgnoreCase => OrdinalIgnoreCaseComparer.Instance;
+        internal static Utf8StringComparer OrdinalNonRandomized => OrdinalNonRandomizedComparer.Instance;
 
         public static Utf8StringComparer Create(CultureInfo culture, bool ignoreCase) => Create(culture, ignoreCase ? CompareOptions.IgnoreCase : CompareOptions.None);
 
@@ -225,6 +226,27 @@ namespace System.Text
 
                 return StringComparer.OrdinalIgnoreCase.GetHashCode(obj.ToString());
             }
+        }
+
+        private sealed class OrdinalNonRandomizedComparer : Utf8StringComparer, INonRandomizedEqualityComparer<Utf8String?>
+        {
+            public static readonly OrdinalNonRandomizedComparer Instance = new OrdinalNonRandomizedComparer();
+
+            // All accesses must be through the static factory.
+            private OrdinalNonRandomizedComparer() { }
+
+            public override int Compare(Utf8Segment x, Utf8Segment y) => OrdinalComparer.Instance.Compare(x, y);
+            public override int Compare(Utf8String? x, Utf8String? y) => OrdinalComparer.Instance.Compare(x, y);
+            public override int Compare(Utf8Span x, Utf8Span y) => OrdinalComparer.Instance.Compare(x, y);
+            public override bool Equals(Utf8Segment x, Utf8Segment y) => Utf8Segment.Equals(x, y);
+            public override bool Equals(Utf8String? x, Utf8String? y) => Utf8String.Equals(x, y);
+            public override bool Equals(Utf8Span x, Utf8Span y) => Utf8Span.Equals(x, y);
+            public override int GetHashCode(Utf8Segment obj) => obj.GetNonRandomizedHashCode();
+            public override int GetHashCode(Utf8String obj) => obj.GetNonRandomizedHashCode();
+            public override int GetHashCode(Utf8Span obj) => obj.GetNonRandomizedHashCode();
+
+            // Returning null means that container should use Utf8String.GetHashCode.
+            public IEqualityComparer<Utf8String?>? GetNormalComparer() => null;
         }
     }
 }

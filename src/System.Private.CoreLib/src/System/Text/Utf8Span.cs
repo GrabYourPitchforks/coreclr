@@ -105,6 +105,13 @@ namespace System.Text
             return Utf8StringComparer.FromComparison(comparison).GetHashCode(this);
         }
 
+        internal int GetNonRandomizedHashCode()
+        {
+            // TODO_UTF8STRING: Avoid allocation in this code path.
+
+            return ToUtf8String().GetNonRandomizedHashCode();
+        }
+
         /// <summary>
         /// Returns <see langword="true"/> if this UTF-8 text consists of all-ASCII data,
         /// <see langword="false"/> if there is any non-ASCII data within this UTF-8 text.

@@ -12,7 +12,7 @@ namespace System.Collections.Generic
     // randomized string hashing.
     [Serializable] // Required for compatibility with .NET Core 2.0 as we exposed the NonRandomizedStringEqualityComparer inside the serialization blob
     // Needs to be public to support binary serialization compatibility
-    public sealed class NonRandomizedStringEqualityComparer : EqualityComparer<string?>, ISerializable
+    public sealed class NonRandomizedStringEqualityComparer : EqualityComparer<string?>, INonRandomizedEqualityComparer<string?>, ISerializable
     {
         internal static new IEqualityComparer<string?> Default { get; } = new NonRandomizedStringEqualityComparer();
 
@@ -24,6 +24,9 @@ namespace System.Collections.Generic
         public sealed override bool Equals(string? x, string? y) => string.Equals(x, y);
 
         public sealed override int GetHashCode(string? obj) => obj?.GetNonRandomizedHashCode() ?? 0;
+
+        // Returning null means that container should use string.GetHashCode.
+        public IEqualityComparer<string?>? GetNormalComparer() => null;
 
         public void GetObjectData(SerializationInfo info, StreamingContext context)
         {
