@@ -2,12 +2,14 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+using System.Buffers;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Text;
+using System.Text.Unicode;
 using Internal.Runtime.CompilerServices;
 
 #pragma warning disable SA1121 // explicitly using type aliases instead of built-in types
@@ -78,6 +80,22 @@ namespace System
         public int Length => _length;
 
         /*
+         * INDEXERS
+         */
+
+        public Utf8String this[Range range]
+        {
+            get
+            {
+                (int offset, int length) = range.GetOffsetAndLength(Length);
+
+                // The Substring method checks for splitting across a multi-byte sequence.
+
+                return Substring(offset, length);
+            }
+        }
+
+        /*
          * METHODS
          */
 
@@ -109,7 +127,11 @@ namespace System
         /// of this <see cref="Utf8String"/> instance. The index is not bounds-checked.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal ref byte DangerousGetMutableReference(int index) => ref DangerousGetMutableReference((uint)index);
+        internal ref byte DangerousGetMutableReference(int index)
+        {
+            Debug.Assert(index >= 0, "Caller should've performed bounds checking.");
+            return ref DangerousGetMutableReference((uint)index);
+        }
 
         /// <summary>
         /// Returns a <em>mutable</em> reference to the element at index <paramref name="index"/>
@@ -119,8 +141,8 @@ namespace System
         internal ref byte DangerousGetMutableReference(nuint index)
         {
             // Allow retrieving references to the null terminator.
-            Debug.Assert(index <= (uint)Length, "Caller should've performed bounds checking.");
 
+            Debug.Assert(index <= (uint)Length, "Caller should've performed bounds checking.");
             return ref Unsafe.AddByteOffset(ref DangerousGetMutableReference(), index);
         }
 
@@ -301,14 +323,48 @@ namespace System
         /// <summary>
         /// Converts this <see cref="Utf8String"/> instance to a <see cref="string"/>.
         /// </summary>
-        /// <remarks>
-        /// Invalid subsequences are replaced with U+FFFD during conversion.
-        /// </remarks>
         public override string ToString()
         {
-            // TODO_UTF8STRING: Call into optimized transcoding routine when it's available.
+            // TODO_UTF8STRING: Optimize the call below, potentially by avoiding the two-pass.
 
             return Encoding.UTF8.GetString(new ReadOnlySpan<byte>(ref DangerousGetMutableReference(), Length));
+        }
+
+        /// <summary>
+        /// Converts this <see cref="Utf8String"/> instance to a <see cref="string"/>.
+        /// </summary>
+        /// <remarks>
+        /// This routine throws <see cref="InvalidOperationException"/> if the underlying instance
+        /// contains invalid UTF-8 data.
+        /// </remarks>
+        internal unsafe string ToStringNoReplacement()
+        {
+            // TODO_UTF8STRING: Optimize the call below, potentially by avoiding the two-pass.
+
+            int utf16CharCount;
+
+            fixed (byte* pData = &_firstByte)
+            {
+                byte* pFirstInvalidByte = Utf8Utility.GetPointerToFirstInvalidByte(pData, this.Length, out int utf16CodeUnitCountAdjustment, out _);
+                if (pFirstInvalidByte != pData + (uint)this.Length)
+                {
+                    // Saw bad UTF-8 data.
+                    // TODO_UTF8STRING: Throw a better exception below?
+
+                    ThrowHelper.ThrowInvalidOperationException();
+                }
+
+                utf16CharCount = this.Length + utf16CodeUnitCountAdjustment;
+                Debug.Assert(utf16CharCount <= this.Length && utf16CharCount >= 0);
+            }
+
+            // TODO_UTF8STRING: Can we call string.FastAllocate directly?
+
+            return string.Create(utf16CharCount, this, (chars, thisObj) =>
+            {
+                OperationStatus status = Utf8.ToUtf16(thisObj.AsBytes(), chars, out _, out _, replaceInvalidSequences: false);
+                Debug.Assert(status == OperationStatus.Done, "Did somebody mutate this Utf8String instance unexpectedly?");
+            });
         }
     }
 }

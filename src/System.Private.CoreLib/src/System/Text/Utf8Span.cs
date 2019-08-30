@@ -2,13 +2,24 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+using System.Buffers;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text.Unicode;
+using Internal.Runtime.CompilerServices;
 
 #pragma warning disable 0809  //warning CS0809: Obsolete member 'Utf8Span.Equals(object)' overrides non-obsolete member 'object.Equals(object)'
+
+#pragma warning disable SA1121 // explicitly using type aliases instead of built-in types
+#if BIT64
+using nint = System.Int64;
+using nuint = System.UInt64;
+#else
+using nint = System.Int32;
+using nuint = System.UInt32;
+#endif
 
 namespace System.Text
 {
@@ -50,6 +61,63 @@ namespace System.Text
         public ReadOnlySpan<byte> Bytes { get; }
 
         public bool IsEmpty => Bytes.IsEmpty;
+
+        public Utf8Span this[Range range]
+        {
+            get
+            {
+                (int offset, int length) = range.GetOffsetAndLength(Bytes.Length);
+
+                // Check for a split across a multi-byte subsequence on the way out.
+                // Reminder: Unlike Utf8String, we can't safely dereference past the end of the span.
+
+                ref byte newRef = ref DangerousGetMutableReference(offset);
+                if (length > 0 && Utf8Utility.IsUtf8ContinuationByte(newRef))
+                {
+                    Utf8String.ThrowImproperStringSplit();
+                }
+
+                int endIdx = offset + length;
+                if (endIdx < Bytes.Length && Utf8Utility.IsUtf8ContinuationByte(DangerousGetMutableReference(endIdx)))
+                {
+                    Utf8String.ThrowImproperStringSplit();
+                }
+
+                return UnsafeCreateWithoutValidation(new ReadOnlySpan<byte>(ref newRef, length));
+            }
+        }
+
+        /// <summary>
+        /// Returns a <em>mutable</em> reference to the first byte of this <see cref="Utf8Span"/>
+        /// (or, if this <see cref="Utf8Span"/> is empty, to where the first byte would be).
+        /// </summary>
+        /// <returns></returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal ref byte DangerousGetMutableReference() => ref MemoryMarshal.GetReference(Bytes);
+
+        /// <summary>
+        /// Returns a <em>mutable</em> reference to the element at index <paramref name="index"/>
+        /// of this <see cref="Utf8Span"/> instance. The index is not bounds-checked.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal ref byte DangerousGetMutableReference(int index)
+        {
+            Debug.Assert(index >= 0, "Caller should've performed bounds checking.");
+            return ref DangerousGetMutableReference((uint)index);
+        }
+
+        /// <summary>
+        /// Returns a <em>mutable</em> reference to the element at index <paramref name="index"/>
+        /// of this <see cref="Utf8Span"/> instance. The index is not bounds-checked.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal ref byte DangerousGetMutableReference(nuint index)
+        {
+            // Allow retrieving references to just past the end of the span (but shouldn't dereference this).
+
+            Debug.Assert(index <= (uint)Bytes.Length, "Caller should've performed bounds checking.");
+            return ref Unsafe.AddByteOffset(ref DangerousGetMutableReference(), index);
+        }
 
         public bool IsEmptyOrWhiteSpace()
         {
@@ -164,6 +232,41 @@ namespace System.Text
             // we can perform transcoding using an optimized code path that skips all safety checks.
 
             return Encoding.UTF8.GetString(Bytes);
+        }
+
+        /// <summary>
+        /// Converts this <see cref="Utf8Span"/> instance to a <see cref="string"/>.
+        /// </summary>
+        /// <remarks>
+        /// This routine throws <see cref="InvalidOperationException"/> if the underlying instance
+        /// contains invalid UTF-8 data.
+        /// </remarks>
+        internal unsafe string ToStringNoReplacement()
+        {
+            // TODO_UTF8STRING: Optimize the call below, potentially by avoiding the two-pass.
+
+            fixed (byte* pData = &MemoryMarshal.GetReference(Bytes))
+            {
+                byte* pFirstInvalidByte = Utf8Utility.GetPointerToFirstInvalidByte(pData, Bytes.Length, out int utf16CodeUnitCountAdjustment, out _);
+                if (pFirstInvalidByte != pData + (uint)Bytes.Length)
+                {
+                    // Saw bad UTF-8 data.
+                    // TODO_UTF8STRING: Throw a better exception below?
+
+                    ThrowHelper.ThrowInvalidOperationException();
+                }
+
+                int utf16CharCount = Bytes.Length + utf16CodeUnitCountAdjustment;
+                Debug.Assert(utf16CharCount <= Bytes.Length && utf16CharCount >= 0);
+
+                // TODO_UTF8STRING: Can we call string.FastAllocate directly?
+
+                return string.Create(utf16CharCount, (pbData: (IntPtr)pData, cbData: Bytes.Length), (chars, state) =>
+                {
+                    OperationStatus status = Utf8.ToUtf16(new ReadOnlySpan<byte>((byte*)state.pbData, state.cbData), chars, out _, out _, replaceInvalidSequences: false);
+                    Debug.Assert(status == OperationStatus.Done, "Did somebody mutate this Utf8String instance unexpectedly?");
+                });
+            }
         }
 
         public Utf8String ToUtf8String()
