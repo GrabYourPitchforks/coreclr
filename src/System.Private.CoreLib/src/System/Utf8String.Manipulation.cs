@@ -4,6 +4,7 @@
 
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using System.Text;
 using System.Text.Unicode;
 
 namespace System
@@ -43,6 +44,35 @@ namespace System
             Utf8String newString = FastAllocateSkipZeroInit(length);
             Buffer.Memmove(ref newString.DangerousGetMutableReference(), ref this.DangerousGetMutableReference(startIndex), (uint)length);
             return newString;
+        }
+
+        private Utf8String InternalSubstringWithoutCorrectnessChecks(int startIndex, int length)
+        {
+            Debug.Assert(startIndex >= 0, "StartIndex cannot be negative.");
+            Debug.Assert(startIndex <= this.Length, "StartIndex cannot point beyond the end of the string (except to the null terminator).");
+            Debug.Assert(length >= 0, "Length cannot be negative.");
+            Debug.Assert(startIndex + length <= this.Length, "StartIndex and Length cannot point beyond the end of the string.");
+
+            // In debug mode, perform the checks anyway. It's ok if we read just past the end of the
+            // Utf8String instance, since we'll just be reading the null terminator (which is safe).
+
+            Debug.Assert(!Utf8Utility.IsUtf8ContinuationByte(DangerousGetMutableReference(startIndex)), "Somebody is trying to split this Utf8String improperly.");
+            Debug.Assert(!Utf8Utility.IsUtf8ContinuationByte(DangerousGetMutableReference(startIndex + length)), "Somebody is trying to split this Utf8String improperly.");
+
+            if (length == 0)
+            {
+                return Empty;
+            }
+            else if (length == this.Length)
+            {
+                return this;
+            }
+            else
+            {
+                Utf8String newString = FastAllocateSkipZeroInit(length);
+                Buffer.Memmove(ref newString.DangerousGetMutableReference(), ref this.DangerousGetMutableReference(startIndex), (uint)length);
+                return newString;
+            }
         }
 
         [StackTraceHidden]
@@ -107,6 +137,120 @@ namespace System
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         [ComponentModel.EditorBrowsable(ComponentModel.EditorBrowsableState.Never)]
         public Utf8String Slice(int startIndex, int length) => Substring(startIndex, length);
+
+        /// <summary>
+        /// Locates <paramref name="separator"/> within this <see cref="Utf8String"/> instance, creating <see cref="Utf8String"/>
+        /// instances which represent the data on either side of the separator. If <paramref name="separator"/> is not found
+        /// within this <see cref="Utf8String"/> instance, returns the tuple "(this, null)".
+        /// </summary>
+        /// <remarks>
+        /// An ordinal search is performed.
+        /// </remarks>
+        public (Utf8String Before, Utf8String? After) SplitOn(char separator)
+        {
+            if (!TryFind(separator, out Range range))
+            {
+                return (this, null); // not found
+            }
+
+            (int startIndex, int length) = range.GetOffsetAndLength(this.Length);
+            return (InternalSubstringWithoutCorrectnessChecks(0, startIndex), InternalSubstringWithoutCorrectnessChecks(startIndex + length, this.Length - (startIndex + length)));
+        }
+
+        /// <summary>
+        /// Locates <paramref name="separator"/> within this <see cref="Utf8String"/> instance, creating <see cref="Utf8String"/>
+        /// instances which represent the data on either side of the separator. If <paramref name="separator"/> is not found
+        /// within this <see cref="Utf8String"/> instance, returns the tuple "(this, null)".
+        /// </summary>
+        /// <remarks>
+        /// The search is performed using the specified <paramref name="comparisonType"/>.
+        /// </remarks>
+        public (Utf8String Before, Utf8String? After) SplitOn(char separator, StringComparison comparisonType)
+        {
+            if (!TryFind(separator, comparisonType, out Range range))
+            {
+                return (this, null); // not found
+            }
+
+            (int startIndex, int length) = range.GetOffsetAndLength(this.Length);
+            return (InternalSubstringWithoutCorrectnessChecks(0, startIndex), InternalSubstringWithoutCorrectnessChecks(startIndex + length, this.Length - (startIndex + length)));
+        }
+
+        /// <summary>
+        /// Locates <paramref name="separator"/> within this <see cref="Utf8String"/> instance, creating <see cref="Utf8String"/>
+        /// instances which represent the data on either side of the separator. If <paramref name="separator"/> is not found
+        /// within this <see cref="Utf8String"/> instance, returns the tuple "(this, null)".
+        /// </summary>
+        /// <remarks>
+        /// An ordinal search is performed.
+        /// </remarks>
+        public (Utf8String Before, Utf8String? After) SplitOn(Rune separator)
+        {
+            if (!TryFind(separator, out Range range))
+            {
+                return (this, null); // not found
+            }
+
+            (int startIndex, int length) = range.GetOffsetAndLength(this.Length);
+            return (InternalSubstringWithoutCorrectnessChecks(0, startIndex), InternalSubstringWithoutCorrectnessChecks(startIndex + length, this.Length - (startIndex + length)));
+        }
+
+        /// <summary>
+        /// Locates <paramref name="separator"/> within this <see cref="Utf8String"/> instance, creating <see cref="Utf8String"/>
+        /// instances which represent the data on either side of the separator. If <paramref name="separator"/> is not found
+        /// within this <see cref="Utf8String"/> instance, returns the tuple "(this, null)".
+        /// </summary>
+        /// <remarks>
+        /// The search is performed using the specified <paramref name="comparisonType"/>.
+        /// </remarks>
+        public (Utf8String Before, Utf8String? After) SplitOn(Rune separator, StringComparison comparisonType)
+        {
+            if (!TryFind(separator, comparisonType, out Range range))
+            {
+                return (this, null); // not found
+            }
+
+            (int startIndex, int length) = range.GetOffsetAndLength(this.Length);
+            return (InternalSubstringWithoutCorrectnessChecks(0, startIndex), InternalSubstringWithoutCorrectnessChecks(startIndex + length, this.Length - (startIndex + length)));
+        }
+
+        /// <summary>
+        /// Locates <paramref name="separator"/> within this <see cref="Utf8String"/> instance, creating <see cref="Utf8String"/>
+        /// instances which represent the data on either side of the separator. If <paramref name="separator"/> is not found
+        /// within this <see cref="Utf8String"/> instance, returns the tuple "(this, null)".
+        /// </summary>
+        /// <remarks>
+        /// An ordinal search is performed.
+        /// </remarks>
+        public (Utf8String Before, Utf8String? After) SplitOn(Utf8String separator)
+        {
+            if (!TryFind(separator, out Range range))
+            {
+                return (this, null); // not found
+            }
+
+            (int startIndex, int length) = range.GetOffsetAndLength(this.Length);
+            return (InternalSubstringWithoutCorrectnessChecks(0, startIndex), InternalSubstringWithoutCorrectnessChecks(startIndex + length, this.Length - (startIndex + length)));
+        }
+
+        /// <summary>
+        /// Locates <paramref name="separator"/> within this <see cref="Utf8String"/> instance, creating <see cref="Utf8String"/>
+        /// instances which represent the data on either side of the separator. If <paramref name="separator"/> is not found
+        /// within this <see cref="Utf8String"/> instance, returns the tuple "(this, null)".
+        /// </summary>
+        /// <remarks>
+        /// The search is performed using the specified <paramref name="comparisonType"/>.
+        /// </remarks>
+        public (Utf8String Before, Utf8String? After) SplitOn(Utf8String separator, StringComparison comparisonType)
+        {
+            if (!TryFind(separator, comparisonType, out Range range))
+            {
+                return (this, null); // not found
+            }
+
+            (int startIndex, int length) = range.GetOffsetAndLength(this.Length);
+            return (InternalSubstringWithoutCorrectnessChecks(0, startIndex), InternalSubstringWithoutCorrectnessChecks(startIndex + length, this.Length - (startIndex + length)));
+        }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void ValidateStartIndexAndLength(int startIndex, int length)
