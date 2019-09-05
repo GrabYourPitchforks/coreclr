@@ -31,14 +31,7 @@ namespace System.Text
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public Utf8Span(Utf8String? value)
         {
-            if (!(value is null))
-            {
-                Bytes = new ReadOnlySpan<byte>(ref value.DangerousGetMutableReference(), value.Length);
-            }
-            else
-            {
-                Bytes = default;
-            }
+            Bytes = Utf8Extensions.AsBytes(value);
         }
 
         /// <summary>
@@ -132,13 +125,11 @@ namespace System.Text
         /// Always thrown by this method.
         /// </exception>
         /// </summary>
-        [Obsolete("Equals(object) on Utf8Span will always throw an exception. Use Equals(Utf8Span) or == instead.")]
+        [Obsolete("Equals(object) on Utf8Span will always throw an exception. Use Equals(Utf8Span) or operator == instead.")]
         [EditorBrowsable(EditorBrowsableState.Never)]
         public override bool Equals(object? obj)
         {
-            // TODO_UTF8STRING: Improve error message below?
-
-            throw new NotSupportedException(SR.NotSupported_CannotCallEqualsOnSpan);
+            throw new NotSupportedException(SR.Utf8Span_CannotCallEqualsObject);
         }
 
         public bool Equals(Utf8Span other) => Equals(this, other);
