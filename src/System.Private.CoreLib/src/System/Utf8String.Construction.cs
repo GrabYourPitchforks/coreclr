@@ -123,9 +123,9 @@ namespace System
 #endif
         private unsafe Utf8String Ctor(byte* value)
         {
-            if (value == null)
+            if (value is null)
             {
-                return Empty;
+                ThrowHelper.ThrowArgumentNullException(ExceptionArgument.value);
             }
 
             return Ctor(new ReadOnlySpan<byte>(value, string.strlen(value)));
@@ -207,7 +207,7 @@ namespace System
         {
             if (value == null)
             {
-                return Empty;
+                ThrowHelper.ThrowArgumentNullException(ExceptionArgument.value);
             }
 
             return Ctor(new ReadOnlySpan<char>(value, string.wcslen(value)));
@@ -217,16 +217,25 @@ namespace System
         /// Creates a <see cref="Utf8String"/> instance from existing UTF-16 data.
         /// </summary>
         /// <remarks>
-        /// The UTF-16 data in <paramref name="value"/> is validated for well-formedness upon construction.
-        /// Invalid code unit sequences are replaced with U+FFFD in the resulting <see cref="Utf8String"/>.
+        /// The UTF-16 data in <paramref name="value"/> is validated for well-formedness upon construction,
+        /// and an exception is thrown if the input is ill-formed. To avoid this exception, consider using
+        /// <see cref="TryCreateFrom(ReadOnlySpan{char}, out Utf8String)"/> or <see cref="CreateFromLoose(ReadOnlySpan{char})"/>.
         /// </remarks>
         [MethodImpl(MethodImplOptions.InternalCall)]
-        public extern Utf8String(string? value);
+        public extern Utf8String(string value);
 
 #if !CORECLR
         static
 #endif
-        private Utf8String Ctor(string? value) => Ctor(value.AsSpan());
+        private Utf8String Ctor(string value)
+        {
+            if (value is null)
+            {
+                ThrowHelper.ThrowArgumentNullException(ExceptionArgument.value);
+            }
+
+            return Ctor(value.AsSpan());
+        }
 
         /*
          * STATIC FACTORIES
