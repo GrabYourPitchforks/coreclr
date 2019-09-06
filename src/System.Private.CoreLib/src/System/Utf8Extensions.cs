@@ -430,5 +430,10 @@ namespace System
             (int start, int length) = range.GetOffsetAndLength(text.Length);
             return new ReadOnlyMemory<byte>(text, start, length);
         }
+
+        /// <summary>
+        /// Returns a <see cref="Utf8String"/> representation of this <see cref="Rune"/> instance.
+        /// </summary>
+        public static Utf8String ToUtf8String(this Rune rune) => Utf8String.CreateFromRune(rune);
     }
 }

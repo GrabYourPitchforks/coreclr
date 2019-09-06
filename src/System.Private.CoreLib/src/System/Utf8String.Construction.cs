@@ -365,6 +365,29 @@ namespace System
             return newString;
         }
 
+        internal static Utf8String CreateFromRune(Rune value)
+        {
+            // Can skip zero-init since we're going to populate the entire buffer.
+
+            Utf8String newString = FastAllocateSkipZeroInit(value.Utf8SequenceLength);
+
+            if (value.IsAscii)
+            {
+                // Fast path: If an ASCII value, just allocate the one-byte string and fill in the single byte contents.
+
+                newString.DangerousGetMutableReference() = (byte)value.Value;
+                return newString;
+            }
+            else
+            {
+                // Slow path: If not ASCII, allocate a string of the appropriate length and fill in the multi-byte contents.
+
+                int bytesWritten = value.EncodeToUtf8(newString.DangerousGetMutableSpan());
+                Debug.Assert(newString.Length == bytesWritten);
+                return newString;
+            }
+        }
+
         // Returns 'null' if the input buffer does not represent well-formed UTF-16 data and 'replaceInvalidSequences' is false.
         private static Utf8String? CreateFromUtf16Common(ReadOnlySpan<char> value, bool replaceInvalidSequences)
         {

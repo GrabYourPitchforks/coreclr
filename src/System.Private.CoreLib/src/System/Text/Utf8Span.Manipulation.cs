@@ -3,6 +3,8 @@
 // See the LICENSE file in the project root for more information.
 
 using System.ComponentModel;
+using System.Diagnostics;
+using System.Text.Unicode;
 
 namespace System.Text
 {
@@ -163,6 +165,51 @@ namespace System.Text
         {
             return TryFindLast(separator, comparisonType, out Range range) ? new SplitOnResult(this, range) : new SplitOnResult(this);
         }
+
+        /// <summary>
+        /// Trims whitespace from the beginning and the end of this <see cref="Utf8Span"/>,
+        /// returning a new <see cref="Utf8Span"/> containing the resulting slice.
+        /// </summary>
+        public Utf8Span Trim() => TrimHelper(TrimType.Both);
+
+        /// <summary>
+        /// Trims whitespace from only the end of this <see cref="Utf8Span"/>,
+        /// returning a new <see cref="Utf8Span"/> containing the resulting slice.
+        /// </summary>
+        public Utf8Span TrimEnd() => TrimHelper(TrimType.Tail);
+
+        private Utf8Span TrimHelper(TrimType trimType)
+        {
+            ReadOnlySpan<byte> retSpan = Bytes;
+
+            if ((trimType & TrimType.Head) != 0)
+            {
+                int indexOfFirstNonWhiteSpaceChar = Utf8Utility.GetIndexOfFirstNonWhiteSpaceChar(retSpan);
+                Debug.Assert((uint)indexOfFirstNonWhiteSpaceChar <= (uint)retSpan.Length);
+
+                // TODO_UTF8STRING: Can use an unsafe slicing routine below if we need a perf boost.
+
+                retSpan = retSpan.Slice(indexOfFirstNonWhiteSpaceChar);
+            }
+
+            if ((trimType & TrimType.Tail) != 0)
+            {
+                int indexOfTrailingWhiteSpaceSequence = Utf8Utility.GetIndexOfTrailingWhiteSpaceSequence(retSpan);
+                Debug.Assert((uint)indexOfTrailingWhiteSpaceSequence <= (uint)retSpan.Length);
+
+                // TODO_UTF8STRING: Can use an unsafe slicing routine below if we need a perf boost.
+
+                retSpan = retSpan.Slice(0, indexOfTrailingWhiteSpaceSequence);
+            }
+
+            return UnsafeCreateWithoutValidation(retSpan);
+        }
+
+        /// <summary>
+        /// Trims whitespace from only the beginning of this <see cref="Utf8Span"/>,
+        /// returning a new <see cref="Utf8Span"/> containing the resulting slice.
+        /// </summary>
+        public Utf8Span TrimStart() => TrimHelper(TrimType.Head);
 
         public readonly ref struct SplitOnResult
         {

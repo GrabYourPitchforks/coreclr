@@ -1786,7 +1786,7 @@ namespace System
             int start = 0;
 
             // Trim specified characters.
-            if (trimType != TrimType.Tail)
+            if ((trimType & TrimType.Head) != 0)
             {
                 for (start = 0; start < Length; start++)
                 {
@@ -1797,7 +1797,7 @@ namespace System
                 }
             }
 
-            if (trimType != TrimType.Head)
+            if ((trimType & TrimType.Tail) != 0)
             {
                 for (end = Length - 1; end >= start; end--)
                 {
@@ -1822,7 +1822,7 @@ namespace System
             int start = 0;
 
             // Trim specified characters.
-            if (trimType != TrimType.Tail)
+            if ((trimType & TrimType.Head) != 0)
             {
                 for (start = 0; start < Length; start++)
                 {
@@ -1843,7 +1843,7 @@ namespace System
                 }
             }
 
-            if (trimType != TrimType.Head)
+            if ((trimType & TrimType.Tail) != 0)
             {
                 for (end = Length - 1; end >= start; end--)
                 {
@@ -1874,13 +1874,6 @@ namespace System
                 len == Length ? this :
                 len == 0 ? string.Empty :
                 InternalSubString(start, len);
-        }
-
-        private enum TrimType
-        {
-            Head = 0,
-            Tail = 1,
-            Both = 2
         }
     }
 }

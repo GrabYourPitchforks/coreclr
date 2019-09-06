@@ -116,12 +116,7 @@ namespace System.Text
             return ref Unsafe.AddByteOffset(ref DangerousGetMutableReference(), index);
         }
 
-        public bool IsEmptyOrWhiteSpace()
-        {
-            // TODO_UTF8STRING: Use a non-allocating implementation.
-
-            return string.IsNullOrWhiteSpace(ToString());
-        }
+        public bool IsEmptyOrWhiteSpace() => (Utf8Utility.GetIndexOfFirstNonWhiteSpaceChar(Bytes) == Length);
 
         /// <summary>
         /// This method is not supported as spans cannot be boxed. To compare two spans, use operator==.
