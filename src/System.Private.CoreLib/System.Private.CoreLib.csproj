@@ -312,6 +312,7 @@
     <Compile Include="$(BclSourcesRoot)\System\Text\Utf8Span.Comparison.cs" />
     <Compile Include="$(BclSourcesRoot)\System\Text\Utf8Span.Conversion.cs" />
     <Compile Include="$(BclSourcesRoot)\System\Text\Utf8Span.Enumeration.cs" />
+    <Compile Include="$(BclSourcesRoot)\System\Text\Utf8Span.Manipulation.cs" />
     <Compile Include="$(BclSourcesRoot)\System\Text\Utf8Span.Searching.cs" />
     <Compile Include="$(BclSourcesRoot)\System\Text\Utf8StringComparer.cs" />
   </ItemGroup>

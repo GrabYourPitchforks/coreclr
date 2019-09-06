@@ -53,13 +53,17 @@ namespace System.Text
 
         public ReadOnlySpan<byte> Bytes { get; }
 
+        public static Utf8Span Empty => default;
+
         public bool IsEmpty => Bytes.IsEmpty;
+
+        private int Length => Bytes.Length;
 
         public Utf8Span this[Range range]
         {
             get
             {
-                (int offset, int length) = range.GetOffsetAndLength(Bytes.Length);
+                (int offset, int length) = range.GetOffsetAndLength(Length);
 
                 // Check for a split across a multi-byte subsequence on the way out.
                 // Reminder: Unlike Utf8String, we can't safely dereference past the end of the span.
@@ -71,7 +75,7 @@ namespace System.Text
                 }
 
                 int endIdx = offset + length;
-                if (endIdx < Bytes.Length && Utf8Utility.IsUtf8ContinuationByte(DangerousGetMutableReference(endIdx)))
+                if (endIdx < Length && Utf8Utility.IsUtf8ContinuationByte(DangerousGetMutableReference(endIdx)))
                 {
                     Utf8String.ThrowImproperStringSplit();
                 }
@@ -108,7 +112,7 @@ namespace System.Text
         {
             // Allow retrieving references to just past the end of the span (but shouldn't dereference this).
 
-            Debug.Assert(index <= (uint)Bytes.Length, "Caller should've performed bounds checking.");
+            Debug.Assert(index <= (uint)Length, "Caller should've performed bounds checking.");
             return ref Unsafe.AddByteOffset(ref DangerousGetMutableReference(), index);
         }
 
@@ -153,7 +157,7 @@ namespace System.Text
             // UTF-8 textual data, not over arbitrary binary sequences.
 
             ulong seed = Marvin.DefaultSeed;
-            return Marvin.ComputeHash32(ref MemoryMarshal.GetReference(Bytes), (uint)Bytes.Length /* in bytes */, (uint)seed, (uint)(seed >> 32));
+            return Marvin.ComputeHash32(ref MemoryMarshal.GetReference(Bytes), (uint)Length /* in bytes */, (uint)seed, (uint)(seed >> 32));
         }
 
         public int GetHashCode(StringComparison comparison)
@@ -187,7 +191,7 @@ namespace System.Text
             {
                 fixed (byte* pData = &MemoryMarshal.GetReference(Bytes))
                 {
-                    return (ASCIIUtility.GetIndexOfFirstNonAsciiByte(pData, (uint)Bytes.Length) >= 0);
+                    return (ASCIIUtility.GetIndexOfFirstNonAsciiByte(pData, (uint)Length) >= 0);
                 }
             }
         }
@@ -238,8 +242,8 @@ namespace System.Text
 
             fixed (byte* pData = &MemoryMarshal.GetReference(Bytes))
             {
-                byte* pFirstInvalidByte = Utf8Utility.GetPointerToFirstInvalidByte(pData, Bytes.Length, out int utf16CodeUnitCountAdjustment, out _);
-                if (pFirstInvalidByte != pData + (uint)Bytes.Length)
+                byte* pFirstInvalidByte = Utf8Utility.GetPointerToFirstInvalidByte(pData, Length, out int utf16CodeUnitCountAdjustment, out _);
+                if (pFirstInvalidByte != pData + (uint)Length)
                 {
                     // Saw bad UTF-8 data.
                     // TODO_UTF8STRING: Throw a better exception below?
@@ -247,12 +251,12 @@ namespace System.Text
                     ThrowHelper.ThrowInvalidOperationException();
                 }
 
-                int utf16CharCount = Bytes.Length + utf16CodeUnitCountAdjustment;
-                Debug.Assert(utf16CharCount <= Bytes.Length && utf16CharCount >= 0);
+                int utf16CharCount = Length + utf16CodeUnitCountAdjustment;
+                Debug.Assert(utf16CharCount <= Length && utf16CharCount >= 0);
 
                 // TODO_UTF8STRING: Can we call string.FastAllocate directly?
 
-                return string.Create(utf16CharCount, (pbData: (IntPtr)pData, cbData: Bytes.Length), (chars, state) =>
+                return string.Create(utf16CharCount, (pbData: (IntPtr)pData, cbData: Length), (chars, state) =>
                 {
                     OperationStatus status = Utf8.ToUtf16(new ReadOnlySpan<byte>((byte*)state.pbData, state.cbData), chars, out _, out _, replaceInvalidSequences: false);
                     Debug.Assert(status == OperationStatus.Done, "Did somebody mutate this Utf8String instance unexpectedly?");

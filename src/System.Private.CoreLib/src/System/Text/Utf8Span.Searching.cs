@@ -181,43 +181,66 @@ namespace System.Text
         /// <remarks>
         /// The search is performed using the specified <paramref name="comparisonType"/>.
         /// </remarks>
-        public unsafe bool TryFind(Utf8Span value, StringComparison comparisonType, out Range range)
+        public bool TryFind(Utf8Span value, StringComparison comparisonType, out Range range) => TryFind(value, comparisonType, out range, fromBeginning: true);
+
+        private unsafe bool TryFind(Utf8Span value, StringComparison comparisonType, out Range range, bool fromBeginning)
         {
-            CompareInfo compareInfo;
-            CompareOptions compareOptions;
+            string.CheckStringComparison(comparisonType);
 
-            switch (comparisonType)
+            if (value.IsEmpty)
             {
-                case StringComparison.Ordinal:
-                    return TryFind(value, out range);
+                range = default;
+                return !this.IsEmpty;
+            }
 
-                case StringComparison.OrdinalIgnoreCase:
-                    // TODO_UTF8STRING: Optimize OrdinalIgnoreCase for ASCII.
+            if (this.IsEmpty)
+            {
+                range = default;
+                return false;
+            }
 
-                    compareInfo = CompareInfo.Invariant;
-                    compareOptions = CompareOptions.OrdinalIgnoreCase;
-                    break;
+            CompareInfo compareInfo = default!; // will be overwritten if it matters
+            CompareOptions compareOptions = string.GetCaseCompareOfComparisonCulture(comparisonType);
 
-                case StringComparison.CurrentCulture:
-                case StringComparison.CurrentCultureIgnoreCase:
-                    compareInfo = CultureInfo.CurrentCulture.CompareInfo;
-                    compareOptions = string.GetCaseCompareOfComparisonCulture(comparisonType);
-                    break;
+            if (GlobalizationMode.Invariant)
+            {
+                // In the Invariant globalization mode, all comparisons are normalized to Ordinal or OrdinalIgnoreCase,
+                // and even in "ignore case" we only map [a-z] <-> [A-Z]. All other code points remain unmapped.
 
-                case StringComparison.InvariantCulture:
-                case StringComparison.InvariantCultureIgnoreCase:
-                    compareInfo = CompareInfo.Invariant;
-                    compareOptions = string.GetCaseCompareOfComparisonCulture(comparisonType);
-                    break;
+                // TODO_UTF8STRING: We should take advantage of the property described above to avoid the UTF-16
+                // transcoding step entirely.
 
-                default:
-                    ThrowHelper.ThrowArgumentException(ExceptionResource.NotSupported_StringComparison, ExceptionArgument.comparisonType);
+                if (compareOptions != CompareOptions.None)
+                {
+                    return (fromBeginning)
+                        ? TryFind(value, out range)
+                        : TryFindLast(value, out range); // call the ordinal search routine
+                }
+            }
+            else
+            {
+                switch (comparisonType)
+                {
+                    case StringComparison.Ordinal:
+                        return (fromBeginning)
+                          ? TryFind(value, out range)
+                          : TryFindLast(value, out range);
 
-                    // The lines below will never be hit.
+                    case StringComparison.OrdinalIgnoreCase:
+                        // TODO_UTF8STRING: Can probably optimize this case.
+                        compareInfo = CompareInfo.Invariant;
+                        break;
 
-                    compareInfo = default;
-                    compareOptions = default;
-                    break;
+                    case StringComparison.CurrentCulture:
+                    case StringComparison.CurrentCultureIgnoreCase:
+                        compareInfo = CultureInfo.CurrentCulture.CompareInfo;
+                        break;
+
+                    default:
+                        Debug.Assert(comparisonType == StringComparison.InvariantCulture || comparisonType == StringComparison.InvariantCultureIgnoreCase);
+                        compareInfo = CompareInfo.Invariant;
+                        break;
+                }
             }
 
             // TODO_UTF8STRING: Remove allocations below, and try to avoid the transcoding step if possible.
@@ -225,8 +248,21 @@ namespace System.Text
             string thisTranscodedToUtf16 = this.ToStringNoReplacement();
             string otherTranscodedToUtf16 = value.ToStringNoReplacement();
 
-            int matchLength = default;
-            int idx = compareInfo.IndexOf(thisTranscodedToUtf16, otherTranscodedToUtf16, 0, thisTranscodedToUtf16.Length, compareOptions, &matchLength);
+            int idx, matchLength;
+
+            if (GlobalizationMode.Invariant)
+            {
+                // If we got here, it meant we're doing an OrdinalIgnoreCase comparison.
+
+                Debug.Assert(compareOptions == CompareOptions.IgnoreCase);
+
+                idx = CompareInfo.InvariantIndexOf(thisTranscodedToUtf16, otherTranscodedToUtf16, ignoreCase: true, fromBeginning);
+                matchLength = otherTranscodedToUtf16.Length; // If there was a match, it involved only simple case folding.
+            }
+            else
+            {
+                idx = compareInfo.IndexOf(thisTranscodedToUtf16, otherTranscodedToUtf16, 0, thisTranscodedToUtf16.Length, compareOptions, &matchLength, fromBeginning);
+            }
 
             if (idx < 0)
             {
@@ -276,5 +312,178 @@ namespace System.Text
                 return true;
             }
         }
+
+        /// <summary>
+        /// Attempts to locate the last occurrence of the target <paramref name="value"/> within this <see cref="Utf8Span"/> instance.
+        /// If <paramref name="value"/> is found, returns <see langword="true"/> and sets <paramref name="range"/> to
+        /// the location where <paramref name="value"/> occurs within this <see cref="Utf8Span"/> instance.
+        /// If <paramref name="value"/> is not found, returns <see langword="false"/> and sets <paramref name="range"/>
+        /// to <see langword="default"/>.
+        /// </summary>
+        /// <remarks>
+        /// An ordinal search is performed.
+        /// </remarks>
+        public bool TryFindLast(char value, out Range range)
+        {
+            if (Rune.TryCreate(value, out Rune rune))
+            {
+                return TryFindLast(rune, out range);
+            }
+            else
+            {
+                // Surrogate chars can't exist in well-formed UTF-8 data - bail immediately.
+
+                range = default;
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Attempts to locate the last occurrence of the target <paramref name="value"/> within this <see cref="Utf8Span"/> instance.
+        /// If <paramref name="value"/> is found, returns <see langword="true"/> and sets <paramref name="range"/> to
+        /// the location where <paramref name="value"/> occurs within this <see cref="Utf8Span"/> instance.
+        /// If <paramref name="value"/> is not found, returns <see langword="false"/> and sets <paramref name="range"/>
+        /// to <see langword="default"/>.
+        /// </summary>
+        /// <remarks>
+        /// The search is performed using the specified <paramref name="comparisonType"/>.
+        /// </remarks>
+        public bool TryFindLast(char value, StringComparison comparisonType, out Range range)
+        {
+            if (Rune.TryCreate(value, out Rune rune))
+            {
+                return TryFindLast(rune, comparisonType, out range);
+            }
+            else
+            {
+                string.CheckStringComparison(comparisonType);
+
+                // Surrogate chars can't exist in well-formed UTF-8 data - bail immediately.
+
+                range = default;
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Attempts to locate the last occurrence of the target <paramref name="value"/> within this <see cref="Utf8Span"/> instance.
+        /// If <paramref name="value"/> is found, returns <see langword="true"/> and sets <paramref name="range"/> to
+        /// the location where <paramref name="value"/> occurs within this <see cref="Utf8Span"/> instance.
+        /// If <paramref name="value"/> is not found, returns <see langword="false"/> and sets <paramref name="range"/>
+        /// to <see langword="default"/>.
+        /// </summary>
+        /// <remarks>
+        /// An ordinal search is performed.
+        /// </remarks>
+        public bool TryFindLast(Rune value, out Range range)
+        {
+            if (value.IsAscii)
+            {
+                // Special-case ASCII since it's a simple single byte search.
+
+                int idx = Bytes.LastIndexOf((byte)value.Value);
+                if (idx < 0)
+                {
+                    range = default;
+                    return false;
+                }
+                else
+                {
+                    range = idx..(idx + 1);
+                    return true;
+                }
+            }
+            else
+            {
+                // Slower path: need to search a multi-byte sequence.
+                // TODO_UTF8STRING: As an optimization, we could use unsafe APIs below since we
+                // know Rune instances are well-formed and slicing is safe.
+
+                Span<byte> runeBytes = stackalloc byte[Utf8Utility.MaxBytesPerScalar];
+                int utf8ByteLengthOfRune = value.EncodeToUtf8(runeBytes);
+
+                return TryFindLast(UnsafeCreateWithoutValidation(runeBytes.Slice(0, utf8ByteLengthOfRune)), out range);
+            }
+        }
+
+        /// <summary>
+        /// Attempts to locate the last occurrence of the target <paramref name="value"/> within this <see cref="Utf8Span"/> instance.
+        /// If <paramref name="value"/> is found, returns <see langword="true"/> and sets <paramref name="range"/> to
+        /// the location where <paramref name="value"/> occurs within this <see cref="Utf8Span"/> instance.
+        /// If <paramref name="value"/> is not found, returns <see langword="false"/> and sets <paramref name="range"/>
+        /// to <see langword="default"/>.
+        /// </summary>
+        /// <remarks>
+        /// The search is performed using the specified <paramref name="comparisonType"/>.
+        /// </remarks>
+        public bool TryFindLast(Rune value, StringComparison comparisonType, out Range range)
+        {
+            if (comparisonType == StringComparison.Ordinal)
+            {
+                return TryFindLast(value, out range);
+            }
+            else
+            {
+                // Slower path: not an ordinal comparison.
+                // TODO_UTF8STRING: As an optimization, we could use unsafe APIs below since we
+                // know Rune instances are well-formed and slicing is safe.
+
+                Span<byte> runeBytes = stackalloc byte[Utf8Utility.MaxBytesPerScalar];
+                int utf8ByteLengthOfRune = value.EncodeToUtf8(runeBytes);
+
+                return TryFindLast(UnsafeCreateWithoutValidation(runeBytes.Slice(0, utf8ByteLengthOfRune)), comparisonType, out range);
+            }
+        }
+
+        /// <summary>
+        /// Attempts to locate the last occurrence of the target <paramref name="value"/> within this <see cref="Utf8Span"/> instance.
+        /// If <paramref name="value"/> is found, returns <see langword="true"/> and sets <paramref name="range"/> to
+        /// the location where <paramref name="value"/> occurs within this <see cref="Utf8Span"/> instance.
+        /// If <paramref name="value"/> is not found, returns <see langword="false"/> and sets <paramref name="range"/>
+        /// to <see langword="default"/>.
+        /// </summary>
+        /// <remarks>
+        /// An ordinal search is performed.
+        /// </remarks>
+        public bool TryFindLast(Utf8Span value, out Range range)
+        {
+            int idx;
+
+            if (value.Bytes.Length == 1)
+            {
+                // Special-case ASCII since it's a simple single byte search.
+
+                idx = this.Bytes.LastIndexOf(value.Bytes[0]);
+            }
+            else
+            {
+                // Slower path: need to search a multi-byte sequence.
+
+                idx = this.Bytes.LastIndexOf(value.Bytes);
+            }
+
+            if (idx < 0)
+            {
+                range = default;
+                return false;
+            }
+            else
+            {
+                range = idx..(idx + value.Bytes.Length);
+                return true;
+            }
+        }
+
+        /// <summary>
+        /// Attempts to locate the last occurrence of the target <paramref name="value"/> within this <see cref="Utf8Span"/> instance.
+        /// If <paramref name="value"/> is found, returns <see langword="true"/> and sets <paramref name="range"/> to
+        /// the location where <paramref name="value"/> occurs within this <see cref="Utf8Span"/> instance.
+        /// If <paramref name="value"/> is not found, returns <see langword="false"/> and sets <paramref name="range"/>
+        /// to <see langword="default"/>.
+        /// </summary>
+        /// <remarks>
+        /// The search is performed using the specified <paramref name="comparisonType"/>.
+        /// </remarks>
+        public bool TryFindLast(Utf8Span value, StringComparison comparisonType, out Range range) => TryFind(value, comparisonType, out range, fromBeginning: false);
     }
 }
