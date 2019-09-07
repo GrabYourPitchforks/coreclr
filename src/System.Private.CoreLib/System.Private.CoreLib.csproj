@@ -307,6 +307,7 @@
     <Compile Include="$(BclSourcesRoot)\System\Utf8String.Enumeration.cs" />
     <Compile Include="$(BclSourcesRoot)\System\Utf8String.Manipulation.cs" />
     <Compile Include="$(BclSourcesRoot)\System\Utf8String.Searching.cs" />
+    <Compile Include="$(BclSourcesRoot)\System\Utf8StringSplitOptions.cs" />
     <Compile Include="$(BclSourcesRoot)\System\Text\Utf8Segment.cs" />
     <Compile Include="$(BclSourcesRoot)\System\Text\Utf8Span.cs" />
     <Compile Include="$(BclSourcesRoot)\System\Text\Utf8Span.Comparison.cs" />

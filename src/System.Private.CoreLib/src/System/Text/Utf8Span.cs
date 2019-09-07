@@ -23,6 +23,7 @@ using nuint = System.UInt32;
 
 namespace System.Text
 {
+    [StructLayout(LayoutKind.Auto)]
     public readonly ref partial struct Utf8Span
     {
         /// <summary>
@@ -56,6 +57,20 @@ namespace System.Text
         public static Utf8Span Empty => default;
 
         public bool IsEmpty => Bytes.IsEmpty;
+
+        /// <summary>
+        /// Similar to "== default", but ignores the Length check.
+        /// </summary>
+        private unsafe bool IsNull
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get
+            {
+                bool isNull = Unsafe.AreSame(ref MemoryMarshal.GetReference(Bytes), ref Unsafe.AsRef<byte>(null));
+                Debug.Assert(!isNull || Length == 0, "If reference is null, Length must be 0.");
+                return isNull;
+            }
+        }
 
         private int Length => Bytes.Length;
 

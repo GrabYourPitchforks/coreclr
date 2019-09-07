@@ -4,12 +4,63 @@
 
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Text.Unicode;
 
 namespace System.Text
 {
     public readonly ref partial struct Utf8Span
     {
+        private const Utf8StringSplitOptions STRINGSPLIT_MAXVALUE = Utf8StringSplitOptions.RemoveEmptyEntries | Utf8StringSplitOptions.TrimEntries;
+
+        [StackTraceHidden]
+        private static void CheckSplitOptions(Utf8StringSplitOptions options)
+        {
+            if ((uint)options > (uint)(Utf8StringSplitOptions.RemoveEmptyEntries | Utf8StringSplitOptions.TrimEntries))
+            {
+                CheckSplitOptions_Throw(options);
+            }
+        }
+
+        [StackTraceHidden]
+        private static void CheckSplitOptions_Throw(Utf8StringSplitOptions options)
+        {
+            throw new ArgumentOutOfRangeException(
+                paramName: nameof(options),
+                message: SR.Format(SR.Arg_EnumIllegalVal, (int)options));
+        }
+
+        public SplitResult Split(char separator, Utf8StringSplitOptions options = Utf8StringSplitOptions.None)
+        {
+            if (!Rune.TryCreate(separator, out Rune rune))
+            {
+                ThrowHelper.ThrowArgumentOutOfRangeException(ExceptionArgument.separator, ExceptionResource.ArgumentOutOfRange_Utf16SurrogatesDisallowed);
+            }
+
+            CheckSplitOptions(options);
+
+            return new SplitResult(this, rune, options);
+        }
+
+        public SplitResult Split(Rune separator, Utf8StringSplitOptions options = Utf8StringSplitOptions.None)
+        {
+            CheckSplitOptions(options);
+
+            return new SplitResult(this, separator, options);
+        }
+
+        public SplitResult Split(Utf8Span separator, Utf8StringSplitOptions options = Utf8StringSplitOptions.None)
+        {
+            if (separator.IsEmpty)
+            {
+                ThrowHelper.ThrowArgumentException(ExceptionResource.Argument_CannotBeEmptySpan, ExceptionArgument.separator);
+            }
+
+            CheckSplitOptions(options);
+
+            return new SplitResult(this, separator, options);
+        }
+
         /// <summary>
         /// Locates <paramref name="separator"/> within this <see cref="Utf8Span"/> instance, creating <see cref="Utf8Span"/>
         /// instances which represent the data on either side of the separator. If <paramref name="separator"/> is not found
@@ -52,7 +103,7 @@ namespace System.Text
         /// <summary>
         /// Locates <paramref name="separator"/> within this <see cref="Utf8String"/> instance, creating <see cref="Utf8Span"/>
         /// instances which represent the data on either side of the separator. If <paramref name="separator"/> is not found
-        /// within this <see cref="Utf8String"/> instance, returns the tuple "(this, Empty)".
+        /// within this <see cref="Utf8Span"/> instance, returns the tuple "(this, Empty)".
         /// </summary>
         /// <remarks>
         /// The search is performed using the specified <paramref name="comparisonType"/>.
@@ -65,25 +116,25 @@ namespace System.Text
         /// <summary>
         /// Locates <paramref name="separator"/> within this <see cref="Utf8String"/> instance, creating <see cref="Utf8Span"/>
         /// instances which represent the data on either side of the separator. If <paramref name="separator"/> is not found
-        /// within this <see cref="Utf8String"/> instance, returns the tuple "(this, Empty)".
+        /// within this <see cref="Utf8Span"/> instance, returns the tuple "(this, Empty)".
         /// </summary>
         /// <remarks>
         /// An ordinal search is performed.
         /// </remarks>
-        public SplitOnResult SplitOn(Utf8String separator)
+        public SplitOnResult SplitOn(Utf8Span separator)
         {
             return TryFind(separator, out Range range) ? new SplitOnResult(this, range) : new SplitOnResult(this);
         }
 
         /// <summary>
-        /// Locates the last occurrence of <paramref name="separator"/> within this <see cref="Utf8String"/> instance, creating <see cref="Utf8Span"/>
+        /// Locates the last occurrence of <paramref name="separator"/> within this <see cref="Utf8Span"/> instance, creating <see cref="Utf8Span"/>
         /// instances which represent the data on either side of the separator. If <paramref name="separator"/> is not found
-        /// within this <see cref="Utf8String"/> instance, returns the tuple "(this, Utf8Span)".
+        /// within this <see cref="Utf8Span"/> instance, returns the tuple "(this, Utf8Span)".
         /// </summary>
         /// <remarks>
         /// The search is performed using the specified <paramref name="comparisonType"/>.
         /// </remarks>
-        public SplitOnResult SplitOn(Utf8String separator, StringComparison comparisonType)
+        public SplitOnResult SplitOn(Utf8Span separator, StringComparison comparisonType)
         {
             return TryFind(separator, comparisonType, out Range range) ? new SplitOnResult(this, range) : new SplitOnResult(this);
         }
@@ -211,6 +262,165 @@ namespace System.Text
         /// </summary>
         public Utf8Span TrimStart() => TrimHelper(TrimType.Head);
 
+        [StructLayout(LayoutKind.Auto)]
+        public readonly ref struct SplitResult
+        {
+            private readonly Utf8Span _originalSource;
+            private readonly int _searchRune; // -1 if not specified, takes less space than "Rune?"
+            private readonly Utf8Span _searchTerm;
+            private readonly Utf8StringSplitOptions _splitOptions;
+
+            internal SplitResult(Utf8Span source, Rune searchRune, Utf8StringSplitOptions splitOptions)
+            {
+                _originalSource = source;
+                _searchRune = searchRune.Value;
+                _searchTerm = default;
+                _splitOptions = splitOptions;
+            }
+
+            internal SplitResult(Utf8Span source, Utf8Span searchTerm, Utf8StringSplitOptions splitOptions)
+            {
+                _originalSource = source;
+                _searchRune = -1;
+                _searchTerm = searchTerm;
+                _splitOptions = splitOptions;
+            }
+
+            private void ApplySplitOptions(ref Utf8Span input)
+            {
+                if ((_splitOptions & Utf8StringSplitOptions.TrimEntries) != 0)
+                {
+                    input = input.Trim();
+                }
+
+                if ((_splitOptions & Utf8StringSplitOptions.RemoveEmptyEntries) != 0)
+                {
+                    if (input.IsEmpty)
+                    {
+                        input = default;
+                    }
+                }
+            }
+
+            private void DeconstructHelper(in Utf8Span actualSource, out Utf8Span firstItem, out Utf8Span remainder)
+            {
+                // n.b. Our callers might pass the same reference for 'actualSource' and 'remainder'.
+                // We need to take care not to read 'actualSource' after writing 'remainder'.
+
+                if (actualSource.IsNull)
+                {
+                    firstItem = default;
+                    remainder = default;
+                    return;
+                }
+
+                if (_searchRune >= 0)
+                {
+                    Debug.Assert(Rune.IsValid(_searchRune));
+                    actualSource.SplitOn(Rune.UnsafeCreate((uint)_searchRune)).Deconstruct(out firstItem, out remainder);
+                }
+                else
+                {
+                    actualSource.SplitOn(_searchTerm).Deconstruct(out firstItem, out remainder);
+                }
+
+                ApplySplitOptions(ref firstItem);
+                ApplySplitOptions(ref remainder);
+
+                if (firstItem.IsNull)
+                {
+                    firstItem = remainder;
+                }
+            }
+
+            [EditorBrowsable(EditorBrowsableState.Never)]
+            public void Deconstruct(out Utf8Span item1, out Utf8Span item2)
+            {
+                DeconstructHelper(in _originalSource, out item1, out item2);
+            }
+
+            [EditorBrowsable(EditorBrowsableState.Never)]
+            public void Deconstruct(out Utf8Span item1, out Utf8Span item2, out Utf8Span item3)
+            {
+                DeconstructHelper(in _originalSource, out item1, out Utf8Span remainder);
+                DeconstructHelper(in remainder, out item2, out item3);
+            }
+
+            [EditorBrowsable(EditorBrowsableState.Never)]
+            public void Deconstruct(out Utf8Span item1, out Utf8Span item2, out Utf8Span item3, out Utf8Span item4)
+            {
+                DeconstructHelper(in _originalSource, out item1, out Utf8Span remainder);
+                DeconstructHelper(in remainder, out item2, out remainder);
+                DeconstructHelper(in remainder, out item3, out item4);
+            }
+
+            [EditorBrowsable(EditorBrowsableState.Never)]
+            public void Deconstruct(out Utf8Span item1, out Utf8Span item2, out Utf8Span item3, out Utf8Span item4, out Utf8Span item5)
+            {
+                DeconstructHelper(in _originalSource, out item1, out Utf8Span remainder);
+                DeconstructHelper(in remainder, out item2, out remainder);
+                DeconstructHelper(in remainder, out item3, out remainder);
+                DeconstructHelper(in remainder, out item4, out item5);
+            }
+
+            [EditorBrowsable(EditorBrowsableState.Never)]
+            public void Deconstruct(out Utf8Span item1, out Utf8Span item2, out Utf8Span item3, out Utf8Span item4, out Utf8Span item5, out Utf8Span item6)
+            {
+                DeconstructHelper(in _originalSource, out item1, out Utf8Span remainder);
+                DeconstructHelper(in remainder, out item2, out remainder);
+                DeconstructHelper(in remainder, out item3, out remainder);
+                DeconstructHelper(in remainder, out item4, out remainder);
+                DeconstructHelper(in remainder, out item5, out item6);
+            }
+
+            [EditorBrowsable(EditorBrowsableState.Never)]
+            public void Deconstruct(out Utf8Span item1, out Utf8Span item2, out Utf8Span item3, out Utf8Span item4, out Utf8Span item5, out Utf8Span item6, out Utf8Span item7)
+            {
+                DeconstructHelper(in _originalSource, out item1, out Utf8Span remainder);
+                DeconstructHelper(in remainder, out item2, out remainder);
+                DeconstructHelper(in remainder, out item3, out remainder);
+                DeconstructHelper(in remainder, out item4, out remainder);
+                DeconstructHelper(in remainder, out item5, out remainder);
+                DeconstructHelper(in remainder, out item6, out item7);
+            }
+
+            [EditorBrowsable(EditorBrowsableState.Never)]
+            public void Deconstruct(out Utf8Span item1, out Utf8Span item2, out Utf8Span item3, out Utf8Span item4, out Utf8Span item5, out Utf8Span item6, out Utf8Span item7, out Utf8Span item8)
+            {
+                DeconstructHelper(in _originalSource, out item1, out Utf8Span remainder);
+                DeconstructHelper(in remainder, out item2, out remainder);
+                DeconstructHelper(in remainder, out item3, out remainder);
+                DeconstructHelper(in remainder, out item4, out remainder);
+                DeconstructHelper(in remainder, out item5, out remainder);
+                DeconstructHelper(in remainder, out item6, out remainder);
+                DeconstructHelper(in remainder, out item7, out item8);
+            }
+
+            [StructLayout(LayoutKind.Auto)]
+            public ref struct Enumerator
+            {
+                private Utf8Span _current;
+                private Utf8Span _remainder;
+                private readonly SplitResult _result;
+
+                internal Enumerator(SplitResult result)
+                {
+                    _result = result;
+                    _remainder = result._originalSource;
+                    _current = default;
+                }
+
+                public Utf8Span Current => _current;
+
+                public bool MoveNext()
+                {
+                    _result.DeconstructHelper(in _remainder, out _current, out _remainder);
+                    return !_current.IsNull;
+                }
+            }
+        }
+
+        [StructLayout(LayoutKind.Auto)]
         public readonly ref struct SplitOnResult
         {
             // Used when there is no match.

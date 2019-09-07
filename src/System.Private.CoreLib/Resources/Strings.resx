@@ -3781,4 +3781,10 @@
   <data name="Utf8Span_CannotCallEqualsObject" xml:space="preserve">
     <value>Cannot call Utf8Span.Equals(object). Use Equals(Utf8Span) or operator == instead.</value>
   </data>
+  <data name="ArgumentOutOfRange_Utf16SurrogatesDisallowed" xml:space="preserve">
+    <value>UTF-16 surrogate code points (U+D800..U+DFFF) are disallowed.</value>
+  </data>
+  <data name="Argument_CannotBeEmptySpan" xml:space="preserve">
+    <value>Argument cannot be an empty span.</value>
+  </data>
 </root>
