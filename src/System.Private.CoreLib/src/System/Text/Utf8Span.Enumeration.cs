@@ -77,6 +77,10 @@ namespace System.Text
                         _currentCharPair = (uint)leadingCodeUnit + ((uint)trailingCodeUnit << 16);
                     }
 
+                    // TODO_UTF8STRING: We can consider unsafe slicing below if we wish since we know we're
+                    // not going to overrun the end of the span.
+
+                    _remainingUtf8Bytes = _remainingUtf8Bytes.Slice(bytesConsumed);
                     return true;
                 }
             }
