@@ -75,9 +75,9 @@ namespace System.Text
         }
 
         /// <summary>
-        /// Locates <paramref name="separator"/> within this <see cref="Utf8String"/> instance, creating <see cref="Utf8Span"/>
+        /// Locates <paramref name="separator"/> within this <see cref="Utf8Span"/> instance, creating <see cref="Utf8Span"/>
         /// instances which represent the data on either side of the separator. If <paramref name="separator"/> is not found
-        /// within this <see cref="Utf8String"/> instance, returns the tuple "(this, Empty)".
+        /// within this <see cref="Utf8Span"/> instance, returns the tuple "(this, Empty)".
         /// </summary>
         /// <remarks>
         /// The search is performed using the specified <paramref name="comparisonType"/>.
@@ -88,9 +88,9 @@ namespace System.Text
         }
 
         /// <summary>
-        /// Locates <paramref name="separator"/> within this <see cref="Utf8String"/> instance, creating <see cref="Utf8Span"/>
+        /// Locates <paramref name="separator"/> within this <see cref="Utf8Span"/> instance, creating <see cref="Utf8Span"/>
         /// instances which represent the data on either side of the separator. If <paramref name="separator"/> is not found
-        /// within this <see cref="Utf8String"/> instance, returns the tuple "(this, Empty)".
+        /// within this <see cref="Utf8Span"/> instance, returns the tuple "(this, Empty)".
         /// </summary>
         /// <remarks>
         /// An ordinal search is performed.
@@ -101,7 +101,7 @@ namespace System.Text
         }
 
         /// <summary>
-        /// Locates <paramref name="separator"/> within this <see cref="Utf8String"/> instance, creating <see cref="Utf8Span"/>
+        /// Locates <paramref name="separator"/> within this <see cref="Utf8Span"/> instance, creating <see cref="Utf8Span"/>
         /// instances which represent the data on either side of the separator. If <paramref name="separator"/> is not found
         /// within this <see cref="Utf8Span"/> instance, returns the tuple "(this, Empty)".
         /// </summary>
@@ -114,7 +114,7 @@ namespace System.Text
         }
 
         /// <summary>
-        /// Locates <paramref name="separator"/> within this <see cref="Utf8String"/> instance, creating <see cref="Utf8Span"/>
+        /// Locates <paramref name="separator"/> within this <see cref="Utf8Span"/> instance, creating <see cref="Utf8Span"/>
         /// instances which represent the data on either side of the separator. If <paramref name="separator"/> is not found
         /// within this <see cref="Utf8Span"/> instance, returns the tuple "(this, Empty)".
         /// </summary>
@@ -153,9 +153,9 @@ namespace System.Text
         }
 
         /// <summary>
-        /// Locates the last occurrence of <paramref name="separator"/> within this <see cref="Utf8String"/> instance, creating <see cref="Utf8Span"/>
+        /// Locates the last occurrence of <paramref name="separator"/> within this <see cref="Utf8Span"/> instance, creating <see cref="Utf8Span"/>
         /// instances which represent the data on either side of the separator. If <paramref name="separator"/> is not found
-        /// within this <see cref="Utf8String"/> instance, returns the tuple "(this, Empty)".
+        /// within this <see cref="Utf8Span"/> instance, returns the tuple "(this, Empty)".
         /// </summary>
         /// <remarks>
         /// The search is performed using the specified <paramref name="comparisonType"/>.
@@ -166,9 +166,9 @@ namespace System.Text
         }
 
         /// <summary>
-        /// Locates the last occurrence of <paramref name="separator"/> within this <see cref="Utf8String"/> instance, creating <see cref="Utf8Span"/>
+        /// Locates the last occurrence of <paramref name="separator"/> within this <see cref="Utf8Span"/> instance, creating <see cref="Utf8Span"/>
         /// instances which represent the data on either side of the separator. If <paramref name="separator"/> is not found
-        /// within this <see cref="Utf8String"/> instance, returns the tuple "(this, Empty)".
+        /// within this <see cref="Utf8Span"/> instance, returns the tuple "(this, Empty)".
         /// </summary>
         /// <remarks>
         /// An ordinal search is performed.
@@ -179,9 +179,9 @@ namespace System.Text
         }
 
         /// <summary>
-        /// Locates the last occurrence of <paramref name="separator"/> within this <see cref="Utf8String"/> instance, creating <see cref="Utf8Span"/>
+        /// Locates the last occurrence of <paramref name="separator"/> within this <see cref="Utf8Span"/> instance, creating <see cref="Utf8Span"/>
         /// instances which represent the data on either side of the separator. If <paramref name="separator"/> is not found
-        /// within this <see cref="Utf8String"/> instance, returns the tuple "(this, Empty)".
+        /// within this <see cref="Utf8Span"/> instance, returns the tuple "(this, Empty)".
         /// </summary>
         /// <remarks>
         /// The search is performed using the specified <paramref name="comparisonType"/>.
@@ -192,27 +192,27 @@ namespace System.Text
         }
 
         /// <summary>
-        /// Locates the last occurrence of <paramref name="separator"/> within this <see cref="Utf8String"/> instance, creating <see cref="Utf8Span"/>
+        /// Locates the last occurrence of <paramref name="separator"/> within this <see cref="Utf8Span"/> instance, creating <see cref="Utf8Span"/>
         /// instances which represent the data on either side of the separator. If <paramref name="separator"/> is not found
-        /// within this <see cref="Utf8String"/> instance, returns the tuple "(this, Empty)".
+        /// within this <see cref="Utf8Span"/> instance, returns the tuple "(this, Empty)".
         /// </summary>
         /// <remarks>
         /// An ordinal search is performed.
         /// </remarks>
-        public SplitOnResult SplitOnLast(Utf8String separator)
+        public SplitOnResult SplitOnLast(Utf8Span separator)
         {
             return TryFindLast(separator, out Range range) ? new SplitOnResult(this, range) : new SplitOnResult(this);
         }
 
         /// <summary>
-        /// Locates the last occurrence of <paramref name="separator"/> within this <see cref="Utf8String"/> instance, creating <see cref="Utf8Span"/>
+        /// Locates the last occurrence of <paramref name="separator"/> within this <see cref="Utf8Span"/> instance, creating <see cref="Utf8Span"/>
         /// instances which represent the data on either side of the separator. If <paramref name="separator"/> is not found
-        /// within this <see cref="Utf8String"/> instance, returns the tuple "(this, Empty)".
+        /// within this <see cref="Utf8Span"/> instance, returns the tuple "(this, Empty)".
         /// </summary>
         /// <remarks>
         /// The search is performed using the specified <paramref name="comparisonType"/>.
         /// </remarks>
-        public SplitOnResult SplitOnLast(Utf8String separator, StringComparison comparisonType)
+        public SplitOnResult SplitOnLast(Utf8Span separator, StringComparison comparisonType)
         {
             return TryFindLast(separator, comparisonType, out Range range) ? new SplitOnResult(this, range) : new SplitOnResult(this);
         }
