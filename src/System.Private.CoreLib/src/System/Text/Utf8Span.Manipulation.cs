@@ -330,6 +330,7 @@ namespace System.Text
                 if (firstItem.IsNull)
                 {
                     firstItem = remainder;
+                    remainder = default;
                 }
             }
 
