@@ -201,7 +201,7 @@ namespace System.Text
             {
                 fixed (byte* pData = &MemoryMarshal.GetReference(Bytes))
                 {
-                    return (ASCIIUtility.GetIndexOfFirstNonAsciiByte(pData, (uint)Length) >= 0);
+                    return (ASCIIUtility.GetIndexOfFirstNonAsciiByte(pData, (uint)Length) == (uint)Length);
                 }
             }
         }
