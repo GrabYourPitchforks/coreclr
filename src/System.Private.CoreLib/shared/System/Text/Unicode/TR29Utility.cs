@@ -14,7 +14,7 @@ namespace System.Text.Unicode
     /// <remarks>
     /// The current implementation is compliant per Rev. 35, https://www.unicode.org/reports/tr29/tr29-35.html.
     /// </remarks>
-    internal static partial class TR29Utility
+    public static partial class TR29Utility
     {
         private delegate OperationStatus DecodeFirstRune<T>(ReadOnlySpan<T> input, out Rune rune, out int elementsConsumed);
 
@@ -157,23 +157,7 @@ namespace System.Text.Unicode
                         processor.Consume();
                     }
 
-                    // We've consumed a pair of RI scalars. If there's another pair, consume that pair
-                    // in a loop as part of this same cluster.
-
-                    do
-                    {
-                        if (processor.NextCategory == GraphemeClusterCategory.RegionalIndicator)
-                        {
-                            Processor<T> tempProcessor = processor; // so we can back up on failure
-                            tempProcessor.Consume();
-                            if (tempProcessor.NextCategory == GraphemeClusterCategory.RegionalIndicator)
-                            {
-                                tempProcessor.Consume(); // rules GB12, GB13 ([^RI] (RI RI)* RI x RI)
-                                processor = tempProcessor;
-                                continue;
-                            }
-                        }
-                    } while (false);
+                    // Standlone RI scalars (or a single pair of RI scalars) can only be followed by trailers.
 
                     goto DrainTrailers; // nothing but trailers after the final RI
 
@@ -258,7 +242,6 @@ namespace System.Text.Unicode
             }
 
             public GraphemeClusterCategory NextCategory { get; private set; }
-            public bool IsFinished => _buffer.IsEmpty;
             public int TotalElementsConsumed { get; private set; }
 
             public void Consume()
