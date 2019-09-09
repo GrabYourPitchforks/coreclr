@@ -14,7 +14,7 @@ namespace System.Text.Unicode
     /// <remarks>
     /// The current implementation is compliant per Rev. 35, https://www.unicode.org/reports/tr29/tr29-35.html.
     /// </remarks>
-    internal static class TR29Utility
+    internal static partial class TR29Utility
     {
         private delegate OperationStatus DecodeFirstRune<T>(ReadOnlySpan<T> input, out Rune rune, out int elementsConsumed);
 
@@ -218,7 +218,7 @@ namespace System.Text.Unicode
         {
             // TODO_UTF8STRING: Bring in the 12:4:4 / 8:4:4 mapping.
 
-            throw new NotImplementedException();
+            return (GraphemeClusterCategory)GraphemeBoundaryMap[value.Value];
         }
 
         private enum GraphemeClusterCategory
