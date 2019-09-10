@@ -189,7 +189,18 @@ namespace System.Text
 
             if (value.IsEmpty)
             {
-                range = default;
+                // sourceString.IndexOf/LastIndexOf(term, comparer) should return the minimum/maximum value index
+                // for which the expression "sourceString.Substring(index).StartsWith(term, comparer)" is true.
+                // The range we return to the caller should reflect this so that they can pull out the correct index.
+
+                if (fromBeginning)
+                {
+                    range = Index.Start..Index.Start;
+                }
+                else
+                {
+                    range = Index.End..Index.End;
+                }
                 return !this.IsEmpty;
             }
 
@@ -449,11 +460,16 @@ namespace System.Text
         {
             int idx;
 
-            if (value.Bytes.Length == 1)
+            if (value.Bytes.Length <= 1)
             {
-                // Special-case ASCII since it's a simple single byte search.
-
-                idx = this.Bytes.LastIndexOf(value.Bytes[0]);
+                if (value.Bytes.Length == 1)
+                {
+                    idx = this.Bytes.LastIndexOf(value.Bytes[0]); // special-case ASCII since it's a single byte search
+                }
+                else
+                {
+                    idx = this.Length; // the last empty substring always occurs at the end of the buffer
+                }
             }
             else
             {
