@@ -252,6 +252,34 @@ namespace System
             return (InternalSubstringWithoutCorrectnessChecks(0, startIndex), InternalSubstringWithoutCorrectnessChecks(startIndex + length, this.Length - (startIndex + length)));
         }
 
+        /// <summary>
+        /// Trims whitespace from the beginning and the end of this <see cref="Utf8String"/>,
+        /// returning a new <see cref="Utf8String"/> containing the resulting slice.
+        /// </summary>
+        public Utf8String Trim() => TrimHelper(TrimType.Both);
+
+        /// <summary>
+        /// Trims whitespace from only the end of this <see cref="Utf8String"/>,
+        /// returning a new <see cref="Utf8String"/> containing the resulting slice.
+        /// </summary>
+        public Utf8String TrimEnd() => TrimHelper(TrimType.Tail);
+
+        private Utf8String TrimHelper(TrimType trimType)
+        {
+            Utf8Span trimmedSpan = this.AsSpan().TrimHelper(trimType);
+
+            // Try to avoid allocating a new Utf8String instance if possible.
+            // Otherwise, allocate a new substring wrapped around the resulting slice.
+
+            return (trimmedSpan.Length == this.Length) ? this : trimmedSpan.ToUtf8String();
+        }
+
+        /// <summary>
+        /// Trims whitespace from only the beginning of this <see cref="Utf8String"/>,
+        /// returning a new <see cref="Utf8String"/> containing the resulting slice.
+        /// </summary>
+        public Utf8String TrimStart() => TrimHelper(TrimType.Head);
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void ValidateStartIndexAndLength(int startIndex, int length)
         {

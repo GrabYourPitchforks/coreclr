@@ -571,6 +571,11 @@ namespace System
         /// </remarks>
         public static Utf8String UnsafeCreateWithoutValidation(ReadOnlySpan<byte> utf8Contents)
         {
+            if (utf8Contents.IsEmpty)
+            {
+                return Empty; // special-case empty input
+            }
+
             // Create and populate the Utf8String instance.
 
             Utf8String newString = FastAllocateSkipZeroInit(utf8Contents.Length);
@@ -613,6 +618,11 @@ namespace System
 
             // Create and populate the Utf8String instance.
             // Can't use FastAllocateSkipZeroInit here because we're handing the raw buffer to user code.
+
+            if (length == 0)
+            {
+                return Empty; // special-case empty input
+            }
 
             Utf8String newString = FastAllocate(length);
             action(newString.DangerousGetMutableSpan(), state);

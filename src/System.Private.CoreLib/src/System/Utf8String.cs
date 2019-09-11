@@ -77,7 +77,7 @@ namespace System
         /// <summary>
         /// Returns the length (in UTF-8 code units, or <see cref="byte"/>s) of this instance.
         /// </summary>
-        public int Length => _length;
+        internal int Length => _length;
 
         /*
          * INDEXERS
@@ -277,6 +277,19 @@ namespace System
         /// </remarks>
         [EditorBrowsable(EditorBrowsableState.Never)] // for compiler use only
         public ref readonly byte GetPinnableReference() => ref _firstByte;
+
+        /// <summary>
+        /// Returns <see langword="true"/> if this UTF-8 text consists of all-ASCII data,
+        /// <see langword="false"/> if there is any non-ASCII data within this UTF-8 text.
+        /// </summary>
+        /// <remarks>
+        /// ASCII text is defined as text consisting only of scalar values in the range [ U+0000..U+007F ].
+        /// The runtime of this method is O(n).
+        /// </remarks>
+        public bool IsAscii()
+        {
+            return this.AsSpan().IsAscii();
+        }
 
         /// <summary>
         /// Returns <see langword="true"/> if <paramref name="value"/> is <see langword="null"/> or zero length;

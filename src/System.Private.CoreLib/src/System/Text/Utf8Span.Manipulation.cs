@@ -229,7 +229,7 @@ namespace System.Text
         /// </summary>
         public Utf8Span TrimEnd() => TrimHelper(TrimType.Tail);
 
-        private Utf8Span TrimHelper(TrimType trimType)
+        internal Utf8Span TrimHelper(TrimType trimType)
         {
             ReadOnlySpan<byte> retSpan = Bytes;
 

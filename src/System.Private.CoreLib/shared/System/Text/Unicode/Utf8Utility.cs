@@ -153,7 +153,9 @@ namespace System.Text.Unicode
                 }
             }
 
-            return Rune.UnsafeCreate(decodedValue); // will Debug.Assert for validity
+            Rune retVal = Rune.UnsafeCreate(decodedValue); // will Debug.Assert for validity
+            Debug.Assert(byteLengthOfDecodedScalar == retVal.Utf8SequenceLength);
+            return retVal;
         }
 #endif // FEATURE_UTF8STRING
     }

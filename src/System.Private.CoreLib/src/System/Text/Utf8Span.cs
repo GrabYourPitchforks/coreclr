@@ -72,7 +72,7 @@ namespace System.Text
             }
         }
 
-        private int Length => Bytes.Length;
+        internal int Length => Bytes.Length;
 
         public Utf8Span this[Range range]
         {
@@ -279,7 +279,7 @@ namespace System.Text
             // TODO_UTF8STRING: Since we know the underlying data is immutable, well-formed UTF-8,
             // we can perform transcoding using an optimized code path that skips all safety checks.
 
-            return new Utf8String(Bytes);
+            return Utf8String.UnsafeCreateWithoutValidation(Bytes);
         }
 
         /// <summary>
