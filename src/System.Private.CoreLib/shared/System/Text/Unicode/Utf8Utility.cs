@@ -107,6 +107,54 @@ namespace System.Text.Unicode
 
             return Utf8String.DangerousCreateWithoutValidation(memStreamBuffer, assumeWellFormed: true);
         }
+
+        /// <summary>
+        /// Given a reference to an input buffer <paramref name="input"/> that starts with well-formed UTF-8
+        /// data, decodes and returns the first scalar value. When this method returns, <paramref name="byteLengthOfDecodedScalar"/>
+        /// will contain the number of bytes needed to encode the scalar value. The behavior of this method
+        /// is undefined if <paramref name="input"/> does not begin with a well-formed UTF-8 sequence.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Rune UnsafeDecodeFirstScalarFromValidInput(ref byte input, out int byteLengthOfDecodedScalar)
+        {
+            Debug.Assert(Unsafe.IsNotNull(ref input));
+
+            uint decodedValue = input; // movzx
+            byteLengthOfDecodedScalar = 1; // If nobody looks at this value, JIT won't bother keeping track of it.
+
+            if (!UnicodeUtility.IsAsciiCodePoint(decodedValue)) // cmp, jcc
+            {
+                // Not an ASCII code point - perhaps a 2-byte sequence?
+
+                Debug.Assert(UnicodeUtility.IsInRangeInclusive(decodedValue, 0xC2, 0xF4), "Invalid UTF-8 lead byte.");
+                Debug.Assert(IsUtf8ContinuationByte(Unsafe.Add(ref input, 1)), "Expected a UTF-8 continuation byte.");
+
+                decodedValue = (decodedValue << 6) + Unsafe.Add(ref input, 1) - (0xC0u << 6) - 0x80u; // shl, movzx, lea
+                byteLengthOfDecodedScalar++;
+
+                if (decodedValue >= 0x0800u) // cmp, jcc
+                {
+                    // Not a 2-byte sequence - perhaps a 3-byte sequence?
+
+                    Debug.Assert(IsUtf8ContinuationByte(Unsafe.Add(ref input, 2)), "Expected a UTF-8 continuation byte.");
+
+                    decodedValue = (decodedValue << 6) + Unsafe.Add(ref input, 2) - ((0xE0u - 0xC0u) << 12) - 0x80u; // shl, movzx, lea
+                    byteLengthOfDecodedScalar++;
+
+                    if (decodedValue >= 0x10000u) // cmp, jcc
+                    {
+                        // Not a 3-byte sequence - must be a 4-byte sequence.
+
+                        Debug.Assert(IsUtf8ContinuationByte(Unsafe.Add(ref input, 3)), "Expected a UTF-8 continuation byte.");
+
+                        decodedValue = (decodedValue << 6) + Unsafe.Add(ref input, 3) - ((0xF0u - 0xE0u) << 18) - 0x80u; // shl, movzx, lea
+                        byteLengthOfDecodedScalar++;
+                    }
+                }
+            }
+
+            return Rune.UnsafeCreate(decodedValue); // will Debug.Assert for validity
+        }
 #endif // FEATURE_UTF8STRING
     }
 }
