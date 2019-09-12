@@ -83,13 +83,13 @@ namespace System
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public Utf8String Substring(Index startIndex)
+        internal Utf8String Substring(Index startIndex)
         {
             int actualIndex = startIndex.GetOffset(Length);
             return Substring(actualIndex);
         }
 
-        public Utf8String Substring(int startIndex)
+        internal Utf8String Substring(int startIndex)
         {
             if ((uint)startIndex > (uint)this.Length)
             {
@@ -112,7 +112,7 @@ namespace System
             return InternalSubstring(startIndex, Length - startIndex);
         }
 
-        public Utf8String Substring(int startIndex, int length)
+        internal Utf8String Substring(int startIndex, int length)
         {
             ValidateStartIndexAndLength(startIndex, length);
 

@@ -10,13 +10,19 @@ namespace System
 {
     public sealed partial class Utf8String
     {
-        // Ordinal search
+        /// <summary>
+        /// Returns a value stating whether the current <see cref="Utf8String"/> instance contains
+        /// <paramref name="value"/>. An ordinal comparison is used.
+        /// </summary>
         public bool Contains(char value)
         {
             return Rune.TryCreate(value, out Rune result) && Contains(result);
         }
 
-        // Ordinal search
+        /// <summary>
+        /// Returns a value stating whether the current <see cref="Utf8String"/> instance contains
+        /// the specified <see cref="Rune"/>. An ordinal comparison is used.
+        /// </summary>
         public bool Contains(Rune value)
         {
             // TODO_UTF8STRING: This should be split into two methods:

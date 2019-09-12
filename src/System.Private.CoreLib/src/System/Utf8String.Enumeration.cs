@@ -172,8 +172,8 @@ namespace System
                         return false; // no more data
                     }
 
-                    // TODO_UTF8STRING: Since we assume Utf8String instances are well-formed, we should instead
-                    // call an optimized version of the "decode" routine below which skips well-formedness checks.
+                    // TODO_UTF8STRING: Can we skip correctness checks below?
+                    // This enumerator struct is potentially tearable.
 
                     Rune.DecodeFromUtf8(new ReadOnlySpan<byte>(ref obj.DangerousGetMutableReference(nextByteIdx), obj.Length - (int)nextByteIdx), out Rune currentRune, out int bytesConsumedJustNow);
                     _nextByteIdx = (uint)nextByteIdx + (uint)bytesConsumedJustNow;
@@ -186,7 +186,7 @@ namespace System
                     }
                     else
                     {
-                        // Uncommon case - supplementary plane (astral) scalar value.
+                        // Uncommon case - supplementary (astral) plane scalar value.
                         // We'll smuggle the two UTF-16 code units into a single 32-bit value,
                         // with the leading surrogate packed into the low 16 bits of the value,
                         // and the trailing surrogate packed into the high 16 bits of the value.
@@ -195,6 +195,7 @@ namespace System
                         _currentCharPair = (uint)leadingCodeUnit + ((uint)trailingCodeUnit << 16);
                     }
 
+                    _nextByteIdx = (uint)nextByteIdx + (uint)bytesConsumedJustNow;
                     return true;
                 }
 
@@ -256,8 +257,8 @@ namespace System
                         return false; // no more data
                     }
 
-                    // TODO_UTF8STRING: Since we assume Utf8String instances are well-formed, we should instead
-                    // call an optimized version of the "decode" routine below which skips well-formedness checks.
+                    // TODO_UTF8STRING: Can we skip correctness checks below?
+                    // This enumerator struct is potentially tearable.
 
                     Rune.DecodeFromUtf8(new ReadOnlySpan<byte>(ref obj.DangerousGetMutableReference(nextByteIdx), obj.Length - (int)nextByteIdx), out _currentRune, out int bytesConsumedJustNow);
                     _nextByteIdx = (uint)nextByteIdx + (uint)bytesConsumedJustNow;

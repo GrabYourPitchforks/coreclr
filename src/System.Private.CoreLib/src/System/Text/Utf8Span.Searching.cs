@@ -201,7 +201,7 @@ namespace System.Text
                 {
                     range = Index.End..Index.End;
                 }
-                return !this.IsEmpty;
+                return true;
             }
 
             if (this.IsEmpty)

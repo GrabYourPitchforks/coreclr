@@ -673,7 +673,6 @@ namespace System
         /// <remarks>
         /// The implementation of this method checks its input argument for overflow.
         /// </remarks>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static Utf8String FastAllocateSkipZeroInit(int length)
         {
             // TODO_UTF8STRING: Actually skip zero-init.
