@@ -4,6 +4,7 @@
 
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text.Unicode;
 
@@ -14,6 +15,7 @@ namespace System.Text
         private const Utf8StringSplitOptions STRINGSPLIT_MAXVALUE = Utf8StringSplitOptions.RemoveEmptyEntries | Utf8StringSplitOptions.TrimEntries;
 
         [StackTraceHidden]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void CheckSplitOptions(Utf8StringSplitOptions options)
         {
             if ((uint)options > (uint)(Utf8StringSplitOptions.RemoveEmptyEntries | Utf8StringSplitOptions.TrimEntries))
@@ -325,13 +327,27 @@ namespace System.Text
                 }
 
                 ApplySplitOptions(ref firstItem);
-                ApplySplitOptions(ref remainder);
 
-                if (firstItem.IsNull)
+                // It's possible that 'firstItem' could be null, such as if it's an empty string
+                // and we were asked to trim empty entries. We'll keep iterating either until we
+                // run out of data or until we have a non-null output for firstItem.
+
+                while (firstItem.IsNull && !remainder.IsNull)
                 {
-                    firstItem = remainder;
-                    remainder = default;
+                    if (_searchRune >= 0)
+                    {
+                        Debug.Assert(Rune.IsValid(_searchRune));
+                        remainder.SplitOn(Rune.UnsafeCreate((uint)_searchRune)).Deconstruct(out firstItem, out remainder);
+                    }
+                    else
+                    {
+                        remainder.SplitOn(_searchTerm).Deconstruct(out firstItem, out remainder);
+                    }
+
+                    ApplySplitOptions(ref firstItem);
                 }
+
+                ApplySplitOptions(ref remainder);
             }
 
             [EditorBrowsable(EditorBrowsableState.Never)]
@@ -396,6 +412,8 @@ namespace System.Text
                 DeconstructHelper(in remainder, out item6, out remainder);
                 DeconstructHelper(in remainder, out item7, out item8);
             }
+
+            public Enumerator GetEnumerator() => new Enumerator(this);
 
             [StructLayout(LayoutKind.Auto)]
             public ref struct Enumerator

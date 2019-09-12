@@ -7253,25 +7253,10 @@ bool getILIntrinsicImplementationForUnsafe(MethodDesc * ftn,
     }
     else if (tk == MscorlibBinder::GetMethod(METHOD__UNSAFE__BYREF_IS_NULL)->GetMemberDef())
     {
-        // 'ldnull' opcode would produce type o, and we can't compare & against o.
+        // 'ldnull' opcode would produce type o, and we can't compare & against o (ECMA-335, Table III.4).
         // However, we can compare & against native int, so we'll use that instead.
 
         static const BYTE ilcode[] = { CEE_LDARG_0, CEE_LDC_I4_0, CEE_CONV_U, CEE_PREFIX1, (CEE_CEQ & 0xFF), CEE_RET };
-        methInfo->ILCode = const_cast<BYTE*>(ilcode);
-        methInfo->ILCodeSize = sizeof(ilcode);
-        methInfo->maxStack = 2;
-        methInfo->EHcount = 0;
-        methInfo->options = (CorInfoOptions)0;
-        return true;
-    }
-    else if (tk == MscorlibBinder::GetMethod(METHOD__UNSAFE__BYREF_IS_NOT_NULL)->GetMemberDef())
-    {
-        // 'ldnull' opcode would produce type o, and we can't compare & against o.
-        // However, we can compare & against native int, so we'll use that instead.
-        // Since there's no 'cneq' opcode, we'll use 'cgt.un'. ECMA-335 doesn't explicitly
-        // include this in the support table for & / native int, but we know it works.
-
-        static const BYTE ilcode[] = { CEE_LDARG_0, CEE_LDC_I4_0, CEE_CONV_U, CEE_PREFIX1, (CEE_CGT_UN & 0xFF), CEE_RET };
         methInfo->ILCode = const_cast<BYTE*>(ilcode);
         methInfo->ILCodeSize = sizeof(ilcode);
         methInfo->maxStack = 2;

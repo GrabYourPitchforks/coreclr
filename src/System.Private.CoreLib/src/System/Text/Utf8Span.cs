@@ -66,7 +66,7 @@ namespace System.Text
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             get
             {
-                bool isNull = Unsafe.AreSame(ref MemoryMarshal.GetReference(Bytes), ref Unsafe.AsRef<byte>(null));
+                bool isNull = Unsafe.IsNull(ref MemoryMarshal.GetReference(Bytes));
                 Debug.Assert(!isNull || Length == 0, "If reference is null, Length must be 0.");
                 return isNull;
             }

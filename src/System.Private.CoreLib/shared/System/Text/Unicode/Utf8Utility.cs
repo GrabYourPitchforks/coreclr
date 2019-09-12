@@ -117,7 +117,7 @@ namespace System.Text.Unicode
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Rune UnsafeDecodeFirstScalarFromValidInput(ref byte input, out int byteLengthOfDecodedScalar)
         {
-            Debug.Assert(Unsafe.IsNotNull(ref input));
+            Debug.Assert(!Unsafe.IsNull(ref input));
 
             uint decodedValue = input; // movzx
             byteLengthOfDecodedScalar = 1; // If nobody looks at this value, JIT won't bother keeping track of it.
