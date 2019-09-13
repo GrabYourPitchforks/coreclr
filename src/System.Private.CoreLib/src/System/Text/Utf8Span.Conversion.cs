@@ -5,6 +5,7 @@
 using System.Buffers;
 using System.Diagnostics;
 using System.Globalization;
+using System.Runtime.CompilerServices;
 using System.Text.Unicode;
 
 namespace System.Text
@@ -53,6 +54,38 @@ namespace System.Text
             }
 
             return bytesWritten;
+        }
+
+        /// <summary>
+        /// Converts this <see cref="Utf8Span"/> to a <see langword="char[]"/>.
+        /// </summary>
+        public unsafe char[] ToCharArray()
+        {
+            if (IsEmpty)
+            {
+                return Array.Empty<char>();
+            }
+
+            // TODO_UTF8STRING: Since we know the underlying data is immutable, well-formed UTF-8,
+            // we can perform transcoding using an optimized code path that skips all safety checks.
+            // We should also consider skipping the two-pass if possible.
+
+            fixed (byte* pbUtf8 = &DangerousGetMutableReference())
+            {
+                byte* pbUtf8Invalid = Utf8Utility.GetPointerToFirstInvalidByte(pbUtf8, this.Length, out int utf16CodeUnitCountAdjustment, out _);
+                Debug.Assert(pbUtf8Invalid == pbUtf8 + this.Length, "Invalid UTF-8 data seen in buffer.");
+
+                char[] asUtf16 = new char[this.Length + utf16CodeUnitCountAdjustment];
+                fixed (byte* pbUtf16 = &asUtf16.GetRawSzArrayData())
+                {
+                    OperationStatus status = Utf8Utility.TranscodeToUtf16(pbUtf8, this.Length, (char*)pbUtf16, asUtf16.Length, out byte* pbUtf8End, out char* pchUtf16End);
+                    Debug.Assert(status == OperationStatus.Done, "The buffer changed out from under us unexpectedly?");
+                    Debug.Assert(pbUtf8End == pbUtf8 + this.Length, "The buffer changed out from under us unexpectedly?");
+                    Debug.Assert(pchUtf16End == ((char*)pbUtf16) + asUtf16.Length, "The buffer changed out from under us unexpectedly?");
+
+                    return asUtf16;
+                }
+            }
         }
 
         /// <summary>
