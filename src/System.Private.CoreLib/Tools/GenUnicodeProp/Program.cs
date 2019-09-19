@@ -4,8 +4,10 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.Net;
 
 namespace GenUnicodeProp
 {
@@ -39,6 +41,8 @@ namespace GenUnicodeProp
             numericValueTable.AddData(0, "-1");
             digitValueTable.AddData(0, "255,255");
 
+            ReadPropsList();
+            ReadCaseFolding();
             ReadSourceFile("UnicodeData.txt", categoriesIndexTable, categoriesValueTable, numericIndexTable, numericValueTable, digitValueTable);
 
             categoriesIndexTable.GenerateTable(nameof(categoriesIndexTable), 5, 4);
@@ -150,6 +154,16 @@ namespace GenUnicodeProp
 
         private static readonly Dictionary<string, byte> NumberValues = new Dictionary<string, byte>();
 
+        // List of code points which represent white space.
+        // See: https://unicode.org/cldr/utility/list-unicodeset.jsp?a=[:whitespace:]
+        private static readonly HashSet<uint> WhiteSpaceCodePoints = new HashSet<uint>();
+
+        // Contains simple (single scalar to single scalar) case folding data.
+        // Key = code point, Value = offset to add to code point in order to produce case fold map
+        // Example: 'A' (U+0041) case fold maps to 'a' (U+0061), so map['A'] = (0x0061 - 0x0041).
+        // If a scalar is not found in this map, it case folds to itself.
+        private static readonly Dictionary<uint, int> SimpleCaseFoldingMap = new Dictionary<uint, int>();
+
         /// <summary>
         /// Check if we need to add a new item in the categoriesValueTable.  If yes,
         /// add one item and return the new item number.  Otherwise, return the existing
@@ -175,6 +189,92 @@ namespace GenUnicodeProp
                 categoriesValueTable.AddData(categoryItem, allCategoryValues);
             }
             return categoryItem;
+        }
+
+        /// <summary>
+        /// Read CaseFolding.txt and populate the "simple case folding" map.
+        /// </summary>
+        private static void ReadCaseFolding()
+        {
+            string[] allEntriesInCaseFoldingFile = File.ReadAllLines("CaseFolding.txt");
+
+            foreach (string entry in allEntriesInCaseFoldingFile)
+            {
+                // We're looking for entries in the form:
+                // UUUU; Status; YYYY; # <comment>
+                // Where UUUU = <from>, YYYY = <to>, and Status = 'C' or 'S'
+
+                string[] fields = entry.Split('#');
+                if (fields.Length < 2)
+                {
+                    continue; // line wasn't in the proper format
+                }
+
+                fields = fields[0].Split(';');
+                if (fields.Length != 4)
+                {
+                    continue; // line wasn't in the proper format
+                }
+
+                char status = fields[1].Trim()[0];
+                if (status != 'C' && status != 'S')
+                {
+                    continue; // don't care about anything other than Common or Simple
+                }
+
+                uint codePointFrom = uint.Parse(fields[0], NumberStyles.HexNumber, CultureInfo.InvariantCulture);
+                uint codePointTo = uint.Parse(fields[2], NumberStyles.HexNumber, CultureInfo.InvariantCulture);
+
+                SimpleCaseFoldingMap[codePointFrom] = (int)(codePointTo - codePointFrom);
+            }
+        }
+
+        /// <summary>
+        /// Read PropList.txt and populate the "white space code points" set.
+        /// </summary>
+        private static void ReadPropsList()
+        {
+            string[] allEntriesInPropsFile = File.ReadAllLines("PropList.txt");
+
+            foreach (string entry in allEntriesInPropsFile)
+            {
+                // We're looking for entries in the form:
+                // UUUU[..YYYY] ; White_Space # <comment>
+
+                string[] fields = entry.Split('#');
+                if (fields.Length < 2)
+                {
+                    continue; // line wasn't in the proper format
+                }
+
+                fields = fields[0].Split(';');
+                if (fields.Length != 2)
+                {
+                    continue; // line wasn't in the proper format
+                }
+
+                if (fields[1].Trim() != "White_Space")
+                {
+                    continue; // We don't care about any property other than "White_Space"
+                }
+
+                string[] rangeBoundaries = fields[0].Split("..");
+
+                Debug.Assert(rangeBoundaries.Length >= 1 && rangeBoundaries.Length <= 2);
+
+                uint firstCodePointInRange = uint.Parse(rangeBoundaries[0], NumberStyles.HexNumber, CultureInfo.InvariantCulture);
+                uint lastCodePointInRange = firstCodePointInRange;
+
+                if (rangeBoundaries.Length == 2)
+                {
+                    lastCodePointInRange = uint.Parse(rangeBoundaries[1], NumberStyles.HexNumber, CultureInfo.InvariantCulture);
+                }
+
+                for (uint i = firstCodePointInRange; i <= lastCodePointInRange; i++)
+                {
+                    WhiteSpaceCodePoints.Add(i); // this code point should be treated as white space
+                }
+            }
         }
 
         /// <summary>
@@ -385,6 +485,40 @@ namespace GenUnicodeProp
                 file.Write("0x{0:x2}", str[i]);
             }
             file.Write("\n        };\n");
+        }
+
+        private class CodepointProperties
+        {
+            public UnicodeCategory Category;
+            public RestrictedBidiClass BidiClass;
+            public bool IsWhiteSpace;
+            public int OffsetToSimpleUpperCase;
+            public int OffsetToSimpleLowerCase;
+            public int OffsetToSimpleTitleCase;
+            public int OffsetToSimpleFoldCase;
+
+            public override string ToString()
+            {
+                return FormattableString.Invariant($"{Category}, {BidiClass}, {IsWhiteSpace}, {OffsetToSimpleUpperCase}, {OffsetToSimpleLowerCase}, {OffsetToSimpleTitleCase}, {OffsetToSimpleFoldCase}");
+            }
+        }
+
+        private enum RestrictedBidiClass
+        {
+            /// <summary>
+            /// This code point has a bidi class other than "L", "AL", or "R".
+            /// </summary>
+            Other = 0,
+
+            /// <summary>
+            /// This code point has strong left-to-right ordering (bidi class "L").
+            /// </summary>
+            LeftToRight = 1,
+
+            /// <summary>
+            /// This code point has strong right-to-left ordering (bidi class "AL" or "R").
+            /// </summary>
+            RightToLeft = 2
         }
     }
 }
