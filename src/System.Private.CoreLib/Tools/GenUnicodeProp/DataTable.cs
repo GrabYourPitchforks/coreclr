@@ -171,28 +171,28 @@ namespace GenUnicodeProp
         }
     }
 
-    internal sealed class FlatDataTable
+    internal sealed class FlatDataTable<T>
     {
         // If a codepoint does not have data, this specifies the default value.
-        private readonly string DefaultValue;
-        private readonly Func<string, byte[]> GetValueBytesCallback;
+        private readonly T DefaultValue;
+        private readonly Func<T, byte[]> DefaultGetValueBytesCallback;
 
         // This contains the data mapping between codepoints and values.
-        private readonly SortedDictionary<uint, string> RawData = new SortedDictionary<uint, string>();
+        private readonly SortedDictionary<uint, T> RawData = new SortedDictionary<uint, T>();
 
-        public FlatDataTable(string defaultValue, Func<string, byte[]> getValueBytesCallback)
+        public FlatDataTable(T defaultValue, Func<T, byte[]> getValueBytesCallback)
         {
             DefaultValue = defaultValue;
-            GetValueBytesCallback = getValueBytesCallback;
+            DefaultGetValueBytesCallback = getValueBytesCallback;
         }
 
-        public void AddData(uint codepoint, string value) => RawData[codepoint] = value;
+        public void AddData(uint codepoint, T value) => RawData[codepoint] = value;
 
-        public byte[] GetBytesFlat()
+        public byte[] GetBytesFlat(Func<T, byte[]> getValueBytesCallback = null)
         {
             var str = new List<byte>();
             foreach (var v in RawData.Values)
-                str.AddRange(GetValueBytesCallback(v ?? DefaultValue));
+                str.AddRange((getValueBytesCallback ?? DefaultGetValueBytesCallback)(v ?? DefaultValue));
             return str.ToArray();
         }
     }
