@@ -29,7 +29,7 @@ namespace System.Text
         // - 0x40 bit if set means 'is letter or digit'
         // - 0x20 bit is reserved for future use
         // - bottom 5 bits are the UnicodeCategory of the character
-        private static ReadOnlySpan<byte> AsciiCharInfo => new byte[]
+        private static ReadOnlySpan<byte> AsciiCharInfo => new byte[128]
         {
             0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x8E, 0x8E, 0x8E, 0x8E, 0x8E, 0x0E, 0x0E,
             0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E,
@@ -1237,16 +1237,7 @@ namespace System.Text
                 return (AsciiCharInfo[value.Value] & IsWhiteSpaceFlag) != 0;
             }
 
-            // U+0085 is special since it's a whitespace character but is in the Control category
-            // instead of a normal separator category. No other code point outside the ASCII range
-            // has this mismatch.
-
-            if (value._value == 0x0085u)
-            {
-                return true;
-            }
-
-            return IsCategorySeparator(GetUnicodeCategoryNonAscii(value));
+            return CharUnicodeInfo.IsWhiteSpace(value.Value);
         }
 
         public static Rune ToLower(Rune value, CultureInfo culture)
