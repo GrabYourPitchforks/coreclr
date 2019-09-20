@@ -4283,6 +4283,13 @@ NamedIntrinsic Compiler::lookupNamedIntrinsic(CORINFO_METHOD_HANDLE method)
                 }
             }
         }
+        else if (strcmp(className, "String") == 0)
+        {
+            if (strcmp(methodName, "UnsafeGetCharAt") == 0)
+            {
+                result = NI_System_String_UnsafeGetCharAt;
+            }
+        }
     }
 #if defined(_TARGET_XARCH_) // We currently only support BSWAP on x86
     else if (strcmp(namespaceName, "System.Buffers.Binary") == 0)
