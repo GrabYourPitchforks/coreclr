@@ -4403,7 +4403,7 @@ struct GenTreeIndex : public GenTreeOp
     unsigned             gtIndElemSize;     // size of elements in the array
     CORINFO_CLASS_HANDLE gtStructElemClass; // If the element type is a struct, this is the struct type.
 
-    GenTreeIndex(var_types type, GenTree* arr, GenTree* ind, unsigned indElemSize)
+    GenTreeIndex(var_types type, GenTree* arr, GenTree* ind, unsigned indElemSize, bool skipBoundsCheck = false)
         : GenTreeOp(GT_INDEX, type, arr, ind)
         , gtIndElemSize(indElemSize)
         , gtStructElemClass(nullptr) // We always initialize this after construction.
@@ -4411,10 +4411,11 @@ struct GenTreeIndex : public GenTreeOp
 #ifdef DEBUG
         if (JitConfig.JitSkipArrayBoundCheck() == 1)
         {
-            // Skip bounds check
+            skipBoundsCheck = true;
         }
-        else
 #endif
+
+        if (!skipBoundsCheck)
         {
             // Do bounds check
             gtFlags |= GTF_INX_RNGCHK;
