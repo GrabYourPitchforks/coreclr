@@ -14,6 +14,15 @@ using System.Runtime.Versioning;
 using System.Text;
 using Internal.Runtime.CompilerServices;
 
+#pragma warning disable SA1121 // explicitly using type aliases instead of built-in types
+#if BIT64
+using nint = System.Int64;
+using nuint = System.UInt64;
+#else
+using nint = System.Int32;
+using nuint = System.UInt32;
+#endif
+
 namespace System
 {
     // The String class represents a static string of characters.  Many of
@@ -702,6 +711,38 @@ namespace System
             {
                 return ASCIIUtility.GetIndexOfFirstNonAsciiChar(str, (uint)Length) == (uint)Length;
             }
+        }
+
+        /// <summary>
+        /// Retrieves the <see cref="char"/> at index <paramref name="index"/>.
+        /// No bounds checking is enabled. Callers may use this to read the null
+        /// terminator at the end of the <see cref="string"/> instance but must
+        /// not read past that point.
+        /// </summary>
+        [Intrinsic]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal unsafe ref readonly char UnsafeGetCharAt(int index)
+        {
+            // The implementation of this method will be replaced by the JIT.
+
+            Debug.Assert((uint)index <= (uint)Length);
+            return ref Unsafe.Add(ref _firstChar, (IntPtr)(void*)(uint)index);
+        }
+
+        /// <summary>
+        /// Retrieves the <see cref="char"/> at index <paramref name="index"/>.
+        /// No bounds checking is enabled. Callers may use this to read the null
+        /// terminator at the end of the <see cref="string"/> instance but must
+        /// not read past that point.
+        /// </summary>
+        [Intrinsic]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal unsafe ref readonly char UnsafeGetCharAt(nuint index)
+        {
+            // The implementation of this method will be replaced by the JIT.
+
+            Debug.Assert(index <= (uint)Length);
+            return ref Unsafe.Add(ref _firstChar, (IntPtr)(void*)index);
         }
     }
 }
