@@ -721,12 +721,12 @@ namespace System
         /// </summary>
         [Intrinsic]
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal unsafe ref readonly char UnsafeGetCharAt(int index)
+        internal unsafe char UnsafeGetCharAt(int index)
         {
             // The implementation of this method will be replaced by the JIT.
 
             Debug.Assert((uint)index <= (uint)Length);
-            return ref Unsafe.Add(ref _firstChar, (IntPtr)(void*)(uint)index);
+            return Unsafe.Add(ref _firstChar, (IntPtr)(void*)(uint)index);
         }
 
         /// <summary>
@@ -737,12 +737,12 @@ namespace System
         /// </summary>
         [Intrinsic]
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal unsafe ref readonly char UnsafeGetCharAt(nuint index)
+        internal unsafe char UnsafeGetCharAt(nuint index)
         {
             // The implementation of this method will be replaced by the JIT.
 
             Debug.Assert(index <= (uint)Length);
-            return ref Unsafe.Add(ref _firstChar, (IntPtr)(void*)index);
+            return Unsafe.Add(ref _firstChar, (IntPtr)(void*)index);
         }
     }
 }

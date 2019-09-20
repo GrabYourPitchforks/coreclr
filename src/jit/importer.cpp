@@ -4057,6 +4057,18 @@ GenTree* Compiler::impIntrinsic(GenTree*                newobjThis,
                 break;
             }
 
+            case NI_System_String_UnsafeGetCharAt:
+            {
+                // Similar to the 'CORINFO_INTRINSIC_StringGetChar' case,
+                // but suppresses bounds checking.
+
+                GenTree* op2 = impPopStack().val;
+                GenTree* op1 = impPopStack().val;
+                retNode      = gtNewIndexRef(TYP_USHORT, op1, op2, true /* skipBoundsCheck */);
+                retNode->gtFlags |= GTF_INX_STRING_LAYOUT;
+                break;
+            }
+
             case NI_System_Collections_Generic_EqualityComparer_get_Default:
             {
                 // Flag for later handling during devirtualization.
