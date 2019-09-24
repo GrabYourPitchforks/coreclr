@@ -4,8 +4,24 @@
 
 using System.Buffers.Binary;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Text;
 using Internal.Runtime.CompilerServices;
+
+#pragma warning disable SA1121 // explicitly using type aliases instead of built-in types
+#if BIT64
+using nuint = System.UInt64;
+#else
+using nuint = System.UInt32;
+#endif
+#if !CORECLR
+#if BIT64
+using nint = System.Int64;
+#else
+using nint = System.Int32;
+#endif
+#endif
 
 namespace System.Globalization
 {
@@ -216,6 +232,7 @@ namespace System.Globalization
             return (sbyte)InternalGetDigitValues(InternalConvertToUtf32(s, index), 1);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static UnicodeCategory GetUnicodeCategory(char ch)
         {
             return GetUnicodeCategory((int)ch);
@@ -235,31 +252,47 @@ namespace System.Globalization
             return InternalGetUnicodeCategory(s, index);
         }
 
-        public static UnicodeCategory GetUnicodeCategory(int codePoint)
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static unsafe UnicodeCategory GetUnicodeCategory(int codePoint)
         {
-            return (UnicodeCategory)InternalGetCategoryValue(codePoint, UNICODE_CATEGORY_OFFSET);
+            nuint index = GetCategoriesValueTableIndex((uint)codePoint);
+            return (UnicodeCategory)Unsafe.AddByteOffset(ref Unsafe.AddByteOffset(ref MemoryMarshal.GetReference(CategoriesValue), index * 2), UNICODE_CATEGORY_OFFSET);
         }
 
         /// <summary>
-        /// Returns the Unicode Category property for the character c.
-        /// Note that this API will return values for D800-DF00 surrogate halves.
+        /// Given a code point (U+0000..U+10FFFF), gets the index into the flat tables
+        /// where this code point's category data is stored. Throws ArgumentOutOfRangeException if
+        /// the code point is greater than U+10FFFF.
         /// </summary>
-        internal static byte InternalGetCategoryValue(int ch, int offset)
+        private static nuint GetCategoriesValueTableIndex(uint codePoint)
         {
-            Debug.Assert(ch >= 0 && ch <= 0x10ffff, "ch is not in valid Unicode range.");
-            // Get the level 2 item from the highest 11 bits of ch.
-            int index = CategoryLevel1Index[ch >> 9];
-            // Get the level 2 WORD offset from the next 5 bits of ch.  This provides the base offset of the level 3 table.
-            // Note that & has the lower precedence than addition, so don't forget the parathesis.
-            index = Unsafe.ReadUnaligned<ushort>(ref Unsafe.AsRef(in CategoryLevel2Index[(index << 6) + ((ch >> 3) & 0b111110)]));
-            if (!BitConverter.IsLittleEndian)
+            if (codePoint >= 0x10FFFF)
             {
-                index = BinaryPrimitives.ReverseEndianness((ushort)index);
+                ThrowHelper.ThrowArgumentOutOfRangeException(ExceptionArgument.codePoint);
             }
 
-            // Get the result from the 0 -3 bit of ch.
-            index = CategoryLevel3Index[(index << 4) + (ch & 0x000f)];
-            return CategoriesValue[index * 2 + offset];
+            // Get the level 2 item from the highest 11 bits of the code point.
+
+            uint index = Unsafe.AddByteOffset(ref MemoryMarshal.GetReference(CategoryLevel1Index), codePoint >> 9);
+
+            // Get the level 2 WORD offset from the next 5 bits of the code point.
+            // This provides the base offset of the level 3 table.
+            // Note that & has the lower precedence than addition, so don't forget the parens.
+
+            ref byte level2Ref = ref Unsafe.AddByteOffset(ref MemoryMarshal.GetReference(CategoryLevel2Index), (index << 6) + ((codePoint >> 3) & 0b0111110));
+
+            if (BitConverter.IsLittleEndian)
+            {
+                index = Unsafe.ReadUnaligned<ushort>(ref level2Ref);
+            }
+            else
+            {
+                index = BinaryPrimitives.ReverseEndianness(Unsafe.ReadUnaligned<ushort>(ref level2Ref));
+            }
+
+            // Get the result from the low nibble of the code point.
+
+            return Unsafe.AddByteOffset(ref MemoryMarshal.GetReference(CategoryLevel3Index), (index << 4) + (codePoint & 0xf));
         }
 
         /// <summary>
@@ -284,7 +317,7 @@ namespace System.Globalization
                 throw new ArgumentOutOfRangeException(nameof(index));
             }
 
-            return ((BidiCategory)InternalGetCategoryValue(InternalConvertToUtf32(s, index), BIDI_CATEGORY_OFFSET));
+            return GetBidiCategory(InternalConvertToUtf32(s, index));
         }
 
         internal static BidiCategory GetBidiCategory(StringBuilder s, int index)
@@ -292,7 +325,13 @@ namespace System.Globalization
             Debug.Assert(s != null, "s can not be null");
             Debug.Assert(index >= 0 && index < s.Length, "invalid index");
 
-            return ((BidiCategory)InternalGetCategoryValue(InternalConvertToUtf32(s, index), BIDI_CATEGORY_OFFSET));
+            return GetBidiCategory(InternalConvertToUtf32(s, index));
+        }
+
+        internal static BidiCategory GetBidiCategory(int codePoint)
+        {
+            nuint index = GetCategoriesValueTableIndex((uint)codePoint);
+            return (BidiCategory)Unsafe.AddByteOffset(ref MemoryMarshal.GetReference(CategoriesValue), index * 2 + BIDI_CATEGORY_OFFSET);
         }
 
         /// <summary>
