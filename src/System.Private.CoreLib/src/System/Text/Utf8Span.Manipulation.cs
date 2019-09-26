@@ -12,8 +12,6 @@ namespace System.Text
 {
     public readonly ref partial struct Utf8Span
     {
-        private const Utf8StringSplitOptions STRINGSPLIT_MAXVALUE = Utf8StringSplitOptions.RemoveEmptyEntries | Utf8StringSplitOptions.TrimEntries;
-
         [StackTraceHidden]
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void CheckSplitOptions(Utf8StringSplitOptions options)
@@ -36,7 +34,9 @@ namespace System.Text
         {
             if (!Rune.TryCreate(separator, out Rune rune))
             {
-                ThrowHelper.ThrowArgumentOutOfRangeException(ExceptionArgument.separator, ExceptionResource.ArgumentOutOfRange_Utf16SurrogatesDisallowed);
+                throw new ArgumentOutOfRangeException(
+                    paramName: nameof(separator),
+                    message: SR.ArgumentOutOfRange_Utf16SurrogatesDisallowed);
             }
 
             CheckSplitOptions(options);
@@ -55,7 +55,9 @@ namespace System.Text
         {
             if (separator.IsEmpty)
             {
-                ThrowHelper.ThrowArgumentException(ExceptionResource.Argument_CannotBeEmptySpan, ExceptionArgument.separator);
+                throw new ArgumentException(
+                    paramName: nameof(separator),
+                    message: SR.Argument_CannotBeEmptySpan);
             }
 
             CheckSplitOptions(options);

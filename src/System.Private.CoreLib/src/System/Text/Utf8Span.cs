@@ -282,7 +282,6 @@ namespace System.Text
         ///
         /// If these invariants are not maintained, the runtime may exhibit undefined behavior.
         /// </remarks>
-        [UnsafeMember]
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Utf8Span UnsafeCreateWithoutValidation(ReadOnlySpan<byte> buffer)
         {

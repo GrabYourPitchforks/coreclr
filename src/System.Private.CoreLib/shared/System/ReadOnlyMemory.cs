@@ -6,6 +6,7 @@ using System.Buffers;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Text;
 using EditorBrowsableAttribute = System.ComponentModel.EditorBrowsableAttribute;
 using EditorBrowsableState = System.ComponentModel.EditorBrowsableState;
 
@@ -109,7 +110,7 @@ namespace System
             Debug.Assert((obj == null)
                 || (typeof(T) == typeof(char) && obj is string)
 #if FEATURE_UTF8STRING
-                || (typeof(T) == typeof(byte) && obj is Utf8String)
+                || ((typeof(T) == typeof(byte) || typeof(T) == typeof(Char8)) && obj is Utf8String)
 #endif // FEATURE_UTF8STRING
                 || (obj is T[])
                 || (obj is MemoryManager<T>));
@@ -154,6 +155,14 @@ namespace System
             {
                 return (_object is string str) ? str.Substring(_index, _length) : Span.ToString();
             }
+#if FEATURE_UTF8STRING
+            else if (typeof(T) == typeof(Char8))
+            {
+                // TODO_UTF8STRING: Call into optimized transcoding routine when it's available.
+                ReadOnlySpan<T> span = Span;
+                return Encoding.UTF8.GetString(new ReadOnlySpan<byte>(ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(span)), span.Length));
+            }
+#endif // FEATURE_UTF8STRING
             return string.Format("System.ReadOnlyMemory<{0}>[{1}]", typeof(T).Name, _length);
         }
 
@@ -224,7 +233,7 @@ namespace System
                         lengthOfUnderlyingSpan = Unsafe.As<string>(tmpObject).Length;
                     }
 #if FEATURE_UTF8STRING
-                    else if (typeof(T) == typeof(byte) && tmpObject.GetType() == typeof(Utf8String))
+                    else if ((typeof(T) == typeof(byte) || typeof(T) == typeof(Char8)) && tmpObject.GetType() == typeof(Utf8String))
                     {
                         refToReturn = ref Unsafe.As<byte, T>(ref Unsafe.As<Utf8String>(tmpObject).DangerousGetMutableReference());
                         lengthOfUnderlyingSpan = Unsafe.As<Utf8String>(tmpObject).Length;
@@ -334,7 +343,7 @@ namespace System
                     return new MemoryHandle(Unsafe.AsPointer(ref stringData), handle);
                 }
 #if FEATURE_UTF8STRING
-                else if (typeof(T) == typeof(byte) && tmpObject is Utf8String utf8String)
+                else if ((typeof(T) == typeof(byte) || typeof(T) == typeof(Char8)) && tmpObject is Utf8String utf8String)
                 {
                     GCHandle handle = GCHandle.Alloc(tmpObject, GCHandleType.Pinned);
                     ref byte stringData = ref utf8String.DangerousGetMutableReference(_index);
