@@ -342,7 +342,6 @@ namespace System.Text
         ///
         /// If these invariants are not maintained, the runtime may exhibit undefined behavior.
         /// </remarks>
-        [UnsafeMember]
         public static Utf8Segment UnsafeCreateWithoutValidation(ReadOnlyMemory<byte> buffer)
         {
             return new Utf8Segment(buffer);

@@ -115,9 +115,9 @@ namespace System.Text.Unicode
         /// is undefined if <paramref name="input"/> does not begin with a well-formed UTF-8 sequence.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Rune UnsafeDecodeFirstScalarFromValidInput(ref byte input, out int byteLengthOfDecodedScalar)
+        public static unsafe Rune UnsafeDecodeFirstScalarFromValidInput(ref byte input, out int byteLengthOfDecodedScalar)
         {
-            Debug.Assert(!Unsafe.IsNull(ref input));
+            Debug.Assert(Unsafe.AsPointer(ref input) != null);
 
             uint decodedValue = input; // movzx
             byteLengthOfDecodedScalar = 1; // If nobody looks at this value, JIT won't bother keeping track of it.
