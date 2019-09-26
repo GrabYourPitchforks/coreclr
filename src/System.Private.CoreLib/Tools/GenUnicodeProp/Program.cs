@@ -386,5 +386,48 @@ namespace GenUnicodeProp
             }
             file.Write("\n        };\n");
         }
+
+        /// <summary>
+        /// Reads emoji-data.txt and returns the set of code points with the "Extended_Pictographic" property.
+        /// </summary>
+        private static HashSet<uint> GetExtendedPictographicCodePoints()
+        {
+            HashSet<uint> set = new HashSet<uint>();
+
+            foreach (string line in File.ReadAllLines("emoji-data.txt"))
+            {
+                if (PropsFileEntry.TryParseLine(line, out PropsFileEntry parsedEntry)
+                    && parsedEntry.PropName == "Extended_Pictographic")
+                {
+                    for (uint i = parsedEntry.FirstCodePoint; i <= parsedEntry.LastCodePoint; i++)
+                    {
+                        set.Add(i);
+                    }
+                }
+            }
+
+            return set;
+        }
+
+        /// <summary>
+        /// Reads GraphemeBreakProperty.txt and returns the map of code points to grapheme break properties.
+        /// </summary>
+        private static Dictionary<uint, string> GetGraphemeBreakPropertyMap()
+        {
+            Dictionary<uint, string> map = new Dictionary<uint, string>();
+
+            foreach (string line in File.ReadAllLines("GraphemeBreakProperty.txt"))
+            {
+                if (PropsFileEntry.TryParseLine(line, out PropsFileEntry parsedEntry))
+                {
+                    for (uint i = parsedEntry.FirstCodePoint; i <= parsedEntry.LastCodePoint; i++)
+                    {
+                        map.Add(i, parsedEntry.PropName);
+                    }
+                }
+            }
+
+            return map;
+        }
     }
 }
