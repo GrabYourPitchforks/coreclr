@@ -378,7 +378,7 @@ namespace System.Collections.Generic
                     if (default(TKey)! != null) // TODO-NULLABLE: default(T) == null warning (https://github.com/dotnet/roslyn/issues/34757)
                     {
                         // ValueType: Devirtualize with EqualityComparer<TValue>.Default intrinsic
-                        do
+                        while (true)
                         {
                             // Should be a while loop https://github.com/dotnet/coreclr/issues/15476
                             // Test in if to drop range check for following array access
@@ -395,7 +395,7 @@ namespace System.Collections.Generic
                                 ThrowHelper.ThrowInvalidOperationException_ConcurrentOperationsNotSupported();
                             }
                             collisionCount++;
-                        } while (true);
+                        }
                     }
                     else
                     {
@@ -403,7 +403,7 @@ namespace System.Collections.Generic
                         // https://github.com/dotnet/coreclr/issues/17273
                         // So cache in a local rather than get EqualityComparer per loop iteration
                         EqualityComparer<TKey> defaultComparer = EqualityComparer<TKey>.Default;
-                        do
+                        while (true)
                         {
                             // Should be a while loop https://github.com/dotnet/coreclr/issues/15476
                             // Test in if to drop range check for following array access
@@ -420,7 +420,7 @@ namespace System.Collections.Generic
                                 ThrowHelper.ThrowInvalidOperationException_ConcurrentOperationsNotSupported();
                             }
                             collisionCount++;
-                        } while (true);
+                        }
                     }
                 }
                 else
@@ -428,7 +428,7 @@ namespace System.Collections.Generic
                     uint hashCode = (uint)comparer.GetHashCode(key);
                     // Value in _buckets is 1-based
                     i = buckets[hashCode % (uint)buckets.Length] - 1;
-                    do
+                    while (true)
                     {
                         // Should be a while loop https://github.com/dotnet/coreclr/issues/15476
                         // Test in if to drop range check for following array access
@@ -446,7 +446,7 @@ namespace System.Collections.Generic
                             ThrowHelper.ThrowInvalidOperationException_ConcurrentOperationsNotSupported();
                         }
                         collisionCount++;
-                    } while (true);
+                    }
                 }
             }
 
@@ -493,7 +493,7 @@ namespace System.Collections.Generic
                 if (default(TKey)! != null) // TODO-NULLABLE: default(T) == null warning (https://github.com/dotnet/roslyn/issues/34757)
                 {
                     // ValueType: Devirtualize with EqualityComparer<TValue>.Default intrinsic
-                    do
+                    while (true)
                     {
                         // Should be a while loop https://github.com/dotnet/coreclr/issues/15476
                         // Test uint in if rather than loop condition to drop range check for following array access
@@ -527,7 +527,7 @@ namespace System.Collections.Generic
                             ThrowHelper.ThrowInvalidOperationException_ConcurrentOperationsNotSupported();
                         }
                         collisionCount++;
-                    } while (true);
+                    }
                 }
                 else
                 {
@@ -535,7 +535,7 @@ namespace System.Collections.Generic
                     // https://github.com/dotnet/coreclr/issues/17273
                     // So cache in a local rather than get EqualityComparer per loop iteration
                     EqualityComparer<TKey> defaultComparer = EqualityComparer<TKey>.Default;
-                    do
+                    while (true)
                     {
                         // Should be a while loop https://github.com/dotnet/coreclr/issues/15476
                         // Test uint in if rather than loop condition to drop range check for following array access
@@ -569,12 +569,12 @@ namespace System.Collections.Generic
                             ThrowHelper.ThrowInvalidOperationException_ConcurrentOperationsNotSupported();
                         }
                         collisionCount++;
-                    } while (true);
+                    }
                 }
             }
             else
             {
-                do
+                while (true)
                 {
                     // Should be a while loop https://github.com/dotnet/coreclr/issues/15476
                     // Test uint in if rather than loop condition to drop range check for following array access
@@ -608,8 +608,7 @@ namespace System.Collections.Generic
                         ThrowHelper.ThrowInvalidOperationException_ConcurrentOperationsNotSupported();
                     }
                     collisionCount++;
-                } while (true);
-
+                }
             }
 
             bool updateFreeList = false;
@@ -1101,7 +1100,7 @@ namespace System.Collections.Generic
             {
                 ThrowHelper.ThrowArgumentNullException(ExceptionArgument.key);
             }
-            return (key is TKey);
+            return key is TKey;
         }
 
         void IDictionary.Add(object key, object? value)

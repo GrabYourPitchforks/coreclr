@@ -228,7 +228,7 @@ void Rationalizer::RewriteIntrinsicAsUserCall(GenTree** use, ArrayStack<GenTree*
 
 #ifdef DEBUG
 
-void Rationalizer::ValidateStatement(GenTreeStmt* stmt, BasicBlock* block)
+void Rationalizer::ValidateStatement(Statement* stmt, BasicBlock* block)
 {
     DBEXEC(TRUE, JitTls::GetCompiler()->fgDebugCheckNodeLinks(block, stmt));
 }
@@ -240,7 +240,7 @@ void Rationalizer::SanityCheck()
     BasicBlock* block;
     foreach_block(comp, block)
     {
-        for (GenTreeStmt* statement = block->firstStmt(); statement != nullptr; statement = statement->getNextStmt())
+        for (Statement* statement : block->Statements())
         {
             ValidateStatement(statement, block);
 
@@ -294,8 +294,8 @@ static void RewriteAssignmentIntoStoreLclCore(GenTreeOp* assignment,
     GenTreeLclVarCommon* store = assignment->AsLclVarCommon();
 
     GenTreeLclVarCommon* var = location->AsLclVarCommon();
-    store->SetLclNum(var->gtLclNum);
-    store->SetSsaNum(var->gtSsaNum);
+    store->SetLclNum(var->GetLclNum());
+    store->SetSsaNum(var->GetSsaNum());
 
     if (locationOp == GT_LCL_FLD)
     {
@@ -368,7 +368,7 @@ void Rationalizer::RewriteAssignment(LIR::Use& use)
                 // We need to construct a block node for the location.
                 // Modify lcl to be the address form.
                 location->SetOper(addrForm(locationOp));
-                LclVarDsc* varDsc     = &(comp->lvaTable[location->AsLclVarCommon()->gtLclNum]);
+                LclVarDsc* varDsc     = &(comp->lvaTable[location->AsLclVarCommon()->GetLclNum()]);
                 location->gtType      = TYP_BYREF;
                 GenTreeBlk*  storeBlk = nullptr;
                 unsigned int size     = varDsc->lvExactSize;
@@ -930,14 +930,14 @@ void Rationalizer::DoPhase()
 
         // Establish the first and last nodes for the block. This is necessary in order for the LIR
         // utilities that hang off the BasicBlock type to work correctly.
-        GenTreeStmt* firstStatement = block->firstStmt();
+        Statement* firstStatement = block->firstStmt();
         if (firstStatement == nullptr)
         {
             // No statements in this block; skip it.
             continue;
         }
 
-        for (GenTreeStmt* statement = firstStatement; statement != nullptr; statement = statement->getNextStmt())
+        for (Statement* statement : StatementList(firstStatement))
         {
             assert(statement->gtStmtList != nullptr);
             assert(statement->gtStmtList->gtPrev == nullptr);

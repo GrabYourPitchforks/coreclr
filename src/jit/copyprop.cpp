@@ -29,7 +29,7 @@
  */
 void Compiler::optBlockCopyPropPopStacks(BasicBlock* block, LclNumToGenTreePtrStack* curSsaName)
 {
-    for (GenTreeStmt* stmt = block->firstStmt(); stmt != nullptr; stmt = stmt->getNextStmt())
+    for (Statement* stmt : block->Statements())
     {
         for (GenTree* tree = stmt->gtStmtList; tree != nullptr; tree = tree->gtNext)
         {
@@ -37,7 +37,7 @@ void Compiler::optBlockCopyPropPopStacks(BasicBlock* block, LclNumToGenTreePtrSt
             {
                 continue;
             }
-            unsigned lclNum = tree->gtLclVarCommon.gtLclNum;
+            unsigned lclNum = tree->gtLclVarCommon.GetLclNum();
             if (!lvaInSsa(lclNum))
             {
                 continue;
@@ -63,7 +63,7 @@ void Compiler::optDumpCopyPropStack(LclNumToGenTreePtrStack* curSsaName)
     for (LclNumToGenTreePtrStack::KeyIterator iter = curSsaName->Begin(); !iter.Equal(curSsaName->End()); ++iter)
     {
         GenTree* node = iter.GetValue()->Top();
-        JITDUMP("%d-[%06d]:V%02u ", iter.Get(), dspTreeID(node), node->AsLclVarCommon()->gtLclNum);
+        JITDUMP("%d-[%06d]:V%02u ", iter.Get(), dspTreeID(node), node->AsLclVarCommon()->GetLclNum());
     }
     JITDUMP("}\n\n");
 }
@@ -128,7 +128,7 @@ int Compiler::optCopyProp_LclVarScore(LclVarDsc* lclVarDsc, LclVarDsc* copyVarDs
 //    tree        -  The tree to perform copy propagation on
 //    curSsaName  -  The map from lclNum to its recently live definitions as a stack
 
-void Compiler::optCopyProp(BasicBlock* block, GenTreeStmt* stmt, GenTree* tree, LclNumToGenTreePtrStack* curSsaName)
+void Compiler::optCopyProp(BasicBlock* block, Statement* stmt, GenTree* tree, LclNumToGenTreePtrStack* curSsaName)
 {
     // TODO-Review: EH successor/predecessor iteration seems broken.
     if (block->bbCatchTyp == BBCT_FINALLY || block->bbCatchTyp == BBCT_FAULT)
@@ -321,12 +321,13 @@ void Compiler::optBlockCopyProp(BasicBlock* block, LclNumToGenTreePtrStack* curS
     }
 #endif
 
+    // We are not generating code so we don't need to deal with liveness change
     TreeLifeUpdater<false> treeLifeUpdater(this);
 
     // There are no definitions at the start of the block. So clear it.
     compCurLifeTree = nullptr;
     VarSetOps::Assign(this, compCurLife, block->bbLiveIn);
-    for (GenTreeStmt* stmt = block->firstStmt(); stmt != nullptr; stmt = stmt->getNextStmt())
+    for (Statement* stmt : block->Statements())
     {
         VarSetOps::ClearD(this, optCopyPropKillSet);
 
@@ -353,7 +354,7 @@ void Compiler::optBlockCopyProp(BasicBlock* block, LclNumToGenTreePtrStack* curS
             //
             if (optIsSsaLocal(tree) && (tree->gtFlags & GTF_VAR_DEF))
             {
-                VarSetOps::AddElemD(this, optCopyPropKillSet, lvaTable[tree->gtLclVarCommon.gtLclNum].lvVarIndex);
+                VarSetOps::AddElemD(this, optCopyPropKillSet, lvaTable[tree->gtLclVarCommon.GetLclNum()].lvVarIndex);
             }
         }
 
@@ -365,7 +366,7 @@ void Compiler::optBlockCopyProp(BasicBlock* block, LclNumToGenTreePtrStack* curS
                 continue;
             }
 
-            unsigned lclNum = tree->gtLclVarCommon.gtLclNum;
+            unsigned lclNum = tree->gtLclVarCommon.GetLclNum();
 
             // As we encounter a definition add it to the stack as a live definition.
             if (tree->gtFlags & GTF_VAR_DEF)

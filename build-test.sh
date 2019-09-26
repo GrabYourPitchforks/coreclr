@@ -421,6 +421,7 @@ build_MSBuild_projects()
             buildArgs+=("${extraBuildParameters[@]}")
             buildArgs+=("${__CommonMSBuildArgs[@]}")
             buildArgs+=("${__UnprocessedBuildArgs[@]}")
+            buildArgs+=("\"/p:CopyNativeProjectBinaries=${__CopyNativeProjectsAfterCombinedTestBuild}\"");
 
             # Disable warnAsError - coreclr issue 19922
             nextCommand="\"$__ProjectRoot/eng/common/msbuild.sh\" $__ArcadeScriptArgs --warnAsError false ${buildArgs[@]}"
@@ -680,7 +681,6 @@ export __ProjectDir="$__ProjectRoot"
 __SourceDir="$__ProjectDir/src"
 __PackagesDir="$__ProjectDir/.packages"
 __RootBinDir="$__ProjectDir/bin"
-__BuildToolsDir="$__ProjectDir/Tools"
 __DotNetCli="$__ProjectDir/dotnet.sh"
 __UnprocessedBuildArgs=
 __CommonMSBuildArgs=
@@ -715,6 +715,7 @@ __priority1=
 __BuildTestWrappersOnly=
 __DoCrossgen=0
 __CopyNativeTestBinaries=0
+__CopyNativeProjectsAfterCombinedTestBuild=true
 __SkipGenerateLayout=0
 CORE_ROOT=
 
@@ -876,6 +877,7 @@ while :; do
 
         skipnative|-skipnative)
             __SkipNative=1
+            __CopyNativeProjectsAfterCombinedTestBuild=false
             ;;
 
         skipmanaged|-skipmanaged)
@@ -932,7 +934,7 @@ while :; do
             __SkipNative=1
             __SkipManaged=1
             __CopyNativeTestBinaries=1
-            __SkipRestorePackages=1
+            __CopyNativeProjectsAfterCombinedTestBuild=true
             ;;
 
         skipgeneratelayout)
@@ -1027,9 +1029,6 @@ initTargetDistroRid
 if [ $__PortableBuild == 0 ]; then
     __CommonMSBuildArgs="$__CommonMSBuildArgs /p:PortableBuild=false"
 fi
-
-# Restore Build Tools
-source $__ProjectRoot/init-tools.sh
 
 if [[ (-z "$__GenerateLayoutOnly") && (-z "$__GenerateTestHostOnly") && (-z "$__BuildTestWrappersOnly") ]]; then
     build_Tests

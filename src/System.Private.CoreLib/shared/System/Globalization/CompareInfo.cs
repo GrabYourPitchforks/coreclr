@@ -541,7 +541,6 @@ namespace System.Globalization
             return CompareStringOrdinalIgnoreCase(ref charA, lengthA - range, ref charB, lengthB - range);
         }
 
-
         internal static bool EqualsOrdinalIgnoreCase(ref char charA, ref char charB, int length)
         {
             IntPtr byteOffset = IntPtr.Zero;
@@ -896,7 +895,6 @@ namespace System.Globalization
             return IndexOf(source, value, startIndex, count, CompareOptions.None);
         }
 
-
         public virtual int IndexOf(string source, string value, int startIndex, int count)
         {
             return IndexOf(source, value, startIndex, count, CompareOptions.None);
@@ -1122,7 +1120,7 @@ namespace System.Globalization
             }
         }
 
-        internal int IndexOfOrdinal(string source, string value, int startIndex, int count, bool ignoreCase)
+        internal static int IndexOfOrdinal(string source, string value, int startIndex, int count, bool ignoreCase)
         {
             if (!ignoreCase)
             {
@@ -1162,7 +1160,6 @@ namespace System.Globalization
             return LastIndexOf(source, value, source.Length - 1, source.Length, CompareOptions.None);
         }
 
-
         public virtual int LastIndexOf(string source, string value)
         {
             if (source == null)
@@ -1174,7 +1171,6 @@ namespace System.Globalization
             return LastIndexOf(source, value, source.Length - 1,
                 source.Length, CompareOptions.None);
         }
-
 
         public virtual int LastIndexOf(string source, char value, CompareOptions options)
         {
@@ -1347,7 +1343,7 @@ namespace System.Globalization
             return LastIndexOfCore(source, value, startIndex, count, options);
         }
 
-        internal int LastIndexOfOrdinal(string source, string value, int startIndex, int count, bool ignoreCase)
+        internal static int LastIndexOfOrdinal(string source, string value, int startIndex, int count, bool ignoreCase)
         {
             if (GlobalizationMode.Invariant)
             {
@@ -1369,7 +1365,6 @@ namespace System.Globalization
 
             return CreateSortKey(source, options);
         }
-
 
         public virtual SortKey GetSortKey(string source)
         {
