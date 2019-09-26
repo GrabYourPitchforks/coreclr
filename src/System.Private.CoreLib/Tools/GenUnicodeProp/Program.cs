@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Text.RegularExpressions;
 
 namespace GenUnicodeProp
@@ -19,6 +20,93 @@ namespace GenUnicodeProp
             // TODO: parse args
 
             var defaultCategoryValues = "Cn,L";
+
+            // First, read all of the Unicode data files we care about and parse the information.
+            // We'll put the information into a more usable format momentarily.
+
+            HashSet<uint> whitespaceCodePoints = GetWhiteSpaceCodePoints();
+            HashSet<uint> extendedPictographicCodePoints = GetExtendedPictographicCodePoints();
+            Dictionary<uint, string> graphemeBreakPropertyMap = GetGraphemeBreakPropertyMap();
+            Dictionary<uint, int> simpleCaseFoldOffsets = GetSimpleCaseFoldOffsets();
+            Dictionary<uint, UnicodeDataEntry> unicodeDataEntries = ReadUnicodeDataFile().ToDictionary(entry => entry.codePoint);
+
+            // Quick consistency check: if a code point is in any of the ancillary sets / maps there
+            // must be a "main" entry for it.
+
+            for (uint i = 0; i <= 0x10FFFF; i++)
+            {
+                if (whitespaceCodePoints.Contains(i)
+                    || extendedPictographicCodePoints.Contains(i)
+                    || graphemeBreakPropertyMap.ContainsKey(i)
+                    || simpleCaseFoldOffsets.ContainsKey(i))
+                {
+                    if (!unicodeDataEntries.ContainsKey(i))
+                    {
+                        throw new Exception($"Expected code point U+{i:X4} to exist in UnicodeData.txt.");
+                    }
+                }
+            }
+
+            // Now process the data into an easier-to-manipulate format.
+            // We're building up two dictionaries:
+            // - The first dictionary contains whitespace, Unicode category, bidi class, and casing information
+            // - The second dictionary contains numeric value and grapheme boundary information
+
+            Dictionary<CategoryCasingInfo, byte> categoryCasingMap = new Dictionary<CategoryCasingInfo, byte>()
+            {
+                { default, 0 }
+            };
+
+            Dictionary<NumericGraphemeInfo, byte> numericGraphemeMap = new Dictionary<NumericGraphemeInfo, byte>()
+            {
+                { default, 0 }
+            };
+
+            for (uint i = 0; i <= 0x10FFFF; i++)
+            {
+                if (!unicodeDataEntries.TryGetValue(i, out UnicodeDataEntry entry))
+                {
+                    continue;
+                }
+
+                // Then, build up the numeric data + grapheme boundary info struct.
+
+                NumericGraphemeInfo thisNumericGraphemeInfo = new NumericGraphemeInfo();
+
+                if (!string.IsNullOrEmpty(entry.decimalDigitValue))
+                {
+                    thisNumericGraphemeInfo.decimalDigitValue = entry.decimalDigitValue;
+                }
+
+                if (!string.IsNullOrEmpty(entry.digitValue))
+                {
+                    thisNumericGraphemeInfo.digitValue = entry.digitValue;
+                }
+
+                if (!string.IsNullOrEmpty(entry.numericValue))
+                {
+                    thisNumericGraphemeInfo.numericValue = entry.numericValue;
+                }
+
+                if (!graphemeBreakPropertyMap.TryGetValue(i, out thisNumericGraphemeInfo.graphemeCategory))
+                {
+                    if (extendedPictographicCodePoints.Contains(i))
+                    {
+                        thisNumericGraphemeInfo.graphemeCategory = "Extended_Pictographic";
+                    }
+                }
+
+                if (!numericGraphemeMap.ContainsKey(thisNumericGraphemeInfo))
+                {
+                    if (numericGraphemeMap.Count == byte.MaxValue)
+                    {
+                        throw new Exception("Cannot store more than 255 entries in the numeric grapheme map!");
+                    }
+
+                    numericGraphemeMap[thisNumericGraphemeInfo] = (byte)numericGraphemeMap.Count;
+                }
+            }
+
 
             // Create a 12:4:4 table for Unicode category
             // "Cn", Not assigned.  The value is 1 byte to indicate Unicode category
@@ -400,6 +488,28 @@ namespace GenUnicodeProp
             {
                 if (PropsFileEntry.TryParseLine(line, out PropsFileEntry parsedEntry)
                     && parsedEntry.PropName == "Extended_Pictographic")
+                {
+                    for (uint i = parsedEntry.FirstCodePoint; i <= parsedEntry.LastCodePoint; i++)
+                    {
+                        set.Add(i);
+                    }
+                }
+            }
+
+            return set;
+        }
+
+        /// <summary>
+        /// Reads PropList.txt and returns the set of code points with the "White_Space" property.
+        /// </summary>
+        private static HashSet<uint> GetWhiteSpaceCodePoints()
+        {
+            HashSet<uint> set = new HashSet<uint>();
+
+            foreach (string line in File.ReadAllLines("PropList.txt"))
+            {
+                if (PropsFileEntry.TryParseLine(line, out PropsFileEntry parsedEntry)
+                    && parsedEntry.PropName == "White_Space")
                 {
                     for (uint i = parsedEntry.FirstCodePoint; i <= parsedEntry.LastCodePoint; i++)
                     {

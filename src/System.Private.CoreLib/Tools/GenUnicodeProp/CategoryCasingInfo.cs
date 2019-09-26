@@ -9,7 +9,7 @@ namespace GenUnicodeProp
     // struct gives us automatic hash code calculation & equality operators
     internal struct CategoryCasingInfo
     {
-        public UnicodeCategory unicodeCategory;
+        public UnicodeCategory? unicodeCategory;
         public RestrictedBidiClass restrictedBidiClass;
         public int offsetToSimpleUppercase;
         public int offsetToSimpleLowercase;
