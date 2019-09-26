@@ -301,6 +301,11 @@ namespace System
             return (value is null || 0u >= (uint)value.Length) ? true : false;
         }
 
+        public static bool IsNullOrWhiteSpace([NotNullWhen(false)] Utf8String? value)
+        {
+            return (value is null) || value.AsSpan().IsEmptyOrWhiteSpace();
+        }
+
         /// <summary>
         /// Returns the entire <see cref="Utf8String"/> as an array of bytes.
         /// </summary>
