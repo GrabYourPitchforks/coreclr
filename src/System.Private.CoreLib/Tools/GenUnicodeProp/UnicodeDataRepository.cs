@@ -11,11 +11,124 @@ namespace GenUnicodeProp
 {
     internal class UnicodeDataRepository
     {
+        private static readonly Dictionary<string, UnicodeCategory> UnicodeCategoryMap = new Dictionary<string, UnicodeCategory>
+        {
+            ["Lu"] = UnicodeCategory.UppercaseLetter,
+            ["Ll"] = UnicodeCategory.LowercaseLetter,
+            ["Lt"] = UnicodeCategory.TitlecaseLetter,
+            ["Lm"] = UnicodeCategory.ModifierLetter,
+            ["Lo"] = UnicodeCategory.OtherLetter,
+            ["Mn"] = UnicodeCategory.NonSpacingMark,
+            ["Mc"] = UnicodeCategory.SpacingCombiningMark,
+            ["Me"] = UnicodeCategory.EnclosingMark,
+            ["Nd"] = UnicodeCategory.DecimalDigitNumber,
+            ["Nl"] = UnicodeCategory.LetterNumber,
+            ["No"] = UnicodeCategory.OtherNumber,
+            ["Zs"] = UnicodeCategory.SpaceSeparator,
+            ["Zl"] = UnicodeCategory.LineSeparator,
+            ["Zp"] = UnicodeCategory.ParagraphSeparator,
+            ["Cc"] = UnicodeCategory.Control,
+            ["Cf"] = UnicodeCategory.Format,
+            ["Cs"] = UnicodeCategory.Surrogate,
+            ["Co"] = UnicodeCategory.PrivateUse,
+            ["Pc"] = UnicodeCategory.ConnectorPunctuation,
+            ["Pd"] = UnicodeCategory.DashPunctuation,
+            ["Ps"] = UnicodeCategory.OpenPunctuation,
+            ["Pe"] = UnicodeCategory.ClosePunctuation,
+            ["Pi"] = UnicodeCategory.InitialQuotePunctuation,
+            ["Pf"] = UnicodeCategory.FinalQuotePunctuation,
+            ["Po"] = UnicodeCategory.OtherPunctuation,
+            ["Sm"] = UnicodeCategory.MathSymbol,
+            ["Sc"] = UnicodeCategory.CurrencySymbol,
+            ["Sk"] = UnicodeCategory.ModifierSymbol,
+            ["So"] = UnicodeCategory.OtherSymbol,
+            ["Cn"] = UnicodeCategory.OtherNotAssigned,
+        };
+
+        private static readonly Dictionary<string, RestrictedBidiClass> BidiClassMap = new Dictionary<string, RestrictedBidiClass>
+        {
+            ["L"] = RestrictedBidiClass.StrongLeftToRight,
+            ["R"] = RestrictedBidiClass.StrongRightToLeft,
+            ["AL"] = RestrictedBidiClass.StrongRightToLeft,
+        };
+
         private readonly List<Data1> _data = new List<Data1>();
 
         private UnicodeDataRepository()
         {
+            // First, read all of the ancillary data files into their own distinct data
+            // structures. We'll use these as helper structures once we parse the
+            // main data file.
 
+            HashSet<uint> whitespaceCodePoints = GetWhiteSpaceCodePoints();
+            Dictionary<uint, int> caseFoldMap = GetSimpleCaseFoldOffsets();
+            Dictionary<uint, GraphemeBoundaryCategory> graphemeBreakMap = GetGraphemeBreakPropertyMap();
+
+            // Next, process the main data file, folding in the ancillary data.
+
+            foreach (UnicodeDataEntry entry in ReadUnicodeDataFile())
+            {
+                Data1 newData = new Data1()
+                {
+                    CodePoint = entry.codePoint,
+                    UnicodeCategory = UnicodeCategoryMap[entry.generalCategory]
+                };
+
+                BidiClassMap.TryGetValue(entry.bidiClass, out newData.RestrictedBidiClass);
+
+                if (entry.simpleUppercaseMapping.HasValue)
+                {
+                    newData.OffsetToSimpleUppercase = (int)(entry.simpleUppercaseMapping.Value - entry.codePoint);
+                }
+
+                if (entry.simpleLowercaseMapping.HasValue)
+                {
+                    newData.OffsetToSimpleLowercase = (int)(entry.simpleLowercaseMapping - entry.codePoint);
+                }
+
+                if (entry.simpleTitlecaseMapping.HasValue)
+                {
+                    newData.OffsetToSimpleTitlecase = (int)(entry.simpleTitlecaseMapping - entry.codePoint);
+                }
+
+                caseFoldMap.TryGetValue(entry.codePoint, out newData.OffsetToSimpleCaseFold);
+                newData.IsWhitespace = whitespaceCodePoints.Contains(entry.codePoint);
+
+                if (!string.IsNullOrEmpty(entry.decimalDigitValue))
+                {
+                    newData.DecimalDigitValue = sbyte.Parse(entry.decimalDigitValue, NumberStyles.Integer, CultureInfo.InvariantCulture);
+                }
+
+                if (!string.IsNullOrEmpty(entry.digitValue))
+                {
+                    newData.DigitValue = sbyte.Parse(entry.digitValue, NumberStyles.Integer, CultureInfo.InvariantCulture);
+                }
+
+                if (!string.IsNullOrEmpty(entry.numericValue))
+                {
+                    string[] split = entry.numericValue.Split('/');
+                    if (split.Length > 2)
+                    {
+                        throw new Exception($"Unexpected numeric value: {entry.numericValue}");
+                    }
+
+                    double numerator = double.Parse(split[0], CultureInfo.InvariantCulture);
+
+                    if (split.Length == 1)
+                    {
+                        newData.NumericValue = numerator;
+                    }
+                    else
+                    {
+                        double denominator = double.Parse(split[1], CultureInfo.InvariantCulture);
+                        newData.NumericValue = numerator / denominator;
+                    }
+                }
+
+                graphemeBreakMap.TryGetValue(entry.codePoint, out newData.GraphemeBoundaryCategory);
+
+                _data.Add(newData);
+            }
         }
 
         public IReadOnlyList<Data1> Data => _data;
@@ -191,8 +304,9 @@ namespace GenUnicodeProp
 
     internal class Data1
     {
+        public uint CodePoint = 0;
         public UnicodeCategory UnicodeCategory = UnicodeCategory.OtherNotAssigned;
-        public RestrictedBidiClass restrictedBidiClass = RestrictedBidiClass.None;
+        public RestrictedBidiClass RestrictedBidiClass = RestrictedBidiClass.None;
         public int OffsetToSimpleUppercase = 0;
         public int OffsetToSimpleLowercase = 0;
         public int OffsetToSimpleTitlecase = 0;
