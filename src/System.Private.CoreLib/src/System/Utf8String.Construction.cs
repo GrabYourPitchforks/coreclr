@@ -49,7 +49,7 @@ namespace System
         /// <remarks>
         /// The UTF-8 data in <paramref name="value"/> is validated for well-formedness upon construction,
         /// and an exception is thrown if the input is ill-formed. To avoid this exception, consider using
-        /// <see cref="TryCreateFrom(ReadOnlySpan{byte}, out Utf8String)"/> or <see cref="CreateFromLoose(ReadOnlySpan{byte})"/>.
+        /// <see cref="TryCreateFrom(ReadOnlySpan{byte}, out Utf8String)"/> or <see cref="CreateFromRelaxed(ReadOnlySpan{byte})"/>.
         /// </remarks>
         [MethodImpl(MethodImplOptions.InternalCall)]
         public extern Utf8String(ReadOnlySpan<byte> value);
@@ -91,7 +91,7 @@ namespace System
         /// <remarks>
         /// The UTF-8 data in <paramref name="value"/> is validated for well-formedness upon construction,
         /// and an exception is thrown if the input is ill-formed. To avoid this exception, consider using
-        /// <see cref="TryCreateFrom(ReadOnlySpan{byte}, out Utf8String)"/> or <see cref="CreateFromLoose(ReadOnlySpan{byte})"/>.
+        /// <see cref="TryCreateFrom(ReadOnlySpan{byte}, out Utf8String)"/> or <see cref="CreateFromRelaxed(ReadOnlySpan{byte})"/>.
         /// </remarks>
 
         [MethodImpl(MethodImplOptions.InternalCall)]
@@ -111,7 +111,7 @@ namespace System
         /// <remarks>
         /// The UTF-8 data in <paramref name="value"/> is validated for well-formedness upon construction,
         /// and an exception is thrown if the input is ill-formed. To avoid this exception, consider using
-        /// <see cref="TryCreateFrom(ReadOnlySpan{byte}, out Utf8String)"/> or <see cref="CreateFromLoose(ReadOnlySpan{byte})"/>.
+        /// <see cref="TryCreateFrom(ReadOnlySpan{byte}, out Utf8String)"/> or <see cref="CreateFromRelaxed(ReadOnlySpan{byte})"/>.
         /// </remarks>
 
         [MethodImpl(MethodImplOptions.InternalCall)]
@@ -142,7 +142,7 @@ namespace System
         /// <remarks>
         /// The UTF-16 data in <paramref name="value"/> is validated for well-formedness upon construction,
         /// and an exception is thrown if the input is ill-formed. To avoid this exception, consider using
-        /// <see cref="TryCreateFrom(ReadOnlySpan{char}, out Utf8String)"/> or <see cref="CreateFromLoose(ReadOnlySpan{char})"/>.
+        /// <see cref="TryCreateFrom(ReadOnlySpan{char}, out Utf8String)"/> or <see cref="CreateFromRelaxed(ReadOnlySpan{char})"/>.
         /// </remarks>
         [MethodImpl(MethodImplOptions.InternalCall)]
         public extern Utf8String(ReadOnlySpan<char> value);
@@ -175,7 +175,7 @@ namespace System
         /// <remarks>
         /// The UTF-16 data in <paramref name="value"/> is validated for well-formedness upon construction,
         /// and an exception is thrown if the input is ill-formed. To avoid this exception, consider using
-        /// <see cref="TryCreateFrom(ReadOnlySpan{char}, out Utf8String)"/> or <see cref="CreateFromLoose(ReadOnlySpan{char})"/>.
+        /// <see cref="TryCreateFrom(ReadOnlySpan{char}, out Utf8String)"/> or <see cref="CreateFromRelaxed(ReadOnlySpan{char})"/>.
         /// </remarks>
         [MethodImpl(MethodImplOptions.InternalCall)]
         public extern Utf8String(char[]? value, int startIndex, int length);
@@ -194,7 +194,7 @@ namespace System
         /// <remarks>
         /// The UTF-16 data in <paramref name="value"/> is validated for well-formedness upon construction,
         /// and an exception is thrown if the input is ill-formed. To avoid this exception, consider using
-        /// <see cref="TryCreateFrom(ReadOnlySpan{char}, out Utf8String)"/> or <see cref="CreateFromLoose(ReadOnlySpan{char})"/>.
+        /// <see cref="TryCreateFrom(ReadOnlySpan{char}, out Utf8String)"/> or <see cref="CreateFromRelaxed(ReadOnlySpan{char})"/>.
         /// </remarks>
         [MethodImpl(MethodImplOptions.InternalCall)]
         [CLSCompliant(false)]
@@ -219,7 +219,7 @@ namespace System
         /// <remarks>
         /// The UTF-16 data in <paramref name="value"/> is validated for well-formedness upon construction,
         /// and an exception is thrown if the input is ill-formed. To avoid this exception, consider using
-        /// <see cref="TryCreateFrom(ReadOnlySpan{char}, out Utf8String)"/> or <see cref="CreateFromLoose(ReadOnlySpan{char})"/>.
+        /// <see cref="TryCreateFrom(ReadOnlySpan{char}, out Utf8String)"/> or <see cref="CreateFromRelaxed(ReadOnlySpan{char})"/>.
         /// </remarks>
         [MethodImpl(MethodImplOptions.InternalCall)]
         public extern Utf8String(string value);
@@ -320,7 +320,7 @@ namespace System
         /// This may result in the returned <see cref="Utf8String"/> having different contents (and thus a different
         /// total byte length) than the source parameter <paramref name="buffer"/>.
         /// </remarks>
-        public static Utf8String CreateFromLoose(ReadOnlySpan<byte> buffer)
+        public static Utf8String CreateFromRelaxed(ReadOnlySpan<byte> buffer)
         {
             if (buffer.IsEmpty)
             {
@@ -348,7 +348,7 @@ namespace System
         /// <see cref="ToString"/> on the returned <see cref="Utf8String"/> instance may produce a <see cref="string"/>
         /// whose contents differ from <paramref name="buffer"/>.
         /// </remarks>
-        public static Utf8String CreateFromLoose(ReadOnlySpan<char> buffer)
+        public static Utf8String CreateFromRelaxed(ReadOnlySpan<char> buffer)
         {
             Utf8String? newString = CreateFromUtf16Common(buffer, replaceInvalidSequences: true);
 
@@ -534,7 +534,7 @@ namespace System
         /// in the returned <see cref="Utf8String"/> instance. This could result in the returned <see cref="Utf8String"/> instance
         /// having a different byte length than specified by the <paramref name="length"/> parameter.
         /// </remarks>
-        public static Utf8String CreateLoose<TState>(int length, TState state, SpanAction<byte, TState> action)
+        public static Utf8String CreateRelaxed<TState>(int length, TState state, SpanAction<byte, TState> action)
         {
             if (length < 0)
             {
