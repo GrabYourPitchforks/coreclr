@@ -142,7 +142,14 @@ namespace System
         /// <see cref="Utf8String"/> instance. Only to be used during construction.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal Span<byte> DangerousGetMutableSpan() => new Span<byte>(ref DangerousGetMutableReference(), Length);
+        internal Span<byte> DangerousGetMutableSpan()
+        {
+            // By dereferencing Length first, the JIT will skip the null check that normally precedes
+            // most instance method calls, and it'll use the field dereference as the null check.
+
+            int length = Length;
+            return new Span<byte>(ref DangerousGetMutableReference(), length);
+        }
 
         /// <summary>
         /// Returns a <em>mutable</em> reference to the first byte of this <see cref="Utf8String"/>
@@ -364,7 +371,7 @@ namespace System
         {
             // TODO_UTF8STRING: Optimize the call below, potentially by avoiding the two-pass.
 
-            return Encoding.UTF8.GetString(new ReadOnlySpan<byte>(ref DangerousGetMutableReference(), Length));
+            return Encoding.UTF8.GetString(this.AsBytesSkipNullCheck());
         }
 
         /// <summary>
