@@ -31,9 +31,6 @@ namespace System
             // the UTF-8 lead byte is in a prior substring, which would indicate a multi-byte sequence has been split.
             // It's ok for us to dereference the element immediately after the end of the Utf8String instance since
             // we know it's a null terminator.
-            //
-            // TODO_UTF8STRING: Can skip the second check if only the start index (no length) is provided. Would
-            // need to duplicate this method and have those callers invoke the duplicate method instead of this one.
 
             if (Utf8Utility.IsUtf8ContinuationByte(DangerousGetMutableReference(startIndex))
                 || Utf8Utility.IsUtf8ContinuationByte(DangerousGetMutableReference(startIndex + length)))
@@ -82,36 +79,6 @@ namespace System
                 message: SR.Utf8String_CannotSplitMultibyteSubsequence);
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal Utf8String Substring(Index startIndex)
-        {
-            int actualIndex = startIndex.GetOffset(Length);
-            return Substring(actualIndex);
-        }
-
-        internal Utf8String Substring(int startIndex)
-        {
-            if ((uint)startIndex > (uint)this.Length)
-            {
-                ThrowHelper.ThrowArgumentOutOfRangeException(ExceptionArgument.startIndex);
-            }
-
-            // Optimizations: since instances are immutable, we can return 'this' or the known
-            // Empty instance if the caller passed us a startIndex at the string boundary.
-
-            if (startIndex == 0)
-            {
-                return this;
-            }
-
-            if (startIndex == Length)
-            {
-                return Empty;
-            }
-
-            return InternalSubstring(startIndex, Length - startIndex);
-        }
-
         internal Utf8String Substring(int startIndex, int length)
         {
             ValidateStartIndexAndLength(startIndex, length);
@@ -131,12 +98,6 @@ namespace System
 
             return InternalSubstring(startIndex, length);
         }
-
-        // Slice intended to be used by the compiler only to provide indexer with range parameter functionality.
-        // Developers should be using Substring method instead.
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        [ComponentModel.EditorBrowsable(ComponentModel.EditorBrowsableState.Never)]
-        public Utf8String Slice(int startIndex, int length) => Substring(startIndex, length);
 
         /// <summary>
         /// Locates <paramref name="separator"/> within this <see cref="Utf8String"/> instance, creating <see cref="Utf8String"/>
@@ -281,6 +242,7 @@ namespace System
         public Utf8String TrimStart() => TrimHelper(TrimType.Head);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [StackTraceHidden]
         private void ValidateStartIndexAndLength(int startIndex, int length)
         {
 #if BIT64

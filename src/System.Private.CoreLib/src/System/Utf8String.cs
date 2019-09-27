@@ -60,11 +60,6 @@ namespace System
         public static bool operator !=(Utf8String? left, Utf8String? right) => !Equals(left, right);
 
         /// <summary>
-        /// Projects a <see cref="Utf8String"/> instance as a <see cref="ReadOnlySpan{Byte}"/>.
-        /// </summary>
-        public static explicit operator ReadOnlySpan<byte>(Utf8String? value) => value.AsBytes();
-
-        /// <summary>
         /// Projects a <see cref="Utf8String"/> instance as a <see cref="Utf8Span"/>.
         /// </summary>
         /// <param name="value"></param>
@@ -85,13 +80,17 @@ namespace System
 
         public Utf8String this[Range range]
         {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
             get
             {
-                (int offset, int length) = range.GetOffsetAndLength(Length);
+                // The two lines immediately below provide no bounds checking.
+                // The Substring method we call will both perform a bounds check
+                // and check for an improper split across a multi-byte subsequence.
 
-                // The Substring method checks for splitting across a multi-byte sequence.
+                int startIdx = range.Start.GetOffset(Length);
+                int endIdx = range.End.GetOffset(Length);
 
-                return Substring(offset, length);
+                return Substring(startIdx, endIdx - startIdx);
             }
         }
 
@@ -99,12 +98,43 @@ namespace System
          * METHODS
          */
 
+        /// <summary>
+        /// Similar to <see cref="Utf8Extensions.AsBytes(Utf8String)"/>, but skips the null check on the input.
+        /// Throws a <see cref="NullReferenceException"/> if the input is null.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal ReadOnlySpan<byte> AsBytesSkipNullCheck()
+        {
+            // By dereferencing Length first, the JIT will skip the null check that normally precedes
+            // most instance method calls, and it'll use the field dereference as the null check.
+
+            int length = Length;
+            return new ReadOnlySpan<byte>(ref DangerousGetMutableReference(), length);
+        }
+
+        /// <summary>
+        /// Similar to <see cref="Utf8Extensions.AsSpan(Utf8String)"/>, but skips the null check on the input.
+        /// Throws a <see cref="NullReferenceException"/> if the input is null.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal Utf8Span AsSpanSkipNullCheck()
+        {
+            return Utf8Span.UnsafeCreateWithoutValidation(this.AsBytesSkipNullCheck());
+        }
+
         public int CompareTo(Utf8String? other)
         {
             // TODO_UTF8STRING: This is ordinal, but String.CompareTo uses CurrentCulture.
             // Is this acceptable? Should we perhaps just remove the interface?
 
             return Utf8StringComparer.Ordinal.Compare(this, other);
+        }
+
+        public int CompareTo(Utf8String? other, StringComparison comparison)
+        {
+            // TODO_UTF8STRING: We can avoid the virtual dispatch by moving the switch into this method.
+
+            return Utf8StringComparer.FromComparison(comparison).Compare(this, other);
         }
 
         /// <summary>
@@ -151,7 +181,7 @@ namespace System
         /// </summary>
         public override bool Equals(object? obj)
         {
-            return obj is Utf8String other && this.Equals(other);
+            return (obj is Utf8String other) && this.Equals(other);
         }
 
         /// <summary>
@@ -174,6 +204,11 @@ namespace System
         }
 
         /// <summary>
+        /// Performs an equality comparison using the specified <see cref="StringComparison"/>.
+        /// </summary>
+        public bool Equals(Utf8String? value, StringComparison comparison) => Equals(this, value, comparison);
+
+        /// <summary>
         /// Compares two <see cref="Utf8String"/> instances using a <see cref="StringComparison.Ordinal"/> comparer.
         /// </summary>
         public static bool Equals(Utf8String? left, Utf8String? right)
@@ -191,6 +226,17 @@ namespace System
                 && !(right is null)
                 && left.Length == right.Length
                 && SpanHelpers.SequenceEqual(ref left.DangerousGetMutableReference(), ref right.DangerousGetMutableReference(), (uint)left.Length);
+        }
+
+        /// <summary>
+        /// Performs an equality comparison using the specified <see cref="StringComparison"/>.
+        /// </summary>
+        public static bool Equals(Utf8String? a, Utf8String? b, StringComparison comparison)
+        {
+            // TODO_UTF8STRING: This perf can be improved, including removing
+            // the virtual dispatch by putting the switch directly in this method.
+
+            return Utf8StringComparer.FromComparison(comparison).Equals(a, b);
         }
 
         /// <summary>
@@ -284,7 +330,7 @@ namespace System
         /// </summary>
         /// <remarks>
         /// ASCII text is defined as text consisting only of scalar values in the range [ U+0000..U+007F ].
-        /// The runtime of this method is O(n).
+        /// Empty strings are considered to be all-ASCII. The runtime of this method is O(n).
         /// </remarks>
         public bool IsAscii()
         {

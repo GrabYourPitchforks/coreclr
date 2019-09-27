@@ -177,7 +177,7 @@ namespace System.Text
         /// </summary>
         /// <remarks>
         /// ASCII text is defined as text consisting only of scalar values in the range [ U+0000..U+007F ].
-        /// The runtime of this method is O(n).
+        /// Empty spans are considered to be all-ASCII. The runtime of this method is O(n).
         /// </remarks>
         public bool IsAscii()
         {

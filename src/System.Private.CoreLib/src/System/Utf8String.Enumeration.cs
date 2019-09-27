@@ -2,8 +2,10 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+using System.Buffers;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Text;
 
 #pragma warning disable SA1121 // explicitly using type aliases instead of built-in types
@@ -78,12 +80,12 @@ namespace System
                         // about to perform unsafe accesses.
 
                         Utf8String obj = _obj;
-                        uint curByteIdx = (uint)_curByteIdx;
+                        nuint curByteIdx = (uint)_curByteIdx;
 
                         // If we'd go past the end of the Utf8String instance, then
                         // just dereference the null terminator and move on.
 
-                        if (curByteIdx > (uint)obj.Length)
+                        if ((uint)curByteIdx > (uint)obj.Length)
                         {
                             curByteIdx = (uint)obj.Length;
                         }
@@ -138,7 +140,7 @@ namespace System
             {
                 private readonly Utf8String _obj;
                 private uint _currentCharPair;
-                private uint _nextByteIdx;
+                private int _nextByteIdx;
 
                 internal Enumerator(Utf8String obj)
                 {
@@ -164,19 +166,21 @@ namespace System
                         return true;
                     }
 
-                    Utf8String obj = _obj;
-                    nuint nextByteIdx = _nextByteIdx;
+                    ReadOnlySpan<byte> bytes = _obj.AsBytesSkipNullCheck();
+                    int nextByteIdx = _nextByteIdx;
 
-                    if ((uint)nextByteIdx >= (uint)obj.Length)
+                    if ((uint)nextByteIdx >= (uint)bytes.Length)
                     {
                         return false; // no more data
                     }
 
                     // TODO_UTF8STRING: Can we skip correctness checks below?
-                    // This enumerator struct is potentially tearable.
+                    // Perhaps not, this enumerator struct is potentially tearable.
 
-                    Rune.DecodeFromUtf8(new ReadOnlySpan<byte>(ref obj.DangerousGetMutableReference(nextByteIdx), obj.Length - (int)nextByteIdx), out Rune currentRune, out int bytesConsumedJustNow);
-                    _nextByteIdx = (uint)nextByteIdx + (uint)bytesConsumedJustNow;
+                    OperationStatus status = Rune.DecodeFromUtf8(bytes, out Rune currentRune, out int bytesConsumedJustNow);
+                    Debug.Assert(status == OperationStatus.Done);
+
+                    _nextByteIdx = nextByteIdx + bytesConsumedJustNow;
 
                     if (currentRune.IsBmp)
                     {
@@ -195,7 +199,6 @@ namespace System
                         _currentCharPair = (uint)leadingCodeUnit + ((uint)trailingCodeUnit << 16);
                     }
 
-                    _nextByteIdx = (uint)nextByteIdx + (uint)bytesConsumedJustNow;
                     return true;
                 }
 
@@ -233,7 +236,7 @@ namespace System
             {
                 private readonly Utf8String _obj;
                 private Rune _currentRune;
-                private uint _nextByteIdx;
+                private int _nextByteIdx;
 
                 internal Enumerator(Utf8String obj)
                 {
@@ -249,19 +252,23 @@ namespace System
                     // Make copies of fields to avoid tearing issues since we're
                     // about to perform unsafe accesses.
 
-                    Utf8String obj = _obj;
-                    nuint nextByteIdx = _nextByteIdx;
+                    ReadOnlySpan<byte> bytes = _obj.AsBytesSkipNullCheck();
+                    int nextByteIdx = _nextByteIdx;
 
-                    if ((uint)nextByteIdx >= (uint)obj.Length)
+                    if ((uint)nextByteIdx >= (uint)bytes.Length)
                     {
                         return false; // no more data
                     }
 
-                    // TODO_UTF8STRING: Can we skip correctness checks below?
-                    // This enumerator struct is potentially tearable.
+                    bytes = bytes.Slice(nextByteIdx);
 
-                    Rune.DecodeFromUtf8(new ReadOnlySpan<byte>(ref obj.DangerousGetMutableReference(nextByteIdx), obj.Length - (int)nextByteIdx), out _currentRune, out int bytesConsumedJustNow);
-                    _nextByteIdx = (uint)nextByteIdx + (uint)bytesConsumedJustNow;
+                    // TODO_UTF8STRING: Can we skip correctness checks below?
+                    // Perhaps not, this enumerator struct is potentially tearable.
+
+                    OperationStatus status = Rune.DecodeFromUtf8(bytes, out _currentRune, out int bytesConsumedJustNow);
+                    Debug.Assert(status == OperationStatus.Done);
+
+                    _nextByteIdx = nextByteIdx + bytesConsumedJustNow;
                     return true;
                 }
 
