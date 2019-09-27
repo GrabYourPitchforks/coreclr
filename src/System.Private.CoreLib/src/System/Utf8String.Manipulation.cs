@@ -400,7 +400,7 @@ namespace System
             }
 
             [EditorBrowsable(EditorBrowsableState.Never)]
-            public void Deconstruct(out Utf8Span item1, out Utf8Span item2, out Utf8Span item3)
+            public void Deconstruct(out Utf8String? item1, out Utf8String? item2, out Utf8String? item3)
             {
                 _state.DeconstructHelper(_state.GetRemainingSearchSpace(), out Utf8Span nextItem, out Utf8Span remainder);
                 item1 = TrimIfNeeded(nextItem);
@@ -412,7 +412,7 @@ namespace System
             }
 
             [EditorBrowsable(EditorBrowsableState.Never)]
-            public void Deconstruct(out Utf8Span item1, out Utf8Span item2, out Utf8Span item3, out Utf8Span item4)
+            public void Deconstruct(out Utf8String? item1, out Utf8String? item2, out Utf8String? item3, out Utf8String? item4)
             {
                 _state.DeconstructHelper(_state.GetRemainingSearchSpace(), out Utf8Span nextItem, out Utf8Span remainder);
                 item1 = TrimIfNeeded(nextItem);
@@ -427,7 +427,7 @@ namespace System
             }
 
             [EditorBrowsable(EditorBrowsableState.Never)]
-            public void Deconstruct(out Utf8Span item1, out Utf8Span item2, out Utf8Span item3, out Utf8Span item4, out Utf8Span item5)
+            public void Deconstruct(out Utf8String? item1, out Utf8String? item2, out Utf8String? item3, out Utf8String? item4, out Utf8String? item5)
             {
                 _state.DeconstructHelper(_state.GetRemainingSearchSpace(), out Utf8Span nextItem, out Utf8Span remainder);
                 item1 = TrimIfNeeded(nextItem);
@@ -445,7 +445,7 @@ namespace System
             }
 
             [EditorBrowsable(EditorBrowsableState.Never)]
-            public void Deconstruct(out Utf8Span item1, out Utf8Span item2, out Utf8Span item3, out Utf8Span item4, out Utf8Span item5, out Utf8Span item6)
+            public void Deconstruct(out Utf8String? item1, out Utf8String? item2, out Utf8String? item3, out Utf8String? item4, out Utf8String? item5, out Utf8String? item6)
             {
                 _state.DeconstructHelper(_state.GetRemainingSearchSpace(), out Utf8Span nextItem, out Utf8Span remainder);
                 item1 = TrimIfNeeded(nextItem);
@@ -466,7 +466,7 @@ namespace System
             }
 
             [EditorBrowsable(EditorBrowsableState.Never)]
-            public void Deconstruct(out Utf8Span item1, out Utf8Span item2, out Utf8Span item3, out Utf8Span item4, out Utf8Span item5, out Utf8Span item6, out Utf8Span item7)
+            public void Deconstruct(out Utf8String? item1, out Utf8String? item2, out Utf8String? item3, out Utf8String? item4, out Utf8String? item5, out Utf8String? item6, out Utf8String? item7)
             {
                 _state.DeconstructHelper(_state.GetRemainingSearchSpace(), out Utf8Span nextItem, out Utf8Span remainder);
                 item1 = TrimIfNeeded(nextItem);
@@ -490,7 +490,7 @@ namespace System
             }
 
             [EditorBrowsable(EditorBrowsableState.Never)]
-            public void Deconstruct(out Utf8Span item1, out Utf8Span item2, out Utf8Span item3, out Utf8Span item4, out Utf8Span item5, out Utf8Span item6, out Utf8Span item7, out Utf8Span item8)
+            public void Deconstruct(out Utf8String? item1, out Utf8String? item2, out Utf8String? item3, out Utf8String? item4, out Utf8String? item5, out Utf8String? item6, out Utf8String? item7, out Utf8String? item8)
             {
                 _state.DeconstructHelper(_state.GetRemainingSearchSpace(), out Utf8Span nextItem, out Utf8Span remainder);
                 item1 = TrimIfNeeded(nextItem);
@@ -611,11 +611,9 @@ namespace System
 
                 object? IEnumerator.Current => Current;
 
-                public Utf8String? Current1 { get => _current; set => _current = value; }
-
                 void IEnumerator.Reset()
                 {
-                    throw new NotImplementedException();
+                    throw new NotSupportedException();
                 }
             }
 

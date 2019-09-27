@@ -639,22 +639,6 @@ namespace System
          */
 
         /// <summary>
-        /// Creates a <see cref="Utf8String"/> instance from existing data, bypassing validation.
-        /// Also allows the caller to set flags dictating various attributes of the data.
-        /// </summary>
-        internal static Utf8String DangerousCreateWithoutValidation(ReadOnlySpan<byte> utf8Data, bool assumeWellFormed = false, bool assumeAscii = false)
-        {
-            if (utf8Data.IsEmpty)
-            {
-                return Empty;
-            }
-
-            Utf8String newString = FastAllocateSkipZeroInit(utf8Data.Length);
-            utf8Data.CopyTo(new Span<byte>(ref newString.DangerousGetMutableReference(), newString.Length));
-            return newString;
-        }
-
-        /// <summary>
         /// Creates a new zero-initialized instance of the specified length. Actual storage allocated is "length + 1" bytes
         /// because instances are null-terminated.
         /// </summary>

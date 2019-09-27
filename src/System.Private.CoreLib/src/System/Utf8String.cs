@@ -258,6 +258,17 @@ namespace System
         }
 
         /// <summary>
+        /// Returns a hash code using the specified <see cref="StringComparison"/>.
+        /// </summary>
+        public int GetHashCode(StringComparison comparison)
+        {
+            // TODO_UTF8STRING: This perf can be improved, including removing
+            // the virtual dispatch by putting the switch directly in this method.
+
+            return Utf8StringComparer.FromComparison(comparison).GetHashCode(this);
+        }
+
+        /// <summary>
         /// Like <see cref="string.GetNonRandomizedHashCode"/>, this should only be used when DoS
         /// isn't a concern. It's trivial for a malicious agent to create hash collisions using
         /// this algorithm.
