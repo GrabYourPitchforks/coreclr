@@ -148,10 +148,11 @@ namespace GenUnicodeProp
             }
 
             // Finally, double-check our data files to make sure that each entry in the ancillary
-            // data files had a corresponding entry in the UnicodeData.txt main data file. This
-            // helps detect situations where the tool was run with mismatched data sets.
+            // data files had a corresponding entry in the UnicodeData.txt main data file. There
+            // are some code points (like U+2065) which have categories of interest to us but which
+            // aren't yet assigned.
 
-            HashSet<uint> definedCodePoints = new HashSet<uint>(_data.Select(entry => entry.CodePoint));
+            HashSet<uint> assignedCodePoints = new HashSet<uint>(_data.Select(entry => entry.CodePoint));
 
             for (uint i = 0; i <= 0x10FFFF; i++)
             {
@@ -159,9 +160,21 @@ namespace GenUnicodeProp
                     || caseFoldMap.ContainsKey(i)
                     || graphemeBreakMap.ContainsKey(i))
                 {
-                    if (!definedCodePoints.Contains(i))
+                    if (!assignedCodePoints.Contains(i))
                     {
-                        throw new Exception($"Code point U+{i:X4} is missing core definition in UnicodeData.txt.");
+                        CodePointInfo newCodePointInfo = new CodePointInfo()
+                        {
+                            IsWhitespace = whitespaceCodePoints.Contains(i)
+                        };
+
+                        if (caseFoldMap.TryGetValue(i, out uint mappedCaseFoldValue))
+                        {
+                            newCodePointInfo.OffsetToSimpleCaseFold = (int)(mappedCaseFoldValue - i);
+                        }
+
+                        graphemeBreakMap.TryGetValue(i, out newCodePointInfo.GraphemeBoundaryCategory);
+
+                        _data.Add(newCodePointInfo);
                     }
                 }
             }
