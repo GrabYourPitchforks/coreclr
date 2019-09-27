@@ -46,13 +46,6 @@ namespace GenUnicodeProp
             ["Cn"] = UnicodeCategory.OtherNotAssigned,
         };
 
-        private static readonly Dictionary<string, RestrictedBidiClass> BidiClassMap = new Dictionary<string, RestrictedBidiClass>
-        {
-            ["L"] = RestrictedBidiClass.StrongLeftToRight,
-            ["R"] = RestrictedBidiClass.StrongRightToLeft,
-            ["AL"] = RestrictedBidiClass.StrongRightToLeft,
-        };
-
         private readonly List<CodePointInfo> _data = new List<CodePointInfo>();
 
         private UnicodeDataRepository()
@@ -64,6 +57,7 @@ namespace GenUnicodeProp
             HashSet<uint> whitespaceCodePoints = GetWhiteSpaceCodePoints();
             Dictionary<uint, uint> caseFoldMap = GetSimpleCaseFoldMap();
             Dictionary<uint, GraphemeBoundaryCategory> graphemeBreakMap = GetGraphemeBreakPropertyMap();
+            Dictionary<uint, RestrictedBidiClass> bidiClassMap = GetBidiClassMap();
 
             // Next, process the main data file, folding in the ancillary data.
 
@@ -74,10 +68,6 @@ namespace GenUnicodeProp
                     CodePoint = entry.codePoint,
                     UnicodeCategory = UnicodeCategoryMap[entry.generalCategory]
                 };
-
-                // We don't care about the real bidi class value: we only care about strong LTR or RTL
-
-                BidiClassMap.TryGetValue(entry.bidiClass, out newData.RestrictedBidiClass);
 
                 // Read and populate the simple case mappings & case fold mappings.
                 // If a mapping exists, we store the difference between the original code point
@@ -138,9 +128,11 @@ namespace GenUnicodeProp
                     }
                 }
 
-                // Read and populate the grapheme cluster boundary break data.
+                // Read and populate the grapheme cluster boundary break data
+                // and the bidi class data.
 
                 graphemeBreakMap.TryGetValue(entry.codePoint, out newData.GraphemeBoundaryCategory);
+                bidiClassMap.TryGetValue(entry.codePoint, out newData.RestrictedBidiClass);
 
                 // We're done! Add all the info to the list.
 
@@ -158,7 +150,8 @@ namespace GenUnicodeProp
             {
                 if (whitespaceCodePoints.Contains(i)
                     || caseFoldMap.ContainsKey(i)
-                    || graphemeBreakMap.ContainsKey(i))
+                    || graphemeBreakMap.ContainsKey(i)
+                    || bidiClassMap.ContainsKey(i))
                 {
                     if (!assignedCodePoints.Contains(i))
                     {
@@ -174,6 +167,8 @@ namespace GenUnicodeProp
 
                         graphemeBreakMap.TryGetValue(i, out newCodePointInfo.GraphemeBoundaryCategory);
 
+                        bidiClassMap.TryGetValue(i, out newCodePointInfo.RestrictedBidiClass);
+
                         _data.Add(newCodePointInfo);
                     }
                 }
@@ -181,6 +176,45 @@ namespace GenUnicodeProp
         }
 
         public IReadOnlyList<CodePointInfo> Data => _data;
+
+        /// <summary>
+        /// Reads DerivedBidiClass.txt and returns the map of code points to bidi classes.
+        /// </summary>
+        private static Dictionary<uint, RestrictedBidiClass> GetBidiClassMap()
+        {
+            Dictionary<uint, RestrictedBidiClass> map = new Dictionary<uint, RestrictedBidiClass>();
+
+            foreach (string line in File.ReadAllLines("DerivedBidiClass.txt"))
+            {
+                if (PropsFileEntry.TryParseLine(line, out PropsFileEntry parsedEntry))
+                {
+                    RestrictedBidiClass bidiClass;
+
+                    switch (parsedEntry.PropName)
+                    {
+                        case "L":
+                            bidiClass = RestrictedBidiClass.StrongLeftToRight;
+                            break;
+
+                        case "R":
+                        case "AL":
+                            bidiClass = RestrictedBidiClass.StrongRightToLeft;
+                            break;
+
+                        default:
+                            bidiClass = RestrictedBidiClass.Other;
+                            break;
+                    }
+
+                    for (uint i = parsedEntry.FirstCodePoint; i <= parsedEntry.LastCodePoint; i++)
+                    {
+                        map[i] = bidiClass;
+                    }
+                }
+            }
+
+            return map;
+        }
 
         /// <summary>
         /// Reads GraphemeBreakProperty.txt and emoji-data.txt and returns the map of code points to grapheme break properties.
@@ -322,7 +356,6 @@ namespace GenUnicodeProp
                     codePoint = thisCodePoint,
                     name = name,
                     generalCategory = split[2],
-                    bidiClass = split[4],
                     decimalDigitValue = split[6],
                     digitValue = split[7],
                     numericValue = split[8],
@@ -341,7 +374,6 @@ namespace GenUnicodeProp
             public uint codePoint;
             public string name;
             public string generalCategory;
-            public string bidiClass;
             public string decimalDigitValue;
             public string digitValue;
             public string numericValue;

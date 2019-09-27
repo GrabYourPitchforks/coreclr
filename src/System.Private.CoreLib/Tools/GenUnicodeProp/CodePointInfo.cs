@@ -13,7 +13,7 @@ namespace GenUnicodeProp
     {
         public uint CodePoint = 0;
         public UnicodeCategory UnicodeCategory = UnicodeCategory.OtherNotAssigned;
-        public RestrictedBidiClass RestrictedBidiClass = RestrictedBidiClass.None;
+        public RestrictedBidiClass RestrictedBidiClass = RestrictedBidiClass.StrongLeftToRight;
         public int OffsetToSimpleUppercase = 0;
         public int OffsetToSimpleLowercase = 0;
         public int OffsetToSimpleTitlecase = 0;
