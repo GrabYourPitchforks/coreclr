@@ -7,7 +7,7 @@ using System.Text.RegularExpressions;
 
 namespace GenUnicodeProp
 {
-    internal readonly struct PropsFileEntry
+    internal sealed class PropsFileEntry
     {
         // The format we expect is "XXXX[..YYYY] ; <propName> [# <comment>]"
         private static readonly Regex _regex = new Regex(@"^\s*(?<firstCodePoint>[0-9a-f]{4,})(\.\.(?<lastCodePoint>[0-9a-f]{4,}))?\s*;\s*(?<propName>\w+)", RegexOptions.IgnoreCase);

@@ -5,11 +5,12 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.IO;
 
 namespace GenUnicodeProp
 {
-    internal class UnicodeDataRepository
+    internal sealed class UnicodeDataRepository
     {
         private static readonly Dictionary<string, UnicodeCategory> UnicodeCategoryMap = new Dictionary<string, UnicodeCategory>
         {
@@ -52,7 +53,7 @@ namespace GenUnicodeProp
             ["AL"] = RestrictedBidiClass.StrongRightToLeft,
         };
 
-        private readonly List<Data1> _data = new List<Data1>();
+        private readonly List<CodePointInfo> _data = new List<CodePointInfo>();
 
         private UnicodeDataRepository()
         {
@@ -61,20 +62,27 @@ namespace GenUnicodeProp
             // main data file.
 
             HashSet<uint> whitespaceCodePoints = GetWhiteSpaceCodePoints();
-            Dictionary<uint, int> caseFoldMap = GetSimpleCaseFoldOffsets();
+            Dictionary<uint, uint> caseFoldMap = GetSimpleCaseFoldMap();
             Dictionary<uint, GraphemeBoundaryCategory> graphemeBreakMap = GetGraphemeBreakPropertyMap();
 
             // Next, process the main data file, folding in the ancillary data.
 
             foreach (UnicodeDataEntry entry in ReadUnicodeDataFile())
             {
-                Data1 newData = new Data1()
+                CodePointInfo newData = new CodePointInfo()
                 {
                     CodePoint = entry.codePoint,
                     UnicodeCategory = UnicodeCategoryMap[entry.generalCategory]
                 };
 
+                // We don't care about the real bidi class value: we only care about strong LTR or RTL
+
                 BidiClassMap.TryGetValue(entry.bidiClass, out newData.RestrictedBidiClass);
+
+                // Read and populate the simple case mappings & case fold mappings.
+                // If a mapping exists, we store the difference between the original code point
+                // and the mapped result, since this allows greater data compaction than storing
+                // the mapped result as-is.
 
                 if (entry.simpleUppercaseMapping.HasValue)
                 {
@@ -91,8 +99,16 @@ namespace GenUnicodeProp
                     newData.OffsetToSimpleTitlecase = (int)(entry.simpleTitlecaseMapping - entry.codePoint);
                 }
 
-                caseFoldMap.TryGetValue(entry.codePoint, out newData.OffsetToSimpleCaseFold);
+                if (caseFoldMap.TryGetValue(entry.codePoint, out uint caseFoldMappedValue))
+                {
+                    newData.OffsetToSimpleCaseFold = (int)(caseFoldMappedValue - entry.codePoint);
+                }
+
+                // Read and populate the "isWhitespace?" flag
+
                 newData.IsWhitespace = whitespaceCodePoints.Contains(entry.codePoint);
+
+                // Read and populate the digit & numeric data values
 
                 if (!string.IsNullOrEmpty(entry.decimalDigitValue))
                 {
@@ -106,32 +122,52 @@ namespace GenUnicodeProp
 
                 if (!string.IsNullOrEmpty(entry.numericValue))
                 {
+                    // Nuemeric value will be in form "[-]BigInteger [/ BigInteger ]"
+
                     string[] split = entry.numericValue.Split('/');
                     if (split.Length > 2)
                     {
                         throw new Exception($"Unexpected numeric value: {entry.numericValue}");
                     }
 
-                    double numerator = double.Parse(split[0], CultureInfo.InvariantCulture);
+                    newData.NumericValue = double.Parse(split[0], CultureInfo.InvariantCulture);
 
-                    if (split.Length == 1)
+                    if (split.Length == 2)
                     {
-                        newData.NumericValue = numerator;
-                    }
-                    else
-                    {
-                        double denominator = double.Parse(split[1], CultureInfo.InvariantCulture);
-                        newData.NumericValue = numerator / denominator;
+                        newData.NumericValue /= double.Parse(split[1], CultureInfo.InvariantCulture);
                     }
                 }
 
+                // Read and populate the grapheme cluster boundary break data.
+
                 graphemeBreakMap.TryGetValue(entry.codePoint, out newData.GraphemeBoundaryCategory);
+
+                // We're done! Add all the info to the list.
 
                 _data.Add(newData);
             }
+
+            // Finally, double-check our data files to make sure that each entry in the ancillary
+            // data files had a corresponding entry in the UnicodeData.txt main data file. This
+            // helps detect situations where the tool was run with mismatched data sets.
+
+            HashSet<uint> definedCodePoints = new HashSet<uint>(_data.Select(entry => entry.CodePoint));
+
+            for (uint i = 0; i <= 0x10FFFF; i++)
+            {
+                if (whitespaceCodePoints.Contains(i)
+                    || caseFoldMap.ContainsKey(i)
+                    || graphemeBreakMap.ContainsKey(i))
+                {
+                    if (!definedCodePoints.Contains(i))
+                    {
+                        throw new Exception($"Code point U+{i:X4} is missing core definition in UnicodeData.txt.");
+                    }
+                }
+            }
         }
 
-        public IReadOnlyList<Data1> Data => _data;
+        public IReadOnlyList<CodePointInfo> Data => _data;
 
         /// <summary>
         /// Reads GraphemeBreakProperty.txt and emoji-data.txt and returns the map of code points to grapheme break properties.
@@ -167,11 +203,11 @@ namespace GenUnicodeProp
         }
 
         /// <summary>
-        /// Reads CaseFolding.txt and returns a map of code points to their "offset to case-fold" values.
+        /// Reads CaseFolding.txt and returns a map of code points to their case-fold values.
         /// </summary>
-        private static Dictionary<uint, int> GetSimpleCaseFoldOffsets()
+        private static Dictionary<uint, uint> GetSimpleCaseFoldMap()
         {
-            Dictionary<uint, int> map = new Dictionary<uint, int>();
+            Dictionary<uint, uint> map = new Dictionary<uint, uint>();
 
             // The format we expect is "<code>; <status>; <mapping>; # <name>"
 
@@ -189,7 +225,7 @@ namespace GenUnicodeProp
                 uint thisCodePoint = uint.Parse(split[0], NumberStyles.HexNumber, CultureInfo.InvariantCulture);
                 uint mappedCodePoint = uint.Parse(split[2], NumberStyles.HexNumber, CultureInfo.InvariantCulture);
 
-                map[thisCodePoint] = (int)(mappedCodePoint - thisCodePoint);
+                map[thisCodePoint] = mappedCodePoint;
             }
 
             return map;
@@ -286,7 +322,7 @@ namespace GenUnicodeProp
             }
         }
 
-        // struct gives us automatic hash code calculation & equality operators
+        // struct since we rely on copy-by-value in a few places
         private struct UnicodeDataEntry
         {
             public uint codePoint;
@@ -300,40 +336,5 @@ namespace GenUnicodeProp
             public uint? simpleLowercaseMapping;
             public uint? simpleTitlecaseMapping;
         }
-    }
-
-    internal class Data1
-    {
-        public uint CodePoint = 0;
-        public UnicodeCategory UnicodeCategory = UnicodeCategory.OtherNotAssigned;
-        public RestrictedBidiClass RestrictedBidiClass = RestrictedBidiClass.None;
-        public int OffsetToSimpleUppercase = 0;
-        public int OffsetToSimpleLowercase = 0;
-        public int OffsetToSimpleTitlecase = 0;
-        public int OffsetToSimpleCaseFold = 0;
-        public bool IsWhitespace = false;
-        public sbyte DecimalDigitValue = -1;
-        public sbyte DigitValue = -1;
-        public double NumericValue = -1;
-        public GraphemeBoundaryCategory GraphemeBoundaryCategory = GraphemeBoundaryCategory.Unassigned;
-    }
-
-    internal enum GraphemeBoundaryCategory
-    {
-        Unassigned,
-        CR,
-        LF,
-        Control,
-        Extend,
-        ZWJ,
-        Regional_Indicator,
-        Prepend,
-        SpacingMark,
-        L,
-        V,
-        T,
-        LV,
-        LVT,
-        Extended_Pictographic,
     }
 }
