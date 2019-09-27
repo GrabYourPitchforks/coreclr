@@ -353,36 +353,9 @@ namespace System
         }
 
         /// <summary>
-        /// Returns the entire <see cref="Utf8String"/> as an array of bytes.
+        /// Returns the entire <see cref="Utf8String"/> as an array of UTF-8 bytes.
         /// </summary>
-        public byte[] ToByteArray()
-        {
-            if (Length == 0)
-            {
-                return Array.Empty<byte>();
-            }
-
-            byte[] bytes = new byte[Length];
-            Buffer.Memmove(ref bytes.GetRawSzArrayData(), ref DangerousGetMutableReference(), (uint)Length);
-            return bytes;
-        }
-
-        /// <summary>
-        /// Returns a substring of this <see cref="Utf8String"/> as an array of bytes.
-        /// </summary>
-        public byte[] ToByteArray(int startIndex, int length)
-        {
-            ValidateStartIndexAndLength(startIndex, length);
-
-            if (length == 0)
-            {
-                return Array.Empty<byte>();
-            }
-
-            byte[] bytes = new byte[length];
-            Buffer.Memmove(ref bytes.GetRawSzArrayData(), ref DangerousGetMutableReference(startIndex), (uint)length);
-            return bytes;
-        }
+        public byte[] ToByteArray() => this.AsSpanSkipNullCheck().ToByteArray();
 
         /// <summary>
         /// Converts this <see cref="Utf8String"/> instance to a <see cref="string"/>.

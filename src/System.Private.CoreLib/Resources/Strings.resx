@@ -3787,4 +3787,7 @@
   <data name="Argument_CannotBeEmptySpan" xml:space="preserve">
     <value>Argument cannot be an empty span.</value>
   </data>
+  <data name="Argument_CannotBeNullOrEmpty" xml:space="preserve">
+    <value>Argument cannot be null or empty.</value>
+  </data>
 </root>
