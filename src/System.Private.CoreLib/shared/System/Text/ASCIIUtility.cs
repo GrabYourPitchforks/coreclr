@@ -82,7 +82,7 @@ namespace System.Text
             // this method is running.
 
             return (Sse2.IsSupported)
-                ? GetIndexOfFirstNonAsciiByte_Sse2(pBuffer, bufferLength)
+                ? GetIndexOfFirstNonAsciiByte_Sse2_Modified(pBuffer, bufferLength)
                 : GetIndexOfFirstNonAsciiByte_Default(pBuffer, bufferLength);
         }
 
@@ -227,6 +227,117 @@ namespace System.Text
 
             pBuffer += CountNumberOfLeadingAsciiBytesFromUInt32WithSomeNonAsciiData(currentUInt32);
             goto Finish;
+        }
+
+        private static unsafe nuint GetIndexOfFirstNonAsciiByte_Sse2_Modified(byte* pbBuffer, nuint bufferLength)
+        {
+            uint SizeOfVector128InBytes = (uint)sizeof(Vector128<byte>); // JIT will make this a constant
+
+            nuint currentOffset = 0;
+            uint currentMask, secondMask;
+
+            if (bufferLength != 0)
+            {
+                byte* pbAlignedStart = (byte*)((nuint)pbBuffer & ~(nuint)(SizeOfVector128InBytes - 1));
+                Vector128<byte> vecAlignedStart = Sse2.LoadAlignedVector128(pbAlignedStart);
+
+                uint shiftAmount = (uint)pbBuffer & (SizeOfVector128InBytes - 1);
+                currentMask = (uint)Sse2.MoveMask(vecAlignedStart) >> (int)shiftAmount;
+
+                if (bufferLength < (SizeOfVector128InBytes - shiftAmount))
+                {
+                    goto TrimUnusedTrailingDataInVector;
+                }
+
+                if (currentMask != 0)
+                {
+                    goto FoundNonAsciiDataInCurrentMask;
+                }
+
+                currentOffset = SizeOfVector128InBytes - shiftAmount;
+                bufferLength -= currentOffset;
+
+                // At this point, (pbBuffer + currentOffset) is now aligned,
+                // and bufferLength represents the number of bytes remaining.
+
+                while (bufferLength >= 2 * SizeOfVector128InBytes)
+                {
+                    // Read 32 bytes at a time.
+
+                    Vector128<byte> firstVector = Sse2.LoadAlignedVector128(pbBuffer + currentOffset);
+                    Vector128<byte> secondVector = Sse2.LoadAlignedVector128(pbBuffer + currentOffset + SizeOfVector128InBytes);
+
+                    currentMask = (uint)Sse2.MoveMask(firstVector);
+                    secondMask = (uint)Sse2.MoveMask(secondVector);
+
+                    if ((currentMask | secondMask) != 0)
+                    {
+                        goto FoundNonAsciiDataInInnerLoop;
+                    }
+
+                    bufferLength -= 2 * SizeOfVector128InBytes;
+                    currentOffset += 2 * SizeOfVector128InBytes;
+                }
+
+                if (bufferLength >= SizeOfVector128InBytes)
+                {
+                    // Read 16 bytes at a time.
+
+                    currentMask = (uint)Sse2.MoveMask(Sse2.LoadAlignedVector128(pbBuffer + currentOffset));
+
+                    if (currentMask != 0)
+                    {
+                        goto FoundNonAsciiDataInCurrentMask;
+                    }
+
+                    currentOffset += SizeOfVector128InBytes;
+                }
+
+                bufferLength = (uint)bufferLength & (SizeOfVector128InBytes - 1);
+                if ((uint)bufferLength == 0)
+                {
+                    goto Return;
+                }
+
+                // perform final read - partial read
+
+                currentMask = (uint)Sse2.MoveMask(Sse2.LoadAlignedVector128(pbBuffer + currentOffset));
+
+            TrimUnusedTrailingDataInVector:
+
+                currentMask = (Bmi2.IsSupported)
+                    ? Bmi2.ZeroHighBits(currentMask, (uint)bufferLength)
+                    : currentMask & ((1u << (int)bufferLength) - 1);
+
+                if (currentMask != 0)
+                {
+                    goto FoundNonAsciiDataInCurrentMask;
+                }
+
+                currentOffset += bufferLength;
+            }
+
+        Return:
+
+            return currentOffset;
+
+        FoundNonAsciiDataInInnerLoop:
+
+            // If the current (first) mask isn't the mask that contains non-ASCII data, then it must
+            // instead be the second mask. If so, skip the entire first mask and drain ASCII bytes
+            // from the second mask.
+
+            if (currentMask == 0)
+            {
+                currentOffset += SizeOfVector128InBytes;
+                currentMask = secondMask;
+            }
+
+        FoundNonAsciiDataInCurrentMask:
+
+            Debug.Assert(currentMask != 0, "Shouldn't be here unless we saw non-ASCII data.");
+            currentOffset += (uint)BitOperations.TrailingZeroCount(currentMask);
+            goto Return;
         }
 
         private static unsafe nuint GetIndexOfFirstNonAsciiByte_Sse2(byte* pBuffer, nuint bufferLength)
