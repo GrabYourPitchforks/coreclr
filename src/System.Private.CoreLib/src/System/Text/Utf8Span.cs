@@ -58,7 +58,10 @@ namespace System.Text
 
         public bool IsEmpty => Bytes.IsEmpty;
 
-        internal int Length => Bytes.Length;
+        /// <summary>
+        /// Returns the length (in UTF-8 code units, or <see cref="byte"/>s) of this instance.
+        /// </summary>
+        public int Length => Bytes.Length;
 
         public Utf8Span this[Range range]
         {

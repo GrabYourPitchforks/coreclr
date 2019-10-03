@@ -95,12 +95,20 @@ namespace System
         /// </remarks>
 
         [MethodImpl(MethodImplOptions.InternalCall)]
-        public extern Utf8String(byte[]? value, int startIndex, int length);
+        public extern Utf8String(byte[] value, int startIndex, int length);
 
 #if !CORECLR
         static
 #endif
-        private Utf8String Ctor(byte[]? value, int startIndex, int length) => Ctor(new ReadOnlySpan<byte>(value, startIndex, length));
+        private Utf8String Ctor(byte[] value, int startIndex, int length)
+        {
+            if (value is null)
+            {
+                ThrowHelper.ThrowArgumentNullException(ExceptionArgument.value);
+            }
+
+            return Ctor(new ReadOnlySpan<byte>(value, startIndex, length));
+        }
 
         /// <summary>
         /// Creates a <see cref="Utf8String"/> instance from existing null-terminated UTF-8 data.
@@ -178,12 +186,20 @@ namespace System
         /// <see cref="TryCreateFrom(ReadOnlySpan{char}, out Utf8String)"/> or <see cref="CreateFromRelaxed(ReadOnlySpan{char})"/>.
         /// </remarks>
         [MethodImpl(MethodImplOptions.InternalCall)]
-        public extern Utf8String(char[]? value, int startIndex, int length);
+        public extern Utf8String(char[] value, int startIndex, int length);
 
 #if !CORECLR
         static
 #endif
-        private Utf8String Ctor(char[]? value, int startIndex, int length) => Ctor(new ReadOnlySpan<char>(value, startIndex, length));
+        private Utf8String Ctor(char[] value, int startIndex, int length)
+        {
+            if (value is null)
+            {
+                ThrowHelper.ThrowArgumentNullException(ExceptionArgument.value);
+            }
+
+            return Ctor(new ReadOnlySpan<char>(value, startIndex, length));
+        }
 
         /// <summary>
         /// Creates a <see cref="Utf8String"/> instance from existing null-terminated UTF-16 data.

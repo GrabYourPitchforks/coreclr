@@ -72,7 +72,7 @@ namespace System
         /// <summary>
         /// Returns the length (in UTF-8 code units, or <see cref="byte"/>s) of this instance.
         /// </summary>
-        internal int Length => _length;
+        public int Length => _length;
 
         /*
          * INDEXERS
