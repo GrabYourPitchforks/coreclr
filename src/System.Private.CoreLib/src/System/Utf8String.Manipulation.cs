@@ -348,17 +348,11 @@ namespace System
 #if BIT64
             // See comment in Span<T>.Slice for how this works.
             if ((ulong)(uint)startIndex + (ulong)(uint)length > (ulong)(uint)this.Length)
-                ValidateStartIndexAndLength_Throw(startIndex, length);
+                ThrowHelper.ThrowArgumentOutOfRangeException();
 #else
             if ((uint)startIndex > (uint)this.Length || (uint)length > (uint)(this.Length - startIndex))
-                ValidateStartIndexAndLength_Throw(startIndex, length);
+                ThrowHelper.ThrowArgumentOutOfRangeException();
 #endif
-        }
-
-        [StackTraceHidden]
-        private void ValidateStartIndexAndLength_Throw(int startIndex, int length)
-        {
-            throw new ArgumentOutOfRangeException(paramName: ((uint)startIndex > (uint)this.Length) ? nameof(startIndex) : nameof(length));
         }
 
         [StructLayout(LayoutKind.Auto)]

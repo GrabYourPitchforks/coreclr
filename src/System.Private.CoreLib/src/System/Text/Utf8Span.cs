@@ -195,6 +195,13 @@ namespace System.Text
             }
         }
 
+        /// <summary>
+        /// Returns a value stating whether this <see cref="Utf8Span"/> instance is normalized
+        /// using the specified Unicode normalization form.
+        /// </summary>
+        /// <param name="normalizationForm">The <see cref="NormalizationForm"/> to check.</param>
+        /// <returns><see langword="true"/> if this <see cref="Utf8Span"/> instance represents text
+        /// normalized under <paramref name="normalizationForm"/>, otherwise <see langword="false"/>.</returns>
         public bool IsNormalized(NormalizationForm normalizationForm = NormalizationForm.FormC)
         {
             // TODO_UTF8STRING: Avoid allocations in this code path.
