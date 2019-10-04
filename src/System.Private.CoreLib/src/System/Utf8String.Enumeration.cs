@@ -76,34 +76,33 @@ namespace System
                 {
                     get
                     {
-                        // Make copies of fields to avoid tearing issues since we're
-                        // about to perform unsafe accesses.
+                        byte retVal = default;
 
-                        Utf8String obj = _obj;
-                        nuint curByteIdx = (uint)_curByteIdx;
+                        // Make copies of fields to avoid tearing issues.
+                        // Disallow reading past the end of the object.
 
-                        // If we'd go past the end of the Utf8String instance, then
-                        // just dereference the null terminator and move on.
+                        ReadOnlySpan<byte> byteSpan = _obj.AsBytesSkipNullCheck();
+                        int curByteIdx = _curByteIdx;
 
-                        if ((uint)curByteIdx > (uint)obj.Length)
+                        if ((uint)curByteIdx < (uint)byteSpan.Length)
                         {
-                            curByteIdx = (uint)obj.Length;
+                            retVal = byteSpan[curByteIdx];
                         }
 
-                        return obj.DangerousGetMutableReference(curByteIdx);
+                        return retVal;
                     }
                 }
 
                 public bool MoveNext()
                 {
-                    int curByteIdx = _curByteIdx;
+                    int curByteIdx = _curByteIdx + 1;
 
-                    if (curByteIdx > _obj.Length)
+                    if ((uint)curByteIdx >= (uint)_obj.Length)
                     {
                         return false; // no more data
                     }
 
-                    _curByteIdx = curByteIdx + 1;
+                    _curByteIdx = curByteIdx;
                     return true;
                 }
 

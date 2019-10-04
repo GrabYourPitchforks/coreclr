@@ -521,6 +521,11 @@ namespace System
             // Create and populate the Utf8String instance.
             // Can't use FastAllocateSkipZeroInit here because we're handing the raw buffer to user code.
 
+            if (length == 0)
+            {
+                return Empty; // special-case empty input
+            }
+
             Utf8String newString = FastAllocate(length);
             action(newString.DangerousGetMutableSpan(), state);
 
