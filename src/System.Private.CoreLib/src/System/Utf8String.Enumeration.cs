@@ -176,7 +176,7 @@ namespace System
                     // TODO_UTF8STRING: Can we skip correctness checks below?
                     // Perhaps not, this enumerator struct is potentially tearable.
 
-                    OperationStatus status = Rune.DecodeFromUtf8(bytes, out Rune currentRune, out int bytesConsumedJustNow);
+                    OperationStatus status = Rune.DecodeFromUtf8(bytes.Slice(nextByteIdx), out Rune currentRune, out int bytesConsumedJustNow);
                     Debug.Assert(status == OperationStatus.Done);
 
                     _nextByteIdx = nextByteIdx + bytesConsumedJustNow;
