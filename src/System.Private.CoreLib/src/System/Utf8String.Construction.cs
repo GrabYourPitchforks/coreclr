@@ -160,7 +160,7 @@ namespace System
 #endif
         private Utf8String Ctor(ReadOnlySpan<char> value)
         {
-            Utf8String? newString = CreateFromUtf16Common(value, replaceInvalidSequences: true);
+            Utf8String? newString = CreateFromUtf16Common(value, replaceInvalidSequences: false);
 
             if (newString is null)
             {
