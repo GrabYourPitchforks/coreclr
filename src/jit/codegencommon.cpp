@@ -478,7 +478,7 @@ regMaskTP CodeGenInterface::genGetRegMask(GenTree* tree)
 
 // The given lclVar is either going live (being born) or dying.
 // It might be both going live and dying (that is, it is a dead store) under MinOpts.
-// Update regSet.rsMaskVars accordingly.
+// Update regSet.GetMaskVars() accordingly.
 // inline
 void CodeGenInterface::genUpdateRegLife(const LclVarDsc* varDsc, bool isBorn, bool isDying DEBUGARG(GenTree* tree))
 {
@@ -499,12 +499,12 @@ void CodeGenInterface::genUpdateRegLife(const LclVarDsc* varDsc, bool isBorn, bo
     {
         // We'd like to be able to assert the following, however if we are walking
         // through a qmark/colon tree, we may encounter multiple last-use nodes.
-        // assert((regSet.rsMaskVars & regMask) == regMask);
+        // assert((regSet.GetMaskVars() & regMask) == regMask);
         regSet.RemoveMaskVars(regMask);
     }
     else
     {
-        assert((regSet.rsMaskVars & regMask) == 0);
+        assert((regSet.GetMaskVars() & regMask) == 0);
         regSet.AddMaskVars(regMask);
     }
 }
@@ -2287,9 +2287,10 @@ void CodeGen::genGenerateCode(void** codePtr, ULONG* nativeSizeOfCode)
 
     compiler->EndPhase(PHASE_GENERATE_CODE);
 
-    codeSize = GetEmitter()->emitEndCodeGen(compiler, trackedStackPtrsContig, GetInterruptible(), genFullPtrRegMap,
-                                            (compiler->info.compRetType == TYP_REF), compiler->compHndBBtabCount,
-                                            &prologSize, &epilogSize, codePtr, &coldCodePtr, &consPtr);
+    codeSize =
+        GetEmitter()->emitEndCodeGen(compiler, trackedStackPtrsContig, GetInterruptible(), IsFullPtrRegMapRequired(),
+                                     (compiler->info.compRetType == TYP_REF), compiler->compHndBBtabCount, &prologSize,
+                                     &epilogSize, codePtr, &coldCodePtr, &consPtr);
 
     compiler->EndPhase(PHASE_EMIT_CODE);
 
@@ -3615,11 +3616,11 @@ void CodeGen::genFnPrologCalleeRegArgs(regNumber xtraReg, bool* pXtraRegClobbere
                 }
 
 #if !defined(_TARGET_64BIT_)
-                if ((i == 1) && varTypeIsStruct(varDsc) && (varDsc->lvOtherReg == regNum))
+                if ((i == 1) && varTypeIsStruct(varDsc) && (varDsc->GetOtherReg() == regNum))
                 {
                     goto NON_DEP;
                 }
-                if ((i == 1) && (genActualType(varDsc->TypeGet()) == TYP_LONG) && (varDsc->lvOtherReg == regNum))
+                if ((i == 1) && (genActualType(varDsc->TypeGet()) == TYP_LONG) && (varDsc->GetOtherReg() == regNum))
                 {
                     goto NON_DEP;
                 }
@@ -3704,7 +3705,7 @@ void CodeGen::genFnPrologCalleeRegArgs(regNumber xtraReg, bool* pXtraRegClobbere
 #elif !defined(_TARGET_64BIT_)
                 else if (regArgTab[argNum].slot == 2 && genActualType(varDsc->TypeGet()) == TYP_LONG)
                 {
-                    destRegNum = varDsc->lvOtherReg;
+                    destRegNum = varDsc->GetOtherReg();
                 }
                 else
                 {
@@ -3798,7 +3799,7 @@ void CodeGen::genFnPrologCalleeRegArgs(regNumber xtraReg, bool* pXtraRegClobbere
             {
                 continue;
             }
-            else if (varDsc->lvOtherReg != REG_STK)
+            else if (varDsc->GetOtherReg() != REG_STK)
             {
                 continue;
             }
@@ -3829,7 +3830,7 @@ void CodeGen::genFnPrologCalleeRegArgs(regNumber xtraReg, bool* pXtraRegClobbere
         noway_assert(varDsc->lvIsParam);
         noway_assert(varDsc->lvIsRegArg);
         noway_assert(varDsc->lvIsInReg() == false ||
-                     (varDsc->lvType == TYP_LONG && varDsc->lvOtherReg == REG_STK && regArgTab[argNum].slot == 2));
+                     (varDsc->lvType == TYP_LONG && varDsc->GetOtherReg() == REG_STK && regArgTab[argNum].slot == 2));
 
         var_types storeType = TYP_UNDEF;
         unsigned  slotSize  = TARGET_POINTER_SIZE;
@@ -4258,7 +4259,7 @@ void CodeGen::genFnPrologCalleeRegArgs(regNumber xtraReg, bool* pXtraRegClobbere
                 }
                 else
                 {
-                    destRegNum = varDsc->lvOtherReg;
+                    destRegNum = varDsc->GetOtherReg();
                 }
 
                 assert(destRegNum != REG_STK);
@@ -4608,7 +4609,8 @@ void CodeGen::genCheckUseBlockInit()
                         else
                         {
                             // Var is partially enregistered
-                            noway_assert(genTypeSize(varDsc->TypeGet()) > sizeof(int) && varDsc->lvOtherReg == REG_STK);
+                            noway_assert(genTypeSize(varDsc->TypeGet()) > sizeof(int) &&
+                                         varDsc->GetOtherReg() == REG_STK);
                             initStkLclCnt += genTypeStSz(TYP_INT);
                             counted = true;
                         }
@@ -6705,7 +6707,7 @@ void CodeGen::genReserveEpilog(BasicBlock* block)
 
     bool jmpEpilog = ((block->bbFlags & BBF_HAS_JMP) != 0);
 
-    if (genFullPtrRegMap && !jmpEpilog)
+    if (IsFullPtrRegMapRequired() && !jmpEpilog)
     {
         if (varTypeIsGC(compiler->info.compRetNativeType))
         {
@@ -7230,9 +7232,9 @@ void CodeGen::genFnProlog()
 
                 if (varTypeIsMultiReg(varDsc))
                 {
-                    if (varDsc->lvOtherReg != REG_STK)
+                    if (varDsc->GetOtherReg() != REG_STK)
                     {
-                        initRegs |= genRegMask(varDsc->lvOtherReg);
+                        initRegs |= genRegMask(varDsc->GetOtherReg());
                     }
                     else
                     {
