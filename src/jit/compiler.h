@@ -517,7 +517,7 @@ public:
     {
         if (slotNum == 0)
         {
-            return lvArgReg;
+            return (regNumber)_lvArgReg;
         }
         else if (slotNum == 1)
         {
@@ -666,8 +666,6 @@ public:
 #endif // !_TARGET_64BIT_
 
     /////////////////////
-
-    __declspec(property(get = GetArgReg, put = SetArgReg)) regNumber lvArgReg;
 
     regNumber GetArgReg() const
     {
@@ -1401,8 +1399,7 @@ public:
     {
         _lateArgInx = inx;
     }
-    __declspec(property(get = getRegNum)) regNumber regNum;
-    regNumber getRegNum()
+    regNumber GetRegNum()
     {
         return (regNumber)regNums[0];
     }
@@ -1421,14 +1418,13 @@ public:
         assert(i < MAX_ARG_REG_COUNT);
         regNums[i] = (regNumberSmall)regNum;
     }
-    regNumber getRegNum(unsigned int i)
+    regNumber GetRegNum(unsigned int i)
     {
         assert(i < MAX_ARG_REG_COUNT);
         return (regNumber)regNums[i];
     }
 
-    __declspec(property(get = getIsSplit, put = setIsSplit)) bool isSplit;
-    bool getIsSplit()
+    bool IsSplit()
     {
 #ifdef FEATURE_ARG_SPLIT
         return _isSplit;
@@ -1436,7 +1432,7 @@ public:
         return false;
 #endif
     }
-    void setIsSplit(bool value)
+    void SetSplit(bool value)
     {
 #ifdef FEATURE_ARG_SPLIT
         _isSplit = value;
@@ -1458,8 +1454,7 @@ public:
 #endif // FEATURE_VARARG
     }
 
-    __declspec(property(get = getIsHfaArg)) bool isHfaArg;
-    bool getIsHfaArg()
+    bool IsHfaArg()
     {
 #ifdef FEATURE_HFA
         return IsHfa(_hfaElemKind);
@@ -1546,7 +1541,7 @@ public:
             }
 #endif // _TARGET_ARM_
 
-            if (!isHfaArg)
+            if (!IsHfaArg())
             {
                 // We haven't previously set this; do so now.
                 _hfaElemKind = HfaElemKindFromType(type);
@@ -1591,7 +1586,7 @@ public:
 
     bool isPassedInRegisters()
     {
-        return !isSplit && (numRegs != 0);
+        return !IsSplit() && (numRegs != 0);
     }
 
     bool isPassedInFloatRegisters()
@@ -1599,13 +1594,13 @@ public:
 #ifdef _TARGET_X86
         return false;
 #else
-        return isValidFloatArgReg(regNum);
+        return isValidFloatArgReg(GetRegNum());
 #endif
     }
 
     bool isSingleRegOrSlot()
     {
-        return !isSplit && ((numRegs == 1) || (numSlots == 1));
+        return !IsSplit() && ((numRegs == 1) || (numSlots == 1));
     }
 
     // Returns the number of "slots" used, where for this purpose a
@@ -1617,7 +1612,7 @@ public:
             assert(isPassedInRegisters());
             assert(numRegs == 1);
         }
-        else if (regNum == REG_STK)
+        else if (GetRegNum() == REG_STK)
         {
             assert(!isPassedInRegisters());
             assert(numRegs == 0);
@@ -1641,7 +1636,7 @@ public:
             // We counted the number of regs, but if they are DOUBLE hfa regs we have to double the size.
             if (GetHfaType() == TYP_DOUBLE)
             {
-                assert(!isSplit);
+                assert(!IsSplit());
                 size <<= 1;
             }
 #elif defined(_TARGET_ARM64_)
@@ -1675,7 +1670,7 @@ public:
             return;
         }
 
-        regNumber argReg = getRegNum(0);
+        regNumber argReg = GetRegNum(0);
 #ifdef _TARGET_ARM_
         unsigned int regSize = (GetHfaType() == TYP_DOUBLE) ? 2 : 1;
 #else
@@ -2649,8 +2644,8 @@ public:
 
     Statement* gtCloneStmt(Statement* stmt)
     {
-        GenTree* exprClone = gtCloneExpr(stmt->gtStmtExpr);
-        return gtNewStmt(exprClone, stmt->gtStmtILoffsx);
+        GenTree* exprClone = gtCloneExpr(stmt->GetRootNode());
+        return gtNewStmt(exprClone, stmt->GetILOffsetX());
     }
 
     // Internal helper for cloning a call
@@ -3624,6 +3619,16 @@ protected:
 protected:
     bool compSupportsHWIntrinsic(InstructionSet isa);
 
+    GenTree* impSpecialIntrinsic(NamedIntrinsic        intrinsic,
+                                 CORINFO_CLASS_HANDLE  clsHnd,
+                                 CORINFO_METHOD_HANDLE method,
+                                 CORINFO_SIG_INFO*     sig,
+                                 bool                  mustExpand);
+
+    GenTree* getArgForHWIntrinsic(var_types argType, CORINFO_CLASS_HANDLE argClass);
+    GenTree* impNonConstFallback(NamedIntrinsic intrinsic, var_types simdType, var_types baseType);
+    GenTree* addRangeCheckIfNeeded(NamedIntrinsic intrinsic, GenTree* lastOp, bool mustExpand);
+
 #ifdef _TARGET_XARCH_
     GenTree* impBaseIntrinsic(NamedIntrinsic        intrinsic,
                               CORINFO_CLASS_HANDLE  clsHnd,
@@ -3670,17 +3675,7 @@ protected:
                                 CORINFO_METHOD_HANDLE method,
                                 CORINFO_SIG_INFO*     sig,
                                 bool                  mustExpand);
-
-protected:
-    GenTree* getArgForHWIntrinsic(var_types argType, CORINFO_CLASS_HANDLE argClass);
-    GenTree* impNonConstFallback(NamedIntrinsic intrinsic, var_types simdType, var_types baseType);
-    GenTree* addRangeCheckIfNeeded(NamedIntrinsic intrinsic, GenTree* lastOp, bool mustExpand);
 #endif // _TARGET_XARCH_
-#ifdef _TARGET_ARM64_
-    InstructionSet lookupHWIntrinsicISA(const char* className);
-    NamedIntrinsic lookupHWIntrinsic(const char* className, const char* methodName);
-    GenTree* addRangeCheckIfNeeded(GenTree* lastOp, unsigned int max, bool mustExpand);
-#endif // _TARGET_ARM64_
 #endif // FEATURE_HW_INTRINSICS
     GenTree* impArrayAccessIntrinsic(CORINFO_CLASS_HANDLE clsHnd,
                                      CORINFO_SIG_INFO*    sig,
@@ -3817,7 +3812,7 @@ private:
     bool        impNestedStackSpill;
 
     // For displaying instrs with generated native code (-n:B)
-    Statement* impLastILoffsStmt; // oldest stmt added for which we did not gtStmtLastILoffs
+    Statement* impLastILoffsStmt; // oldest stmt added for which we did not call SetLastILOffset().
     void       impNoteLastILoffs();
 #endif
 
@@ -5184,8 +5179,6 @@ protected:
 
     void        fgInitBBLookup();
     BasicBlock* fgLookupBB(unsigned addr);
-
-    bool fgHasBackwardJump;
 
     bool fgCanSwitchToOptimized();
     void fgSwitchToOptimized();
@@ -8243,6 +8236,7 @@ public:
     bool compQmarkUsed;            // Does the method use GT_QMARK/GT_COLON
     bool compQmarkRationalized;    // Is it allowed to use a GT_QMARK/GT_COLON node.
     bool compUnsafeCastUsed;       // Does the method use LDIND/STIND to cast between scalar/refernce types
+    bool compHasBackwardJump;      // Does the method (or some inlinee) have a lexically backwards jump?
 
 // NOTE: These values are only reliable after
 //       the importing is completely finished.
@@ -8264,7 +8258,7 @@ public:
     bool compLSRADone;
     bool compRationalIRForm;
 
-    bool compUsesThrowHelper; // There is a call to a THOROW_HELPER for the compiled method.
+    bool compUsesThrowHelper; // There is a call to a THROW_HELPER for the compiled method.
 
     bool compGeneratingProlog;
     bool compGeneratingEpilog;
@@ -8703,6 +8697,8 @@ public:
 #endif
     }
 
+    const char* compGetTieringName() const;
+
     codeOptimize compCodeOpt()
     {
 #if 0
@@ -8794,12 +8790,13 @@ public:
         UNATIVE_OFFSET compTotalHotCodeSize;  // Total number of bytes of Hot Code in the method
         UNATIVE_OFFSET compTotalColdCodeSize; // Total number of bytes of Cold Code in the method
 
-        unsigned compCallUnmanaged;   // count of unmanaged calls
+        unsigned compUnmanagedCallCountWithGCTransition; // count of unmanaged calls with GC transition.
+
         unsigned compLvFrameListRoot; // lclNum for the Frame root
         unsigned compXcptnsCount;     // Number of exception-handling clauses read in the method's IL.
                                       // You should generally use compHndBBtabCount instead: it is the
                                       // current number of EH clauses (after additions like synchronized
-                                      // methods and funclets, and removals like unreachable code deletion).
+        // methods and funclets, and removals like unreachable code deletion).
 
         bool compMatchedVM; // true if the VM is "matched": either the JIT is a cross-compiler
                             // and the VM expects that, or the JIT is a "self-host" compiler
@@ -8898,6 +8895,12 @@ public:
     {
         return compMethodReturnsNativeScalarType() || compMethodReturnsRetBufAddr() ||
                compMethodReturnsMultiRegRetType();
+    }
+
+    // Returns true if the method requires a PInvoke prolog and epilog
+    bool compMethodRequiresPInvokeFrame()
+    {
+        return (info.compUnmanagedCallCountWithGCTransition > 0);
     }
 
 #if defined(DEBUG)
