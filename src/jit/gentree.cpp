@@ -1284,7 +1284,7 @@ AGAIN:
         switch (oper)
         {
             case GT_CNS_INT:
-                if (op1->gtIntCon.gtIconVal == op2->gtIntCon.gtIconVal)
+                if (op1->AsIntCon()->gtIconVal == op2->AsIntCon()->gtIconVal)
                 {
                     return true;
                 }
@@ -1292,7 +1292,7 @@ AGAIN:
 #if 0
             // TODO-CQ: Enable this in the future
         case GT_CNS_LNG:
-            if  (op1->gtLngCon.gtLconVal == op2->gtLngCon.gtLconVal)
+            if  (op1->AsLngCon()->gtLconVal == op2->AsLngCon()->gtLconVal)
                 return true;
             break;
 
@@ -1323,8 +1323,8 @@ AGAIN:
                 return true;
 
             case GT_LCL_FLD:
-                if (op1->gtLclFld.GetLclNum() != op2->gtLclFld.GetLclNum() ||
-                    op1->gtLclFld.gtLclOffs != op2->gtLclFld.gtLclOffs)
+                if (op1->AsLclFld()->GetLclNum() != op2->AsLclFld()->GetLclNum() ||
+                    op1->AsLclFld()->gtLclOffs != op2->AsLclFld()->gtLclOffs)
                 {
                     break;
                 }
@@ -1332,7 +1332,7 @@ AGAIN:
                 return true;
 
             case GT_CLS_VAR:
-                if (op1->gtClsVar.gtClsVarHnd != op2->gtClsVar.gtClsVarHnd)
+                if (op1->AsClsVar()->gtClsVarHnd != op2->AsClsVar()->gtClsVarHnd)
                 {
                     break;
                 }
@@ -1344,7 +1344,7 @@ AGAIN:
 
             case GT_ARGPLACE:
                 if ((op1->gtType == TYP_STRUCT) &&
-                    (op1->gtArgPlace.gtArgPlaceClsHnd != op2->gtArgPlace.gtArgPlaceClsHnd))
+                    (op1->AsArgPlace()->gtArgPlaceClsHnd != op2->AsArgPlace()->gtArgPlaceClsHnd))
                 {
                     break;
                 }
@@ -1379,8 +1379,9 @@ AGAIN:
                         return false;
                     }
                     break;
+                case GT_BLK:
                 case GT_OBJ:
-                    if (op1->AsObj()->GetLayout() != op2->AsObj()->GetLayout())
+                    if (op1->AsBlk()->GetLayout() != op2->AsBlk()->GetLayout())
                     {
                         return false;
                     }
@@ -1407,17 +1408,17 @@ AGAIN:
             switch (oper)
             {
                 case GT_INTRINSIC:
-                    if (op1->gtIntrinsic.gtIntrinsicId != op2->gtIntrinsic.gtIntrinsicId)
+                    if (op1->AsIntrinsic()->gtIntrinsicId != op2->AsIntrinsic()->gtIntrinsicId)
                     {
                         return false;
                     }
                     break;
                 case GT_LEA:
-                    if (op1->gtAddrMode.gtScale != op2->gtAddrMode.gtScale)
+                    if (op1->AsAddrMode()->gtScale != op2->AsAddrMode()->gtScale)
                     {
                         return false;
                     }
-                    if (op1->gtAddrMode.Offset() != op2->gtAddrMode.Offset())
+                    if (op1->AsAddrMode()->Offset() != op2->AsAddrMode()->Offset())
                     {
                         return false;
                     }
@@ -1538,7 +1539,7 @@ AGAIN:
 
         case GT_ARR_ELEM:
 
-            if (op1->gtArrElem.gtArrRank != op2->gtArrElem.gtArrRank)
+            if (op1->AsArrElem()->gtArrRank != op2->AsArrElem()->gtArrRank)
             {
                 return false;
             }
@@ -1546,16 +1547,16 @@ AGAIN:
             // NOTE: gtArrElemSize may need to be handled
 
             unsigned dim;
-            for (dim = 0; dim < op1->gtArrElem.gtArrRank; dim++)
+            for (dim = 0; dim < op1->AsArrElem()->gtArrRank; dim++)
             {
-                if (!Compare(op1->gtArrElem.gtArrInds[dim], op2->gtArrElem.gtArrInds[dim]))
+                if (!Compare(op1->AsArrElem()->gtArrInds[dim], op2->AsArrElem()->gtArrInds[dim]))
                 {
                     return false;
                 }
             }
 
-            op1 = op1->gtArrElem.gtArrObj;
-            op2 = op2->gtArrElem.gtArrObj;
+            op1 = op1->AsArrElem()->gtArrObj;
+            op2 = op2->AsArrElem()->gtArrObj;
             goto AGAIN;
 
         case GT_ARR_OFFSET:
@@ -1736,21 +1737,21 @@ AGAIN:
                 }
             }
 
-            if (tree->gtCall.gtControlExpr)
+            if (tree->AsCall()->gtControlExpr)
             {
-                if (gtHasRef(tree->gtCall.gtControlExpr, lclNum, defOnly))
+                if (gtHasRef(tree->AsCall()->gtControlExpr, lclNum, defOnly))
                 {
                     return true;
                 }
             }
 
-            if (tree->gtCall.gtCallType == CT_INDIRECT)
+            if (tree->AsCall()->gtCallType == CT_INDIRECT)
             {
                 // pinvoke-calli cookie is a constant, or constant indirection
-                assert(tree->gtCall.gtCallCookie == nullptr || tree->gtCall.gtCallCookie->gtOper == GT_CNS_INT ||
-                       tree->gtCall.gtCallCookie->gtOper == GT_IND);
+                assert(tree->AsCall()->gtCallCookie == nullptr || tree->AsCall()->gtCallCookie->gtOper == GT_CNS_INT ||
+                       tree->AsCall()->gtCallCookie->gtOper == GT_IND);
 
-                tree = tree->gtCall.gtCallAddr;
+                tree = tree->AsCall()->gtCallAddr;
             }
             else
             {
@@ -1765,15 +1766,15 @@ AGAIN:
             break;
 
         case GT_ARR_ELEM:
-            if (gtHasRef(tree->gtArrElem.gtArrObj, lclNum, defOnly))
+            if (gtHasRef(tree->AsArrElem()->gtArrObj, lclNum, defOnly))
             {
                 return true;
             }
 
             unsigned dim;
-            for (dim = 0; dim < tree->gtArrElem.gtArrRank; dim++)
+            for (dim = 0; dim < tree->AsArrElem()->gtArrRank; dim++)
             {
-                if (gtHasRef(tree->gtArrElem.gtArrInds[dim], lclNum, defOnly))
+                if (gtHasRef(tree->AsArrElem()->gtArrInds[dim], lclNum, defOnly))
                 {
                     return true;
                 }
@@ -1967,18 +1968,18 @@ AGAIN:
         {
             UINT64 bits;
             case GT_LCL_VAR:
-                add = tree->gtLclVar.GetLclNum();
+                add = tree->AsLclVar()->GetLclNum();
                 break;
             case GT_LCL_FLD:
-                hash = genTreeHashAdd(hash, tree->gtLclFld.GetLclNum());
-                add  = tree->gtLclFld.gtLclOffs;
+                hash = genTreeHashAdd(hash, tree->AsLclFld()->GetLclNum());
+                add  = tree->AsLclFld()->gtLclOffs;
                 break;
 
             case GT_CNS_INT:
-                add = tree->gtIntCon.gtIconVal;
+                add = tree->AsIntCon()->gtIconVal;
                 break;
             case GT_CNS_LNG:
-                bits = (UINT64)tree->gtLngCon.gtLconVal;
+                bits = (UINT64)tree->AsLngCon()->gtLconVal;
 #ifdef _HOST_64BIT_
                 add = bits;
 #else // 32-bit host
@@ -2057,11 +2058,11 @@ AGAIN:
                         genTreeHashAdd(hash,
                                        static_cast<unsigned>(reinterpret_cast<uintptr_t>(tree->gtRuntimeLookup.gtHnd)));
                     break;
-
+                case GT_BLK:
                 case GT_OBJ:
                     hash =
                         genTreeHashAdd(hash,
-                                       static_cast<unsigned>(reinterpret_cast<uintptr_t>(tree->AsObj()->GetLayout())));
+                                       static_cast<unsigned>(reinterpret_cast<uintptr_t>(tree->AsBlk()->GetLayout())));
                     break;
                 // For the ones below no extra argument matters for comparison.
                 case GT_BOX:
@@ -2090,25 +2091,15 @@ AGAIN:
             switch (oper)
             {
                 case GT_INTRINSIC:
-                    hash += tree->gtIntrinsic.gtIntrinsicId;
+                    hash += tree->AsIntrinsic()->gtIntrinsicId;
                     break;
                 case GT_LEA:
-                    hash += static_cast<unsigned>(tree->gtAddrMode.Offset() << 3) + tree->gtAddrMode.gtScale;
+                    hash += static_cast<unsigned>(tree->AsAddrMode()->Offset() << 3) + tree->AsAddrMode()->gtScale;
                     break;
 
-                case GT_BLK:
                 case GT_STORE_BLK:
-                    hash += tree->AsBlk()->GetLayout()->GetSize();
-                    break;
-
-                case GT_OBJ:
                 case GT_STORE_OBJ:
-                    hash ^= PtrToUlong(tree->AsObj()->GetLayout());
-                    break;
-
-                case GT_DYN_BLK:
-                case GT_STORE_DYN_BLK:
-                    hash += gtHashValue(tree->AsDynBlk()->gtDynamicSize);
+                    hash ^= PtrToUlong(tree->AsBlk()->GetLayout());
                     break;
 
                 // For the ones below no extra argument matters for comparison.
@@ -2186,12 +2177,12 @@ AGAIN:
 
         case GT_ARR_ELEM:
 
-            hash = genTreeHashAdd(hash, gtHashValue(tree->gtArrElem.gtArrObj));
+            hash = genTreeHashAdd(hash, gtHashValue(tree->AsArrElem()->gtArrObj));
 
             unsigned dim;
-            for (dim = 0; dim < tree->gtArrElem.gtArrRank; dim++)
+            for (dim = 0; dim < tree->AsArrElem()->gtArrRank; dim++)
             {
-                hash = genTreeHashAdd(hash, gtHashValue(tree->gtArrElem.gtArrInds[dim]));
+                hash = genTreeHashAdd(hash, gtHashValue(tree->AsArrElem()->gtArrInds[dim]));
             }
 
             break;
@@ -2213,15 +2204,15 @@ AGAIN:
                 hash = genTreeHashAdd(hash, gtHashValue(use.GetNode()));
             }
 
-            if (tree->gtCall.gtCallType == CT_INDIRECT)
+            if (tree->AsCall()->gtCallType == CT_INDIRECT)
             {
-                temp = tree->gtCall.gtCallAddr;
+                temp = tree->AsCall()->gtCallAddr;
                 assert(temp);
                 hash = genTreeHashAdd(hash, gtHashValue(temp));
             }
             else
             {
-                hash = genTreeHashAdd(hash, tree->gtCall.gtCallMethHnd);
+                hash = genTreeHashAdd(hash, tree->AsCall()->gtCallMethHnd);
             }
 
             for (GenTreeCall::Use& use : tree->AsCall()->LateArgs())
@@ -2758,8 +2749,8 @@ bool Compiler::gtIsLikelyRegVar(GenTree* tree)
         return false;
     }
 
-    assert(tree->gtLclVar.GetLclNum() < lvaTableCnt);
-    LclVarDsc* varDsc = lvaTable + tree->gtLclVar.GetLclNum();
+    assert(tree->AsLclVar()->GetLclNum() < lvaTableCnt);
+    LclVarDsc* varDsc = lvaTable + tree->AsLclVar()->GetLclNum();
 
     if (varDsc->lvDoNotEnregister)
     {
@@ -3121,8 +3112,8 @@ bool Compiler::gtMarkAddrMode(GenTree* addr, int* pCostEx, int* pCostSz, var_typ
             }
             else
             {
-                assert(op2);
-                assert(op2->gtOper == GT_LSH || op2->gtOper == GT_MUL);
+                assert(op2 != nullptr);
+                assert(op2->OperIs(GT_LSH, GT_MUL));
                 op2->gtFlags |= GTF_ADDRMODE_NO_CSE;
                 // We may have eliminated multiple shifts and multiplies in the addressing mode,
                 // so navigate down through them to get to "idx".
@@ -3146,14 +3137,14 @@ bool Compiler::gtMarkAddrMode(GenTree* addr, int* pCostEx, int* pCostSz, var_typ
                 {
                     if ((op1->gtOper == GT_MUL) || (op1->gtOper == GT_LSH))
                     {
-                        if ((op1->AsOp()->gtOp1->gtOper == GT_NOP) ||
-                            (op1->AsOp()->gtOp1->gtOper == GT_MUL &&
-                             op1->AsOp()->gtOp1->AsOp()->gtOp1->gtOper == GT_NOP))
+                        GenTree* op1op1 = op1->AsOp()->gtOp1;
+                        if ((op1op1->gtOper == GT_NOP) ||
+                            (op1op1->gtOper == GT_MUL && op1op1->AsOp()->gtOp1->gtOper == GT_NOP))
                         {
                             op1->gtFlags |= GTF_ADDRMODE_NO_CSE;
-                            if (op1->AsOp()->gtOp1->gtOper == GT_MUL)
+                            if (op1op1->gtOper == GT_MUL)
                             {
-                                op1->AsOp()->gtOp1->gtFlags |= GTF_ADDRMODE_NO_CSE;
+                                op1op1->gtFlags |= GTF_ADDRMODE_NO_CSE;
                             }
                         }
                     }
@@ -3164,17 +3155,17 @@ bool Compiler::gtMarkAddrMode(GenTree* addr, int* pCostEx, int* pCostSz, var_typ
             {
                 if (idx != nullptr)
                 {
-                    assert(op2);
-                    if ((op2->gtOper == GT_MUL) || (op2->gtOper == GT_LSH))
+                    assert(op2 != nullptr);
+                    if (op2->OperIs(GT_MUL, GT_LSH))
                     {
-                        if ((op2->AsOp()->gtOp1->gtOper == GT_NOP) ||
-                            (op2->AsOp()->gtOp1->gtOper == GT_MUL &&
-                             op2->AsOp()->gtOp1->AsOp()->gtOp1->gtOper == GT_NOP))
+                        GenTree* op2op1 = op2->AsOp()->gtOp1;
+                        if ((op2op1->gtOper == GT_NOP) ||
+                            (op2op1->gtOper == GT_MUL && op2op1->AsOp()->gtOp1->gtOper == GT_NOP))
                         {
                             op2->gtFlags |= GTF_ADDRMODE_NO_CSE;
-                            if (op2->AsOp()->gtOp1->gtOper == GT_MUL)
+                            if (op2op1->gtOper == GT_MUL)
                             {
-                                op2->AsOp()->gtOp1->gtFlags |= GTF_ADDRMODE_NO_CSE;
+                                op2op1->gtFlags |= GTF_ADDRMODE_NO_CSE;
                             }
                         }
                     }
@@ -3269,13 +3260,13 @@ unsigned Compiler::gtSetEvalOrder(GenTree* tree)
                 GenTreeIntConCommon* con = tree->AsIntConCommon();
 
                 if (con->ImmedValNeedsReloc(this) ||
-                    !codeGen->validImmForInstr(INS_mov, (target_ssize_t)tree->gtIntCon.gtIconVal))
+                    !codeGen->validImmForInstr(INS_mov, (target_ssize_t)tree->AsIntCon()->gtIconVal))
                 {
                     // Uses movw/movt
                     costSz = 7;
                     costEx = 3;
                 }
-                else if (((unsigned)tree->gtIntCon.gtIconVal) <= 0x00ff)
+                else if (((unsigned)tree->AsIntCon()->gtIconVal) <= 0x00ff)
                 {
                     // mov  Rd, <const8>
                     costSz = 1;
@@ -3384,7 +3375,7 @@ unsigned Compiler::gtSetEvalOrder(GenTree* tree)
                     costEx = 1;
                     costSz = 1;
                     /* Sign-extend and zero-extend are more expensive to load */
-                    if (lvaTable[tree->gtLclVar.GetLclNum()].lvNormalizeOnLoad())
+                    if (lvaTable[tree->AsLclVar()->GetLclNum()].lvNormalizeOnLoad())
                     {
                         costEx += 1;
                         costSz += 1;
@@ -3558,7 +3549,7 @@ unsigned Compiler::gtSetEvalOrder(GenTree* tree)
                     // GT_INTRINSIC intrinsics Sin, Cos, Sqrt, Abs ... have higher costs.
                     // TODO: tune these costs target specific as some of these are
                     // target intrinsics and would cost less to generate code.
-                    switch (tree->gtIntrinsic.gtIntrinsicId)
+                    switch (tree->AsIntrinsic()->gtIntrinsicId)
                     {
                         default:
                             assert(!"missing case for gtIntrinsicId");
@@ -4085,7 +4076,7 @@ unsigned Compiler::gtSetEvalOrder(GenTree* tree)
 
             case GT_INTRINSIC:
 
-                switch (tree->gtIntrinsic.gtIntrinsicId)
+                switch (tree->AsIntrinsic()->gtIntrinsicId)
                 {
                     case CORINFO_INTRINSIC_Atan2:
                     case CORINFO_INTRINSIC_Pow:
@@ -4310,13 +4301,13 @@ unsigned Compiler::gtSetEvalOrder(GenTree* tree)
                 }
             }
 
-            if (tree->gtCall.gtCallType == CT_INDIRECT)
+            if (tree->AsCall()->gtCallType == CT_INDIRECT)
             {
                 // pinvoke-calli cookie is a constant, or constant indirection
-                assert(tree->gtCall.gtCallCookie == nullptr || tree->gtCall.gtCallCookie->gtOper == GT_CNS_INT ||
-                       tree->gtCall.gtCallCookie->gtOper == GT_IND);
+                assert(tree->AsCall()->gtCallCookie == nullptr || tree->AsCall()->gtCallCookie->gtOper == GT_CNS_INT ||
+                       tree->AsCall()->gtCallCookie->gtOper == GT_IND);
 
-                GenTree* indirect = tree->gtCall.gtCallAddr;
+                GenTree* indirect = tree->AsCall()->gtCallAddr;
 
                 lvl2 = gtSetEvalOrder(indirect);
                 if (level < lvl2)
@@ -4329,12 +4320,12 @@ unsigned Compiler::gtSetEvalOrder(GenTree* tree)
             else
             {
 #ifdef _TARGET_ARM_
-                if (tree->gtCall.IsVirtualStub())
+                if (tree->AsCall()->IsVirtualStub())
                 {
                     // We generate movw/movt/ldr
                     costEx += (1 + IND_COST_EX);
                     costSz += 8;
-                    if (tree->gtCall.gtCallMoreFlags & GTF_CALL_M_VIRTSTUB_REL_INDIRECT)
+                    if (tree->AsCall()->gtCallMoreFlags & GTF_CALL_M_VIRTSTUB_REL_INDIRECT)
                     {
                         // Must use R12 for the ldr target -- REG_JUMP_THUNK_PARAM
                         costSz += 2;
@@ -4355,7 +4346,7 @@ unsigned Compiler::gtSetEvalOrder(GenTree* tree)
             level += 1;
 
             /* Virtual calls are a bit more expensive */
-            if (tree->gtCall.IsVirtual())
+            if (tree->AsCall()->IsVirtual())
             {
                 costEx += 2 * IND_COST_EX;
                 costSz += 2;
@@ -4366,27 +4357,29 @@ unsigned Compiler::gtSetEvalOrder(GenTree* tree)
             break;
 
         case GT_ARR_ELEM:
+        {
+            GenTreeArrElem* arrElem = tree->AsArrElem();
 
-            level  = gtSetEvalOrder(tree->gtArrElem.gtArrObj);
-            costEx = tree->gtArrElem.gtArrObj->GetCostEx();
-            costSz = tree->gtArrElem.gtArrObj->GetCostSz();
+            level  = gtSetEvalOrder(arrElem->gtArrObj);
+            costEx = arrElem->gtArrObj->GetCostEx();
+            costSz = arrElem->gtArrObj->GetCostSz();
 
-            unsigned dim;
-            for (dim = 0; dim < tree->gtArrElem.gtArrRank; dim++)
+            for (unsigned dim = 0; dim < arrElem->gtArrRank; dim++)
             {
-                lvl2 = gtSetEvalOrder(tree->gtArrElem.gtArrInds[dim]);
+                lvl2 = gtSetEvalOrder(arrElem->gtArrInds[dim]);
                 if (level < lvl2)
                 {
                     level = lvl2;
                 }
-                costEx += tree->gtArrElem.gtArrInds[dim]->GetCostEx();
-                costSz += tree->gtArrElem.gtArrInds[dim]->GetCostSz();
+                costEx += arrElem->gtArrInds[dim]->GetCostEx();
+                costSz += arrElem->gtArrInds[dim]->GetCostSz();
             }
 
-            level += tree->gtArrElem.gtArrRank;
-            costEx += 2 + (tree->gtArrElem.gtArrRank * (IND_COST_EX + 1));
-            costSz += 2 + (tree->gtArrElem.gtArrRank * 2);
-            break;
+            level += arrElem->gtArrRank;
+            costEx += 2 + (arrElem->gtArrRank * (IND_COST_EX + 1));
+            costSz += 2 + (arrElem->gtArrRank * 2);
+        }
+        break;
 
         case GT_ARR_OFFSET:
             level  = gtSetEvalOrder(tree->gtArrOffs.gtOffset);
@@ -4671,13 +4664,13 @@ bool GenTree::IsAddWithI32Const(GenTree** addr, int* offset)
     {
         if (AsOp()->gtOp1->IsIntCnsFitsInI32())
         {
-            *offset = (int)AsOp()->gtOp1->gtIntCon.gtIconVal;
+            *offset = (int)AsOp()->gtOp1->AsIntCon()->gtIconVal;
             *addr   = AsOp()->gtOp2;
             return true;
         }
         else if (AsOp()->gtOp2->IsIntCnsFitsInI32())
         {
-            *offset = (int)AsOp()->gtOp2->gtIntCon.gtIconVal;
+            *offset = (int)AsOp()->gtOp2->AsIntCon()->gtIconVal;
             *addr   = AsOp()->gtOp1;
             return true;
         }
@@ -4782,15 +4775,15 @@ GenTree** GenTree::gtGetChildPointer(GenTree* parent) const
             break;
 
         case GT_ARR_ELEM:
-            if (this == parent->gtArrElem.gtArrObj)
+            if (this == parent->AsArrElem()->gtArrObj)
             {
-                return &(parent->gtArrElem.gtArrObj);
+                return &(parent->AsArrElem()->gtArrObj);
             }
             for (int i = 0; i < GT_ARR_MAX_RANK; i++)
             {
-                if (this == parent->gtArrElem.gtArrInds[i])
+                if (this == parent->AsArrElem()->gtArrInds[i])
                 {
-                    return &(parent->gtArrElem.gtArrInds[i]);
+                    return &(parent->AsArrElem()->gtArrInds[i]);
                 }
             }
             break;
@@ -5481,7 +5474,7 @@ bool GenTree::OperMayThrow(Compiler* comp)
                     comp->fgAddrCouldBeNull(this->AsArrLen()->ArrRef()));
 
         case GT_ARR_ELEM:
-            return comp->fgAddrCouldBeNull(this->gtArrElem.gtArrObj);
+            return comp->fgAddrCouldBeNull(this->AsArrElem()->gtArrObj);
 
         case GT_ARR_BOUNDS_CHECK:
         case GT_ARR_INDEX:
@@ -5824,7 +5817,7 @@ GenTree* Compiler::gtNewIconEmbHndNode(void* value, void* pValue, unsigned iconF
 #endif
     }
 
-    iconNode->gtIntCon.gtCompileTimeHandle = (size_t)compileTimeHandle;
+    iconNode->AsIntCon()->gtCompileTimeHandle = (size_t)compileTimeHandle;
 
     return handleNode;
 }
@@ -6928,28 +6921,29 @@ GenTree* Compiler::gtClone(GenTree* tree, bool complexOK)
 #if defined(LATE_DISASM)
             if (tree->IsIconHandle())
             {
-                copy = gtNewIconHandleNode(tree->gtIntCon.gtIconVal, tree->gtFlags, tree->gtIntCon.gtFieldSeq);
-                copy->gtIntCon.gtCompileTimeHandle = tree->gtIntCon.gtCompileTimeHandle;
-                copy->gtType                       = tree->gtType;
+                copy = gtNewIconHandleNode(tree->AsIntCon()->gtIconVal, tree->gtFlags, tree->AsIntCon()->gtFieldSeq);
+                copy->AsIntCon()->gtCompileTimeHandle = tree->AsIntCon()->gtCompileTimeHandle;
+                copy->gtType                          = tree->gtType;
             }
             else
 #endif
             {
                 copy = new (this, GT_CNS_INT)
-                    GenTreeIntCon(tree->gtType, tree->gtIntCon.gtIconVal, tree->gtIntCon.gtFieldSeq);
-                copy->gtIntCon.gtCompileTimeHandle = tree->gtIntCon.gtCompileTimeHandle;
+                    GenTreeIntCon(tree->gtType, tree->AsIntCon()->gtIconVal, tree->AsIntCon()->gtFieldSeq);
+                copy->AsIntCon()->gtCompileTimeHandle = tree->AsIntCon()->gtCompileTimeHandle;
             }
             break;
 
         case GT_CNS_LNG:
-            copy = gtNewLconNode(tree->gtLngCon.gtLconVal);
+            copy = gtNewLconNode(tree->AsLngCon()->gtLconVal);
             break;
 
         case GT_LCL_VAR:
             // Remember that the LclVar node has been cloned. The flag will be set
             // on 'copy' as well.
             tree->gtFlags |= GTF_VAR_CLONED;
-            copy = gtNewLclvNode(tree->gtLclVarCommon.GetLclNum(), tree->gtType DEBUGARG(tree->gtLclVar.gtLclILoffs));
+            copy =
+                gtNewLclvNode(tree->gtLclVarCommon.GetLclNum(), tree->gtType DEBUGARG(tree->AsLclVar()->gtLclILoffs));
             break;
 
         case GT_LCL_FLD:
@@ -6957,14 +6951,14 @@ GenTree* Compiler::gtClone(GenTree* tree, bool complexOK)
             // Remember that the LclVar node has been cloned. The flag will be set
             // on 'copy' as well.
             tree->gtFlags |= GTF_VAR_CLONED;
-            copy = new (this, tree->gtOper)
-                GenTreeLclFld(tree->gtOper, tree->TypeGet(), tree->gtLclFld.GetLclNum(), tree->gtLclFld.gtLclOffs);
-            copy->gtLclFld.gtFieldSeq = tree->gtLclFld.gtFieldSeq;
+            copy = new (this, tree->gtOper) GenTreeLclFld(tree->gtOper, tree->TypeGet(), tree->AsLclFld()->GetLclNum(),
+                                                          tree->AsLclFld()->gtLclOffs);
+            copy->AsLclFld()->gtFieldSeq = tree->AsLclFld()->gtFieldSeq;
             break;
 
         case GT_CLS_VAR:
             copy = new (this, GT_CLS_VAR)
-                GenTreeClsVar(tree->gtType, tree->gtClsVar.gtClsVarHnd, tree->gtClsVar.gtFieldSeq);
+                GenTreeClsVar(tree->gtType, tree->AsClsVar()->gtClsVarHnd, tree->AsClsVar()->gtFieldSeq);
             break;
 
         default:
@@ -7092,21 +7086,22 @@ GenTree* Compiler::gtCloneExpr(
 #if defined(LATE_DISASM)
                 if (tree->IsIconHandle())
                 {
-                    copy = gtNewIconHandleNode(tree->gtIntCon.gtIconVal, tree->gtFlags, tree->gtIntCon.gtFieldSeq);
-                    copy->gtIntCon.gtCompileTimeHandle = tree->gtIntCon.gtCompileTimeHandle;
-                    copy->gtType                       = tree->gtType;
+                    copy =
+                        gtNewIconHandleNode(tree->AsIntCon()->gtIconVal, tree->gtFlags, tree->AsIntCon()->gtFieldSeq);
+                    copy->AsIntCon()->gtCompileTimeHandle = tree->AsIntCon()->gtCompileTimeHandle;
+                    copy->gtType                          = tree->gtType;
                 }
                 else
 #endif
                 {
-                    copy                               = gtNewIconNode(tree->gtIntCon.gtIconVal, tree->gtType);
-                    copy->gtIntCon.gtCompileTimeHandle = tree->gtIntCon.gtCompileTimeHandle;
-                    copy->gtIntCon.gtFieldSeq          = tree->gtIntCon.gtFieldSeq;
+                    copy                                  = gtNewIconNode(tree->AsIntCon()->gtIconVal, tree->gtType);
+                    copy->AsIntCon()->gtCompileTimeHandle = tree->AsIntCon()->gtCompileTimeHandle;
+                    copy->AsIntCon()->gtFieldSeq          = tree->AsIntCon()->gtFieldSeq;
                 }
                 goto DONE;
 
             case GT_CNS_LNG:
-                copy = gtNewLconNode(tree->gtLngCon.gtLconVal);
+                copy = gtNewLconNode(tree->AsLngCon()->gtLconVal);
                 goto DONE;
 
             case GT_CNS_DBL:
@@ -7133,14 +7128,15 @@ GenTree* Compiler::gtCloneExpr(
                     // Remember that the LclVar node has been cloned. The flag will
                     // be set on 'copy' as well.
                     tree->gtFlags |= GTF_VAR_CLONED;
-                    copy = gtNewLclvNode(tree->gtLclVar.GetLclNum(), tree->gtType DEBUGARG(tree->gtLclVar.gtLclILoffs));
+                    copy = gtNewLclvNode(tree->AsLclVar()->GetLclNum(),
+                                         tree->gtType DEBUGARG(tree->AsLclVar()->gtLclILoffs));
                     copy->AsLclVarCommon()->SetSsaNum(tree->AsLclVarCommon()->GetSsaNum());
                 }
                 copy->gtFlags = tree->gtFlags;
                 goto DONE;
 
             case GT_LCL_FLD:
-                if (tree->gtLclFld.GetLclNum() == varNum)
+                if (tree->AsLclFld()->GetLclNum() == varNum)
                 {
                     IMPL_LIMITATION("replacing GT_LCL_FLD with a constant");
                 }
@@ -7150,15 +7146,15 @@ GenTree* Compiler::gtCloneExpr(
                     // be set on 'copy' as well.
                     tree->gtFlags |= GTF_VAR_CLONED;
                     copy = new (this, GT_LCL_FLD)
-                        GenTreeLclFld(tree->TypeGet(), tree->gtLclFld.GetLclNum(), tree->gtLclFld.gtLclOffs);
-                    copy->gtLclFld.gtFieldSeq = tree->gtLclFld.gtFieldSeq;
-                    copy->gtFlags             = tree->gtFlags;
+                        GenTreeLclFld(tree->TypeGet(), tree->AsLclFld()->GetLclNum(), tree->AsLclFld()->gtLclOffs);
+                    copy->AsLclFld()->gtFieldSeq = tree->AsLclFld()->gtFieldSeq;
+                    copy->gtFlags                = tree->gtFlags;
                 }
                 goto DONE;
 
             case GT_CLS_VAR:
                 copy = new (this, GT_CLS_VAR)
-                    GenTreeClsVar(tree->TypeGet(), tree->gtClsVar.gtClsVarHnd, tree->gtClsVar.gtFieldSeq);
+                    GenTreeClsVar(tree->TypeGet(), tree->AsClsVar()->gtClsVarHnd, tree->AsClsVar()->gtFieldSeq);
                 goto DONE;
 
             case GT_RET_EXPR:
@@ -7173,7 +7169,7 @@ GenTree* Compiler::gtCloneExpr(
                 goto DONE;
 
             case GT_ARGPLACE:
-                copy = gtNewArgPlaceHolderNode(tree->gtType, tree->gtArgPlace.gtArgPlaceClsHnd);
+                copy = gtNewArgPlaceHolderNode(tree->gtType, tree->AsArgPlace()->gtArgPlaceClsHnd);
                 goto DONE;
 
             case GT_FTN_ADDR:
@@ -7340,9 +7336,9 @@ GenTree* Compiler::gtCloneExpr(
             case GT_INTRINSIC:
                 copy = new (this, GT_INTRINSIC)
                     GenTreeIntrinsic(tree->TypeGet(), tree->AsOp()->gtOp1, tree->AsOp()->gtOp2,
-                                     tree->gtIntrinsic.gtIntrinsicId, tree->gtIntrinsic.gtMethodHandle);
+                                     tree->AsIntrinsic()->gtIntrinsicId, tree->AsIntrinsic()->gtMethodHandle);
 #ifdef FEATURE_READYTORUN_COMPILER
-                copy->gtIntrinsic.gtEntryPoint = tree->gtIntrinsic.gtEntryPoint;
+                copy->AsIntrinsic()->gtEntryPoint = tree->AsIntrinsic()->gtEntryPoint;
 #endif
                 break;
 
@@ -7473,7 +7469,7 @@ GenTree* Compiler::gtCloneExpr(
 
             // We can't safely clone calls that have GT_RET_EXPRs via gtCloneExpr.
             // You must use gtCloneCandidateCall for these calls (and then do appropriate other fixup)
-            if (tree->gtCall.IsInlineCandidate() || tree->gtCall.IsGuardedDevirtualizationCandidate())
+            if (tree->AsCall()->IsInlineCandidate() || tree->AsCall()->IsGuardedDevirtualizationCandidate())
             {
                 NO_WAY("Cloning of calls with associated GT_RET_EXPR nodes is not supported");
             }
@@ -7497,15 +7493,15 @@ GenTree* Compiler::gtCloneExpr(
 
         case GT_ARR_ELEM:
         {
-            GenTree* inds[GT_ARR_MAX_RANK];
-            for (unsigned dim = 0; dim < tree->gtArrElem.gtArrRank; dim++)
+            GenTreeArrElem* arrElem = tree->AsArrElem();
+            GenTree*        inds[GT_ARR_MAX_RANK];
+            for (unsigned dim = 0; dim < arrElem->gtArrRank; dim++)
             {
-                inds[dim] = gtCloneExpr(tree->gtArrElem.gtArrInds[dim], addFlags, deepVarNum, deepVarVal);
+                inds[dim] = gtCloneExpr(arrElem->gtArrInds[dim], addFlags, deepVarNum, deepVarVal);
             }
             copy = new (this, GT_ARR_ELEM)
-                GenTreeArrElem(tree->TypeGet(), gtCloneExpr(tree->gtArrElem.gtArrObj, addFlags, deepVarNum, deepVarVal),
-                               tree->gtArrElem.gtArrRank, tree->gtArrElem.gtArrElemSize, tree->gtArrElem.gtArrElemType,
-                               &inds[0]);
+                GenTreeArrElem(arrElem->TypeGet(), gtCloneExpr(arrElem->gtArrObj, addFlags, deepVarNum, deepVarVal),
+                               arrElem->gtArrRank, arrElem->gtArrElemSize, arrElem->gtArrElemType, &inds[0]);
         }
         break;
 
@@ -7741,7 +7737,7 @@ GenTreeCall* Compiler::gtCloneExprCallHelper(GenTreeCall* tree, unsigned addFlag
 
 #if defined(DEBUG) || defined(INLINE_DATA)
     copy->gtInlineObservation = tree->gtInlineObservation;
-    copy->gtRawILOffset       = tree->gtCall.gtRawILOffset;
+    copy->gtRawILOffset       = tree->AsCall()->gtRawILOffset;
 #endif
 
     copy->CopyOtherRegFlags(tree);
@@ -8078,14 +8074,14 @@ bool Compiler::gtCompareTree(GenTree* op1, GenTree* op2)
         switch (oper)
         {
             case GT_CNS_INT:
-                if ((op1->gtIntCon.gtIconVal == op2->gtIntCon.gtIconVal) && GenTree::SameIconHandleFlag(op1, op2))
+                if ((op1->AsIntCon()->gtIconVal == op2->AsIntCon()->gtIconVal) && GenTree::SameIconHandleFlag(op1, op2))
                 {
                     return true;
                 }
                 break;
 
             case GT_CNS_LNG:
-                if (op1->gtLngCon.gtLconVal == op2->gtLngCon.gtLconVal)
+                if (op1->AsLngCon()->gtLconVal == op2->AsLngCon()->gtLconVal)
                 {
                     return true;
                 }
@@ -8106,7 +8102,7 @@ bool Compiler::gtCompareTree(GenTree* op1, GenTree* op2)
                 break;
 
             case GT_CLS_VAR:
-                if (op1->gtClsVar.gtClsVarHnd == op2->gtClsVar.gtClsVarHnd)
+                if (op1->AsClsVar()->gtClsVarHnd == op2->AsClsVar()->gtClsVarHnd)
                 {
                     return true;
                 }
@@ -9367,18 +9363,18 @@ void Compiler::gtDispNodeName(GenTree* tree)
         const char* ctType   = "";
         char        gtfTypeBuf[100];
 
-        if (tree->gtCall.gtCallType == CT_USER_FUNC)
+        if (tree->AsCall()->gtCallType == CT_USER_FUNC)
         {
-            if (tree->gtCall.IsVirtual())
+            if (tree->AsCall()->IsVirtual())
             {
                 callType = "CALLV";
             }
         }
-        else if (tree->gtCall.gtCallType == CT_HELPER)
+        else if (tree->AsCall()->gtCallType == CT_HELPER)
         {
             ctType = " help";
         }
-        else if (tree->gtCall.gtCallType == CT_INDIRECT)
+        else if (tree->AsCall()->gtCallType == CT_INDIRECT)
         {
             ctType = " ind";
         }
@@ -9391,16 +9387,16 @@ void Compiler::gtDispNodeName(GenTree* tree)
         {
             gtfType = " nullcheck";
         }
-        if (tree->gtCall.IsVirtualVtable())
+        if (tree->AsCall()->IsVirtualVtable())
         {
             gtfType = " ind";
         }
-        else if (tree->gtCall.IsVirtualStub())
+        else if (tree->AsCall()->IsVirtualStub())
         {
             gtfType = " stub";
         }
 #ifdef FEATURE_READYTORUN_COMPILER
-        else if (tree->gtCall.IsR2RRelativeIndir())
+        else if (tree->AsCall()->IsR2RRelativeIndir())
         {
             gtfType = " r2r_ind";
         }
@@ -9413,7 +9409,7 @@ void Compiler::gtDispNodeName(GenTree* tree)
             {
                 gtfTypeBufWalk += SimpleSprintf_s(gtfTypeBufWalk, gtfTypeBuf, sizeof(gtfTypeBuf), " popargs");
             }
-            if (tree->gtCall.gtCallMoreFlags & GTF_CALL_M_UNMGD_THISCALL)
+            if (tree->AsCall()->gtCallMoreFlags & GTF_CALL_M_UNMGD_THISCALL)
             {
                 gtfTypeBufWalk += SimpleSprintf_s(gtfTypeBufWalk, gtfTypeBuf, sizeof(gtfTypeBuf), " thiscall");
             }
@@ -9425,7 +9421,7 @@ void Compiler::gtDispNodeName(GenTree* tree)
     else if (tree->gtOper == GT_ARR_ELEM)
     {
         bufp += SimpleSprintf_s(bufp, buf, sizeof(buf), " %s[", name);
-        for (unsigned rank = tree->gtArrElem.gtArrRank - 1; rank; rank--)
+        for (unsigned rank = tree->AsArrElem()->gtArrRank - 1; rank; rank--)
         {
             bufp += SimpleSprintf_s(bufp, buf, sizeof(buf), ",");
         }
@@ -9779,9 +9775,9 @@ void Compiler::gtDispNode(GenTree* tree, IndentStack* indentStack, __in __in_z _
                 goto DASH;
 
             case GT_CALL:
-                if (tree->gtCall.IsInlineCandidate())
+                if (tree->AsCall()->IsInlineCandidate())
                 {
-                    if (tree->gtCall.IsGuardedDevirtualizationCandidate())
+                    if (tree->AsCall()->IsGuardedDevirtualizationCandidate())
                     {
                         printf("&");
                     }
@@ -9792,13 +9788,13 @@ void Compiler::gtDispNode(GenTree* tree, IndentStack* indentStack, __in __in_z _
                     --msgLength;
                     break;
                 }
-                else if (tree->gtCall.IsGuardedDevirtualizationCandidate())
+                else if (tree->AsCall()->IsGuardedDevirtualizationCandidate())
                 {
                     printf("G");
                     --msgLength;
                     break;
                 }
-                if (tree->gtCall.gtCallMoreFlags & GTF_CALL_M_RETBUFFARG)
+                if (tree->AsCall()->gtCallMoreFlags & GTF_CALL_M_RETBUFFARG)
                 {
                     printf("S");
                     --msgLength;
@@ -10018,9 +10014,9 @@ void Compiler::gtDispNode(GenTree* tree, IndentStack* indentStack, __in __in_z _
                 }
             }
 
-            if (tree->IsArgPlaceHolderNode() && (tree->gtArgPlace.gtArgPlaceClsHnd != nullptr))
+            if (tree->IsArgPlaceHolderNode() && (tree->AsArgPlace()->gtArgPlaceClsHnd != nullptr))
             {
-                printf(" => [clsHnd=%08X]", dspPtr(tree->gtArgPlace.gtArgPlaceClsHnd));
+                printf(" => [clsHnd=%08X]", dspPtr(tree->AsArgPlace()->gtArgPlaceClsHnd));
             }
 
             if (tree->gtOper == GT_RUNTIMELOOKUP)
@@ -10353,33 +10349,34 @@ void Compiler::gtDispConst(GenTree* tree)
         case GT_CNS_INT:
             if (tree->IsIconHandle(GTF_ICON_STR_HDL))
             {
-                const WCHAR* str = eeGetCPString(tree->gtIntCon.gtIconVal);
+                const WCHAR* str = eeGetCPString(tree->AsIntCon()->gtIconVal);
                 if (str != nullptr)
                 {
-                    printf(" 0x%X \"%S\"", dspPtr(tree->gtIntCon.gtIconVal), str);
+                    printf(" 0x%X \"%S\"", dspPtr(tree->AsIntCon()->gtIconVal), str);
                 }
                 else
                 {
                     // Note that eGetCPString isn't currently implemented on Linux/ARM
                     // and instead always returns nullptr
-                    printf(" 0x%X [ICON_STR_HDL]", dspPtr(tree->gtIntCon.gtIconVal));
+                    printf(" 0x%X [ICON_STR_HDL]", dspPtr(tree->AsIntCon()->gtIconVal));
                 }
             }
             else
             {
-                ssize_t dspIconVal = tree->IsIconHandle() ? dspPtr(tree->gtIntCon.gtIconVal) : tree->gtIntCon.gtIconVal;
+                ssize_t dspIconVal =
+                    tree->IsIconHandle() ? dspPtr(tree->AsIntCon()->gtIconVal) : tree->AsIntCon()->gtIconVal;
 
                 if (tree->TypeGet() == TYP_REF)
                 {
-                    assert(tree->gtIntCon.gtIconVal == 0);
+                    assert(tree->AsIntCon()->gtIconVal == 0);
                     printf(" null");
                 }
-                else if ((tree->gtIntCon.gtIconVal > -1000) && (tree->gtIntCon.gtIconVal < 1000))
+                else if ((tree->AsIntCon()->gtIconVal > -1000) && (tree->AsIntCon()->gtIconVal < 1000))
                 {
                     printf(" %ld", dspIconVal);
 #ifdef _TARGET_64BIT_
                 }
-                else if ((tree->gtIntCon.gtIconVal & 0xFFFFFFFF00000000LL) != 0)
+                else if ((tree->AsIntCon()->gtIconVal & 0xFFFFFFFF00000000LL) != 0)
                 {
                     printf(" 0x%llx", dspIconVal);
 #endif
@@ -10462,12 +10459,12 @@ void Compiler::gtDispConst(GenTree* tree)
                 }
             }
 
-            gtDispFieldSeq(tree->gtIntCon.gtFieldSeq);
+            gtDispFieldSeq(tree->AsIntCon()->gtFieldSeq);
 
             break;
 
         case GT_CNS_LNG:
-            printf(" 0x%016I64x", tree->gtLngCon.gtLconVal);
+            printf(" 0x%016I64x", tree->AsLngCon()->gtLconVal);
             break;
 
         case GT_CNS_DBL:
@@ -10580,8 +10577,8 @@ void Compiler::gtDispLeaf(GenTree* tree, IndentStack* indentStack)
 
             if (isLclFld)
             {
-                printf("[+%u]", tree->gtLclFld.gtLclOffs);
-                gtDispFieldSeq(tree->gtLclFld.gtFieldSeq);
+                printf("[+%u]", tree->AsLclFld()->gtLclOffs);
+                gtDispFieldSeq(tree->AsLclFld()->gtFieldSeq);
             }
 
             if (varDsc->lvRegister)
@@ -10664,12 +10661,12 @@ void Compiler::gtDispLeaf(GenTree* tree, IndentStack* indentStack)
         break;
 
         case GT_CLS_VAR:
-            printf(" Hnd=%#x", dspPtr(tree->gtClsVar.gtClsVarHnd));
-            gtDispFieldSeq(tree->gtClsVar.gtFieldSeq);
+            printf(" Hnd=%#x", dspPtr(tree->AsClsVar()->gtClsVarHnd));
+            gtDispFieldSeq(tree->AsClsVar()->gtFieldSeq);
             break;
 
         case GT_CLS_VAR_ADDR:
-            printf(" Hnd=%#x", dspPtr(tree->gtClsVar.gtClsVarHnd));
+            printf(" Hnd=%#x", dspPtr(tree->AsClsVar()->gtClsVarHnd));
             break;
 
         case GT_LABEL:
@@ -10917,15 +10914,19 @@ void Compiler::gtDispTree(GenTree*     tree,
             {
                 switch (tree->AsBlk()->gtBlkOpKind)
                 {
+#ifdef _TARGET_XARCH_
                     case GenTreeBlk::BlkOpKindRepInstr:
                         printf(" (RepInstr)");
                         break;
+#endif
                     case GenTreeBlk::BlkOpKindUnroll:
                         printf(" (Unroll)");
                         break;
+#ifndef _TARGET_X86_
                     case GenTreeBlk::BlkOpKindHelper:
                         printf(" (Helper)");
                         break;
+#endif
                     default:
                         unreached();
                 }
@@ -10960,7 +10961,7 @@ void Compiler::gtDispTree(GenTree*     tree,
 
         if (tree->gtOper == GT_INTRINSIC)
         {
-            switch (tree->gtIntrinsic.gtIntrinsicId)
+            switch (tree->AsIntrinsic()->gtIntrinsicId)
             {
                 case CORINFO_INTRINSIC_Sin:
                     printf(" sin");
@@ -11260,13 +11261,13 @@ void Compiler::gtDispTree(GenTree*     tree,
 
             if (!topOnly)
             {
-                gtDispChild(tree->gtArrElem.gtArrObj, indentStack, IIArc, nullptr, topOnly);
+                gtDispChild(tree->AsArrElem()->gtArrObj, indentStack, IIArc, nullptr, topOnly);
 
                 unsigned dim;
-                for (dim = 0; dim < tree->gtArrElem.gtArrRank; dim++)
+                for (dim = 0; dim < tree->AsArrElem()->gtArrRank; dim++)
                 {
-                    IndentInfo arcType = ((dim + 1) == tree->gtArrElem.gtArrRank) ? IIArcBottom : IIArc;
-                    gtDispChild(tree->gtArrElem.gtArrInds[dim], indentStack, arcType, nullptr, topOnly);
+                    IndentInfo arcType = ((dim + 1) == tree->AsArrElem()->gtArrRank) ? IIArcBottom : IIArc;
+                    gtDispChild(tree->AsArrElem()->gtArrInds[dim], indentStack, arcType, nullptr, topOnly);
                 }
             }
             break;
@@ -12474,7 +12475,7 @@ CORINFO_CLASS_HANDLE Compiler::gtGetHelperArgClassHandle(GenTree*  tree,
     if ((tree->OperGet() == GT_CNS_INT) && (tree->TypeGet() == TYP_I_IMPL))
     {
         assert(tree->IsIconHandle(GTF_ICON_CLASS_HDL));
-        result = (CORINFO_CLASS_HANDLE)tree->gtIntCon.gtCompileTimeHandle;
+        result = (CORINFO_CLASS_HANDLE)tree->AsIntCon()->gtCompileTimeHandle;
     }
     // Or the result of a runtime lookup
     else if (tree->OperGet() == GT_RUNTIMELOOKUP)
@@ -12499,7 +12500,7 @@ CORINFO_CLASS_HANDLE Compiler::gtGetHelperArgClassHandle(GenTree*  tree,
             {
                 // These handle constants should be class handles.
                 assert(handleTreeInternal->IsIconHandle(GTF_ICON_CLASS_HDL));
-                result = (CORINFO_CLASS_HANDLE)handleTreeInternal->gtIntCon.gtCompileTimeHandle;
+                result = (CORINFO_CLASS_HANDLE)handleTreeInternal->AsIntCon()->gtCompileTimeHandle;
 
                 if (handleTree != nullptr)
                 {
@@ -13370,20 +13371,20 @@ GenTree* Compiler::gtFoldExprConst(GenTree* tree)
 
                 /* Fold constant INT unary operator */
 
-                if (!op1->gtIntCon.ImmedValCanBeFolded(this, tree->OperGet()))
+                if (!op1->AsIntCon()->ImmedValCanBeFolded(this, tree->OperGet()))
                 {
                     return tree;
                 }
 
-                i1 = (int)op1->gtIntCon.gtIconVal;
+                i1 = (int)op1->AsIntCon()->gtIconVal;
 
                 // If we fold a unary oper, then the folded constant
                 // is considered a ConstantIndexField if op1 was one
                 //
 
-                if ((op1->gtIntCon.gtFieldSeq != nullptr) && op1->gtIntCon.gtFieldSeq->IsConstantIndexFieldSeq())
+                if ((op1->AsIntCon()->gtFieldSeq != nullptr) && op1->AsIntCon()->gtFieldSeq->IsConstantIndexFieldSeq())
                 {
-                    fieldSeq = op1->gtIntCon.gtFieldSeq;
+                    fieldSeq = op1->AsIntCon()->gtFieldSeq;
                 }
 
                 switch (tree->gtOper)
@@ -13832,9 +13833,9 @@ GenTree* Compiler::gtFoldExprConst(GenTree* tree)
 #endif
                         // Fold into GT_IND of null byref
                         tree->ChangeOperConst(GT_CNS_INT);
-                        tree->gtType              = TYP_BYREF;
-                        tree->gtIntCon.gtIconVal  = 0;
-                        tree->gtIntCon.gtFieldSeq = FieldSeqStore::NotAField();
+                        tree->gtType                 = TYP_BYREF;
+                        tree->AsIntCon()->gtIconVal  = 0;
+                        tree->AsIntCon()->gtFieldSeq = FieldSeqStore::NotAField();
                         if (vnStore != nullptr)
                         {
                             fgValueNumberTreeConst(tree);
@@ -13958,7 +13959,7 @@ GenTree* Compiler::gtFoldExprConst(GenTree* tree)
                         }
                     }
                     i1       = itemp;
-                    fieldSeq = GetFieldSeqStore()->Append(op1->gtIntCon.gtFieldSeq, op2->gtIntCon.gtFieldSeq);
+                    fieldSeq = GetFieldSeqStore()->Append(op1->AsIntCon()->gtFieldSeq, op2->AsIntCon()->gtFieldSeq);
                     break;
                 case GT_SUB:
                     itemp = i1 - i2;
@@ -14003,16 +14004,17 @@ GenTree* Compiler::gtFoldExprConst(GenTree* tree)
                     // For the very particular case of the "constant array index" pseudo-field, we
                     // assume that multiplication is by the field width, and preserves that field.
                     // This could obviously be made more robust by a more complicated set of annotations...
-                    if ((op1->gtIntCon.gtFieldSeq != nullptr) && op1->gtIntCon.gtFieldSeq->IsConstantIndexFieldSeq())
+                    if ((op1->AsIntCon()->gtFieldSeq != nullptr) &&
+                        op1->AsIntCon()->gtFieldSeq->IsConstantIndexFieldSeq())
                     {
-                        assert(op2->gtIntCon.gtFieldSeq == FieldSeqStore::NotAField());
-                        fieldSeq = op1->gtIntCon.gtFieldSeq;
+                        assert(op2->AsIntCon()->gtFieldSeq == FieldSeqStore::NotAField());
+                        fieldSeq = op1->AsIntCon()->gtFieldSeq;
                     }
-                    else if ((op2->gtIntCon.gtFieldSeq != nullptr) &&
-                             op2->gtIntCon.gtFieldSeq->IsConstantIndexFieldSeq())
+                    else if ((op2->AsIntCon()->gtFieldSeq != nullptr) &&
+                             op2->AsIntCon()->gtFieldSeq->IsConstantIndexFieldSeq())
                     {
-                        assert(op1->gtIntCon.gtFieldSeq == FieldSeqStore::NotAField());
-                        fieldSeq = op2->gtIntCon.gtFieldSeq;
+                        assert(op1->AsIntCon()->gtFieldSeq == FieldSeqStore::NotAField());
+                        fieldSeq = op2->AsIntCon()->gtFieldSeq;
                     }
                     i1 = itemp;
                     break;
@@ -14111,9 +14113,9 @@ GenTree* Compiler::gtFoldExprConst(GenTree* tree)
              * GT_JTRUE has to be a GT_CNS_INT - value 0 or 1 */
 
             tree->ChangeOperConst(GT_CNS_INT);
-            tree->gtType              = TYP_INT;
-            tree->gtIntCon.gtIconVal  = i1;
-            tree->gtIntCon.gtFieldSeq = fieldSeq;
+            tree->gtType                 = TYP_INT;
+            tree->AsIntCon()->gtIconVal  = i1;
+            tree->AsIntCon()->gtFieldSeq = fieldSeq;
             if (vnStore != nullptr)
             {
                 fgValueNumberTreeConst(tree);
@@ -14766,9 +14768,9 @@ GenTree* Compiler::gtNewTempAssign(
     }
 
     var_types valTyp = val->TypeGet();
-    if (val->OperGet() == GT_LCL_VAR && lvaTable[val->gtLclVar.GetLclNum()].lvNormalizeOnLoad())
+    if (val->OperGet() == GT_LCL_VAR && lvaTable[val->AsLclVar()->GetLclNum()].lvNormalizeOnLoad())
     {
-        valTyp      = lvaGetRealType(val->gtLclVar.GetLclNum());
+        valTyp      = lvaGetRealType(val->AsLclVar()->GetLclNum());
         val->gtType = valTyp;
     }
     var_types dstTyp = varDsc->TypeGet();
@@ -15116,7 +15118,7 @@ bool Compiler::gtTreeHasSideEffects(GenTree* tree, unsigned flags /* = GTF_SIDE_
         {
             // Generally all trees that contain GT_CALL nodes are considered to have side-effects.
             //
-            if (tree->gtCall.gtCallType == CT_HELPER)
+            if (tree->AsCall()->gtCallType == CT_HELPER)
             {
                 // If this node is a helper call we may not care about the side-effects.
                 // Note that gtNodeHasSideEffects checks the side effects of the helper itself
@@ -15567,26 +15569,26 @@ Compiler::TypeProducerKind Compiler::gtGetTypeProducerKind(GenTree* tree)
 {
     if (tree->gtOper == GT_CALL)
     {
-        if (tree->gtCall.gtCallType == CT_HELPER)
+        if (tree->AsCall()->gtCallType == CT_HELPER)
         {
             if (gtIsTypeHandleToRuntimeTypeHelper(tree->AsCall()))
             {
                 return TPK_Handle;
             }
         }
-        else if (tree->gtCall.gtCallMoreFlags & GTF_CALL_M_SPECIAL_INTRINSIC)
+        else if (tree->AsCall()->gtCallMoreFlags & GTF_CALL_M_SPECIAL_INTRINSIC)
         {
-            if (info.compCompHnd->getIntrinsicID(tree->gtCall.gtCallMethHnd) == CORINFO_INTRINSIC_Object_GetType)
+            if (info.compCompHnd->getIntrinsicID(tree->AsCall()->gtCallMethHnd) == CORINFO_INTRINSIC_Object_GetType)
             {
                 return TPK_GetType;
             }
         }
     }
-    else if ((tree->gtOper == GT_INTRINSIC) && (tree->gtIntrinsic.gtIntrinsicId == CORINFO_INTRINSIC_Object_GetType))
+    else if ((tree->gtOper == GT_INTRINSIC) && (tree->AsIntrinsic()->gtIntrinsicId == CORINFO_INTRINSIC_Object_GetType))
     {
         return TPK_GetType;
     }
-    else if ((tree->gtOper == GT_CNS_INT) && (tree->gtIntCon.gtIconVal == 0))
+    else if ((tree->gtOper == GT_CNS_INT) && (tree->AsIntCon()->gtIconVal == 0))
     {
         return TPK_Null;
     }
@@ -15816,7 +15818,7 @@ bool GenTree::DefinesLocalAddr(Compiler* comp, unsigned width, GenTreeLclVarComm
                 unsigned lclOffset = 0;
                 if (addrArg->OperIsLocalField())
                 {
-                    lclOffset = addrArg->gtLclFld.gtLclOffs;
+                    lclOffset = addrArg->AsLclFld()->gtLclOffs;
                 }
 
                 if (lclOffset != 0)
@@ -16212,7 +16214,7 @@ ssize_t GenTreeIndir::Offset()
     }
     else if (Addr()->gtOper == GT_CLS_VAR_ADDR)
     {
-        return static_cast<ssize_t>(reinterpret_cast<intptr_t>(Addr()->gtClsVar.gtClsVarHnd));
+        return static_cast<ssize_t>(reinterpret_cast<intptr_t>(Addr()->AsClsVar()->gtClsVarHnd));
     }
     else if (Addr()->IsCnsIntOrI() && Addr()->isContained())
     {
@@ -16791,13 +16793,13 @@ CORINFO_CLASS_HANDLE Compiler::gtGetStructHandleIfPresent(GenTree* tree)
                 structHnd = tree->AsObj()->GetLayout()->GetClassHandle();
                 break;
             case GT_CALL:
-                structHnd = tree->gtCall.gtRetClsHnd;
+                structHnd = tree->AsCall()->gtRetClsHnd;
                 break;
             case GT_RET_EXPR:
                 structHnd = tree->AsRetExpr()->gtRetClsHnd;
                 break;
             case GT_ARGPLACE:
-                structHnd = tree->gtArgPlace.gtArgPlaceClsHnd;
+                structHnd = tree->AsArgPlace()->gtArgPlaceClsHnd;
                 break;
             case GT_INDEX:
                 structHnd = tree->gtIndex.gtStructElemClass;
@@ -17596,11 +17598,11 @@ void GenTree::ParseArrayAddressWork(Compiler*       comp,
         switch (OperGet())
         {
             case GT_CNS_INT:
-                *pFldSeq = comp->GetFieldSeqStore()->Append(*pFldSeq, gtIntCon.gtFieldSeq);
-                assert(!gtIntCon.ImmedValNeedsReloc(comp));
+                *pFldSeq = comp->GetFieldSeqStore()->Append(*pFldSeq, AsIntCon()->gtFieldSeq);
+                assert(!AsIntCon()->ImmedValNeedsReloc(comp));
                 // TODO-CrossBitness: we wouldn't need the cast below if GenTreeIntCon::gtIconVal had target_ssize_t
                 // type.
-                *pOffset += (inputMul * (target_ssize_t)(gtIntCon.gtIconVal));
+                *pOffset += (inputMul * (target_ssize_t)(AsIntCon()->gtIconVal));
                 return;
 
             case GT_ADD:
@@ -17623,9 +17625,9 @@ void GenTree::ParseArrayAddressWork(Compiler*       comp,
                     // If the other arg is an int constant, and is a "not-a-field", choose
                     // that as the multiplier, thus preserving constant index offsets...
                     if (AsOp()->gtOp2->OperGet() == GT_CNS_INT &&
-                        AsOp()->gtOp2->gtIntCon.gtFieldSeq == FieldSeqStore::NotAField())
+                        AsOp()->gtOp2->AsIntCon()->gtFieldSeq == FieldSeqStore::NotAField())
                     {
-                        assert(!AsOp()->gtOp2->gtIntCon.ImmedValNeedsReloc(comp));
+                        assert(!AsOp()->gtOp2->AsIntCon()->ImmedValNeedsReloc(comp));
                         // TODO-CrossBitness: we wouldn't need the cast below if GenTreeIntConCommon::gtIconVal had
                         // target_ssize_t type.
                         subMul   = (target_ssize_t)AsOp()->gtOp2->AsIntConCommon()->IconValue();
@@ -17633,7 +17635,7 @@ void GenTree::ParseArrayAddressWork(Compiler*       comp,
                     }
                     else
                     {
-                        assert(!AsOp()->gtOp1->gtIntCon.ImmedValNeedsReloc(comp));
+                        assert(!AsOp()->gtOp1->AsIntCon()->ImmedValNeedsReloc(comp));
                         // TODO-CrossBitness: we wouldn't need the cast below if GenTreeIntConCommon::gtIconVal had
                         // target_ssize_t type.
                         subMul   = (target_ssize_t)AsOp()->gtOp1->AsIntConCommon()->IconValue();
@@ -17642,7 +17644,7 @@ void GenTree::ParseArrayAddressWork(Compiler*       comp,
                 }
                 else if (AsOp()->gtOp2->IsCnsIntOrI())
                 {
-                    assert(!AsOp()->gtOp2->gtIntCon.ImmedValNeedsReloc(comp));
+                    assert(!AsOp()->gtOp2->AsIntCon()->ImmedValNeedsReloc(comp));
                     // TODO-CrossBitness: we wouldn't need the cast below if GenTreeIntConCommon::gtIconVal had
                     // target_ssize_t type.
                     subMul   = (target_ssize_t)AsOp()->gtOp2->AsIntConCommon()->IconValue();
@@ -17661,11 +17663,11 @@ void GenTree::ParseArrayAddressWork(Compiler*       comp,
                 // If one op is a constant, continue parsing down.
                 if (AsOp()->gtOp2->IsCnsIntOrI())
                 {
-                    assert(!AsOp()->gtOp2->gtIntCon.ImmedValNeedsReloc(comp));
+                    assert(!AsOp()->gtOp2->AsIntCon()->ImmedValNeedsReloc(comp));
                     // TODO-CrossBitness: we wouldn't need the cast below if GenTreeIntCon::gtIconVal had target_ssize_t
                     // type.
-                    target_ssize_t subMul = target_ssize_t{1}
-                                            << (target_ssize_t)AsOp()->gtOp2->AsIntConCommon()->IconValue();
+                    target_ssize_t shiftVal = AsOp()->gtOp2->AsIntConCommon()->IconValue();
+                    target_ssize_t subMul   = target_ssize_t{1} << shiftVal;
                     AsOp()->gtOp1->ParseArrayAddressWork(comp, inputMul * subMul, pArr, pInxVN, pOffset, pFldSeq);
                     return;
                 }
@@ -17807,7 +17809,7 @@ void GenTree::LabelIndex(Compiler* comp, bool isConst)
             // If we got here, this is a contribution to the constant part of the index.
             if (isConst)
             {
-                gtIntCon.gtFieldSeq =
+                AsIntCon()->gtFieldSeq =
                     comp->GetFieldSeqStore()->CreateSingleton(FieldSeqStore::ConstantIndexPseudoField);
             }
             return;

@@ -1338,7 +1338,7 @@ inline void GenTree::SetOper(genTreeOps oper, ValueNumberUpdate vnUpdate)
     {
         // When casting from LONG to INT, we need to force cast of the value,
         // if the host architecture represents INT and LONG with the same data size.
-        gtLngCon.gtLconVal = (INT64)(INT32)gtLngCon.gtLconVal;
+        AsLngCon()->gtLconVal = (INT64)(INT32)AsLngCon()->gtLconVal;
     }
 #endif // defined(_HOST_64BIT_) && !defined(_TARGET_64BIT_)
 
@@ -1363,7 +1363,7 @@ inline void GenTree::SetOper(genTreeOps oper, ValueNumberUpdate vnUpdate)
 
     if (oper == GT_CNS_INT)
     {
-        gtIntCon.gtFieldSeq = nullptr;
+        AsIntCon()->gtFieldSeq = nullptr;
     }
 
 #if defined(_TARGET_ARM_)
@@ -1430,7 +1430,7 @@ inline void GenTree::ChangeOperConst(genTreeOps oper)
     // Some constant subtypes have additional fields that must be initialized.
     if (oper == GT_CNS_INT)
     {
-        gtIntCon.gtFieldSeq = FieldSeqStore::NotAField();
+        AsIntCon()->gtFieldSeq = FieldSeqStore::NotAField();
     }
 }
 
@@ -1456,13 +1456,13 @@ inline void GenTree::ChangeOper(genTreeOps oper, ValueNumberUpdate vnUpdate)
             Compiler*     compiler     = JitTls::GetCompiler();
             bool          isZeroOffset = compiler->GetZeroOffsetFieldMap()->Lookup(this, &zeroFieldSeq);
 
-            gtLclFld.gtLclOffs  = 0;
-            gtLclFld.gtFieldSeq = FieldSeqStore::NotAField();
+            AsLclFld()->gtLclOffs  = 0;
+            AsLclFld()->gtFieldSeq = FieldSeqStore::NotAField();
 
             if (zeroFieldSeq != nullptr)
             {
                 // Set the zeroFieldSeq in the GT_LCL_FLD node
-                gtLclFld.gtFieldSeq = zeroFieldSeq;
+                AsLclFld()->gtFieldSeq = zeroFieldSeq;
                 // and remove the annotation from the ZeroOffsetFieldMap
                 compiler->GetZeroOffsetFieldMap()->Remove(this);
             }
@@ -2661,10 +2661,10 @@ inline bool Compiler::fgIsThrowHlpBlk(BasicBlock* block)
         return false;
     }
 
-    if (!((call->gtCall.gtCallMethHnd == eeFindHelper(CORINFO_HELP_RNGCHKFAIL)) ||
-          (call->gtCall.gtCallMethHnd == eeFindHelper(CORINFO_HELP_THROWDIVZERO)) ||
-          (call->gtCall.gtCallMethHnd == eeFindHelper(CORINFO_HELP_THROWNULLREF)) ||
-          (call->gtCall.gtCallMethHnd == eeFindHelper(CORINFO_HELP_OVERFLOW))))
+    if (!((call->AsCall()->gtCallMethHnd == eeFindHelper(CORINFO_HELP_RNGCHKFAIL)) ||
+          (call->AsCall()->gtCallMethHnd == eeFindHelper(CORINFO_HELP_THROWDIVZERO)) ||
+          (call->AsCall()->gtCallMethHnd == eeFindHelper(CORINFO_HELP_THROWNULLREF)) ||
+          (call->AsCall()->gtCallMethHnd == eeFindHelper(CORINFO_HELP_OVERFLOW))))
     {
         return false;
     }
@@ -3360,7 +3360,7 @@ inline int Compiler::LoopDsc::lpIterConst()
 {
     VERIFY_lpIterTree();
     GenTree* rhs = lpIterTree->AsOp()->gtOp2;
-    return (int)rhs->AsOp()->gtOp2->gtIntCon.gtIconVal;
+    return (int)rhs->AsOp()->gtOp2->AsIntCon()->gtIconVal;
 }
 
 //-----------------------------------------------------------------------------
@@ -3476,7 +3476,7 @@ inline int Compiler::LoopDsc::lpConstLimit()
 
     GenTree* limit = lpLimit();
     assert(limit->OperIsConst());
-    return (int)limit->gtIntCon.gtIconVal;
+    return (int)limit->AsIntCon()->gtIconVal;
 }
 
 //-----------------------------------------------------------------------------
@@ -3621,12 +3621,12 @@ inline Compiler::fgWalkResult Compiler::CountSharedStaticHelper(GenTree** pTree,
 
 inline bool Compiler::IsSharedStaticHelper(GenTree* tree)
 {
-    if (tree->gtOper != GT_CALL || tree->gtCall.gtCallType != CT_HELPER)
+    if (tree->gtOper != GT_CALL || tree->AsCall()->gtCallType != CT_HELPER)
     {
         return false;
     }
 
-    CorInfoHelpFunc helper = eeGetHelperNum(tree->gtCall.gtCallMethHnd);
+    CorInfoHelpFunc helper = eeGetHelperNum(tree->AsCall()->gtCallMethHnd);
 
     bool result1 =
         // More helpers being added to IsSharedStaticHelper (that have similar behaviors but are not true
@@ -3803,7 +3803,7 @@ inline GenTree* Compiler::impCheckForNullPointer(GenTree* obj)
         assert(obj->gtType == TYP_REF || obj->gtType == TYP_BYREF);
 
         // We can see non-zero byrefs for RVA statics.
-        if (obj->gtIntCon.gtIconVal != 0)
+        if (obj->AsIntCon()->gtIconVal != 0)
         {
             assert(obj->gtType == TYP_BYREF);
             return obj;

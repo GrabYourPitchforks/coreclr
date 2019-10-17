@@ -315,11 +315,11 @@ int LinearScan::BuildNode(GenTree* tree)
 
         case GT_INTRINSIC:
         {
-            noway_assert((tree->gtIntrinsic.gtIntrinsicId == CORINFO_INTRINSIC_Abs) ||
-                         (tree->gtIntrinsic.gtIntrinsicId == CORINFO_INTRINSIC_Ceiling) ||
-                         (tree->gtIntrinsic.gtIntrinsicId == CORINFO_INTRINSIC_Floor) ||
-                         (tree->gtIntrinsic.gtIntrinsicId == CORINFO_INTRINSIC_Round) ||
-                         (tree->gtIntrinsic.gtIntrinsicId == CORINFO_INTRINSIC_Sqrt));
+            noway_assert((tree->AsIntrinsic()->gtIntrinsicId == CORINFO_INTRINSIC_Abs) ||
+                         (tree->AsIntrinsic()->gtIntrinsicId == CORINFO_INTRINSIC_Ceiling) ||
+                         (tree->AsIntrinsic()->gtIntrinsicId == CORINFO_INTRINSIC_Floor) ||
+                         (tree->AsIntrinsic()->gtIntrinsicId == CORINFO_INTRINSIC_Round) ||
+                         (tree->AsIntrinsic()->gtIntrinsicId == CORINFO_INTRINSIC_Sqrt));
 
             // Both operand and its result must be of the same floating point type.
             GenTree* op1 = tree->gtGetOp1();
@@ -544,7 +544,7 @@ int LinearScan::BuildNode(GenTree* tree)
                 assert(size->isContained());
                 srcCount = 0;
 
-                size_t sizeVal = size->gtIntCon.gtIconVal;
+                size_t sizeVal = size->AsIntCon()->gtIconVal;
 
                 if (sizeVal != 0)
                 {
@@ -1072,6 +1072,20 @@ int LinearScan::BuildHWIntrinsic(GenTreeHWIntrinsic* intrinsicTree)
         // must be handled within the case.
         switch (intrinsicId)
         {
+            case NI_Aes_Decrypt:
+            case NI_Aes_Encrypt:
+            {
+                assert((numArgs == 2) && (op1 != nullptr) && (op2 != nullptr));
+
+                buildUses = false;
+
+                tgtPrefUse = BuildUse(op1);
+                srcCount += 1;
+                srcCount += BuildDelayFreeUses(op2);
+
+                break;
+            }
+
             case NI_Sha1_HashUpdateChoose:
             case NI_Sha1_HashUpdateMajority:
             case NI_Sha1_HashUpdateParity:

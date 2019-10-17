@@ -2007,7 +2007,7 @@ void CodeGen::genCodeForTreeNode(GenTree* treeNode)
             break;
 
         case GT_CLS_VAR_ADDR:
-            emit->emitIns_R_C(INS_lea, EA_PTRSIZE, targetReg, treeNode->gtClsVar.gtClsVarHnd, 0);
+            emit->emitIns_R_C(INS_lea, EA_PTRSIZE, targetReg, treeNode->AsClsVar()->gtClsVarHnd, 0);
             genProduceReg(treeNode);
             break;
 
@@ -2564,7 +2564,7 @@ void CodeGen::genLclHeap(GenTree* tree)
         assert(size->isContained());
 
         // If amount is zero then return null in targetReg
-        amount = size->gtIntCon.gtIconVal;
+        amount = size->AsIntCon()->gtIconVal;
         if (amount == 0)
         {
             instGen_Set_Reg_To_Zero(EA_PTRSIZE, targetReg);
@@ -2823,8 +2823,10 @@ void CodeGen::genCodeForStoreBlk(GenTreeBlk* storeBlkNode)
 {
     assert(storeBlkNode->OperIs(GT_STORE_OBJ, GT_STORE_DYN_BLK, GT_STORE_BLK));
 
-    if (storeBlkNode->OperIs(GT_STORE_OBJ) && storeBlkNode->OperIsCopyBlkOp() && !storeBlkNode->gtBlkOpGcUnsafe)
+    if (storeBlkNode->OperIs(GT_STORE_OBJ))
     {
+        assert(!storeBlkNode->gtBlkOpGcUnsafe);
+        assert(storeBlkNode->OperIsCopyBlkOp());
         assert(storeBlkNode->AsObj()->GetLayout()->HasGCPtr());
         genCodeForCpObj(storeBlkNode->AsObj());
         return;
@@ -2894,25 +2896,8 @@ void CodeGen::genCodeForStoreBlk(GenTreeBlk* storeBlkNode)
 // Arguments:
 //    initBlkNode - The Block store for which we are generating code.
 //
-// Preconditions:
-//    On x64:
-//      The size of the buffers must be a constant and also less than INITBLK_STOS_LIMIT bytes.
-//      Any value larger than that, we'll use the helper even if both the fill byte and the
-//      size are integer constants.
-//  On x86:
-//      The size must either be a non-constant or less than INITBLK_STOS_LIMIT bytes.
-//
 void CodeGen::genCodeForInitBlkRepStos(GenTreeBlk* initBlkNode)
 {
-    // Make sure we got the arguments of the initblk/initobj operation in the right registers.
-    unsigned size    = initBlkNode->Size();
-    GenTree* dstAddr = initBlkNode->Addr();
-    GenTree* initVal = initBlkNode->Data();
-    if (initVal->OperIsInitVal())
-    {
-        initVal = initVal->gtGetOp1();
-    }
-
     genConsumeBlockOp(initBlkNode, REG_RDI, REG_RAX, REG_RCX);
     instGen(INS_r_stosb);
 }
@@ -2921,11 +2906,11 @@ void CodeGen::genCodeForInitBlkRepStos(GenTreeBlk* initBlkNode)
 // genCodeForInitBlkUnroll: Generate unrolled block initialization code.
 //
 // Arguments:
-//    node - the GT_STORE_BLK or GT_STORE_OBJ node to generate code for
+//    node - the GT_STORE_BLK node to generate code for
 //
 void CodeGen::genCodeForInitBlkUnroll(GenTreeBlk* node)
 {
-    assert(node->OperIs(GT_STORE_BLK, GT_STORE_OBJ));
+    assert(node->OperIs(GT_STORE_BLK));
 
     regNumber dstAddrBaseReg = genConsumeReg(node->Addr());
     unsigned  dstOffset      = 0;
@@ -3030,7 +3015,7 @@ void CodeGen::genCodeForLoadOffset(instruction ins, emitAttr size, regNumber dst
     {
         if (baseNode->gtOper == GT_LCL_FLD_ADDR)
         {
-            offset += baseNode->gtLclFld.gtLclOffs;
+            offset += baseNode->AsLclFld()->gtLclOffs;
         }
         emit->emitIns_R_S(ins, size, dst, baseNode->gtLclVarCommon.GetLclNum(), offset);
     }
@@ -3434,15 +3419,12 @@ void CodeGen::genStructPutArgUnroll(GenTreePutArgStk* putArgNode)
 //     putArgNode  - the PutArgStk tree.
 //
 // Preconditions:
-//     The size argument of the PutArgStk (for structs) is a constant and is between
-//     CPBLK_UNROLL_LIMIT and CPBLK_MOVS_LIMIT bytes.
 //     m_stkArgVarNum must be set to the base var number, relative to which the by-val struct bits will go.
 //
 void CodeGen::genStructPutArgRepMovs(GenTreePutArgStk* putArgNode)
 {
     GenTree* srcAddr = putArgNode->gtGetOp1();
     assert(srcAddr->TypeGet() == TYP_STRUCT);
-    assert(putArgNode->getArgSize() > CPBLK_UNROLL_LIMIT);
 
     // Make sure we got the arguments of the cpblk operation in the right registers, and that
     // 'srcAddr' is contained as expected.
@@ -4743,7 +4725,7 @@ void CodeGen::genCodeForIndir(GenTreeIndir* tree)
     {
         noway_assert(EA_ATTR(genTypeSize(targetType)) == EA_PTRSIZE);
         emit->emitIns_R_C(ins_Load(TYP_I_IMPL), EA_PTRSIZE, tree->GetRegNum(), FLD_GLOBAL_FS,
-                          (int)addr->gtIntCon.gtIconVal);
+                          (int)addr->AsIntCon()->gtIconVal);
     }
     else
     {
@@ -7031,7 +7013,7 @@ void CodeGen::genSSE2BitwiseOp(GenTree* treeNode)
             break;
 
         case GT_INTRINSIC:
-            assert(treeNode->gtIntrinsic.gtIntrinsicId == CORINFO_INTRINSIC_Abs);
+            assert(treeNode->AsIntrinsic()->gtIntrinsicId == CORINFO_INTRINSIC_Abs);
 
             // Abs(x) = set sign-bit to zero
             // Abs(f) = f & 0x7fffffff
@@ -7134,7 +7116,7 @@ void CodeGen::genSSE41RoundOp(GenTreeOp* treeNode)
     unsigned ival = 0;
 
     // v) tree oper is CORINFO_INTRINSIC_Round, _Ceiling, or _Floor
-    switch (treeNode->gtIntrinsic.gtIntrinsicId)
+    switch (treeNode->AsIntrinsic()->gtIntrinsicId)
     {
         case CORINFO_INTRINSIC_Round:
             ival = 4;
@@ -7195,7 +7177,7 @@ void CodeGen::genSSE41RoundOp(GenTreeOp* treeNode)
 
                 case GT_CLS_VAR_ADDR:
                 {
-                    emit->emitIns_R_C_I(ins, size, dstReg, memBase->gtClsVar.gtClsVarHnd, 0, ival);
+                    emit->emitIns_R_C_I(ins, size, dstReg, memBase->AsClsVar()->gtClsVarHnd, 0, ival);
                     return;
                 }
 
@@ -7224,14 +7206,14 @@ void CodeGen::genSSE41RoundOp(GenTreeOp* treeNode)
                     GenTreeLclFld* lclField = srcNode->AsLclFld();
 
                     varNum = lclField->GetLclNum();
-                    offset = lclField->gtLclFld.gtLclOffs;
+                    offset = lclField->gtLclOffs;
                     break;
                 }
 
                 case GT_LCL_VAR:
                 {
                     assert(srcNode->IsRegOptional() ||
-                           !compiler->lvaTable[srcNode->gtLclVar.GetLclNum()].lvIsRegCandidate());
+                           !compiler->lvaTable[srcNode->AsLclVar()->GetLclNum()].lvIsRegCandidate());
 
                     varNum = srcNode->AsLclVar()->GetLclNum();
                     offset = 0;
@@ -7270,7 +7252,7 @@ void CodeGen::genSSE41RoundOp(GenTreeOp* treeNode)
 void CodeGen::genIntrinsic(GenTree* treeNode)
 {
     // Right now only Sqrt/Abs are treated as math intrinsics.
-    switch (treeNode->gtIntrinsic.gtIntrinsicId)
+    switch (treeNode->AsIntrinsic()->gtIntrinsicId)
     {
         case CORINFO_INTRINSIC_Sqrt:
         {
@@ -7691,11 +7673,11 @@ void CodeGen::genPutArgStkFieldList(GenTreePutArgStk* putArgStk)
                         case GT_CNS_INT:
                             if (fieldNode->IsIconHandle())
                             {
-                                inst_IV_handle(INS_push, fieldNode->gtIntCon.gtIconVal);
+                                inst_IV_handle(INS_push, fieldNode->AsIntCon()->gtIconVal);
                             }
                             else
                             {
-                                inst_IV(INS_push, fieldNode->gtIntCon.gtIconVal);
+                                inst_IV(INS_push, fieldNode->AsIntCon()->gtIconVal);
                             }
                             break;
                         default:
@@ -7790,11 +7772,11 @@ void CodeGen::genPutArgStk(GenTreePutArgStk* putArgStk)
     {
         if (data->IsIconHandle())
         {
-            inst_IV_handle(INS_push, data->gtIntCon.gtIconVal);
+            inst_IV_handle(INS_push, data->AsIntCon()->gtIconVal);
         }
         else
         {
-            inst_IV(INS_push, data->gtIntCon.gtIconVal);
+            inst_IV(INS_push, data->AsIntCon()->gtIconVal);
         }
         AddStackLevel(argSize);
     }

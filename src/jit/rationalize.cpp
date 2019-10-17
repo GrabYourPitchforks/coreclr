@@ -157,7 +157,7 @@ void Rationalizer::RewriteNodeAsCall(GenTree**             use,
 #endif // DEBUG
 
 #ifdef FEATURE_READYTORUN_COMPILER
-    call->gtCall.setEntryPoint(entryPoint);
+    call->AsCall()->setEntryPoint(entryPoint);
 #endif
 
     call = comp->fgMorphArgs(call);
@@ -299,8 +299,8 @@ static void RewriteAssignmentIntoStoreLclCore(GenTreeOp* assignment,
 
     if (locationOp == GT_LCL_FLD)
     {
-        store->gtLclFld.gtLclOffs  = var->gtLclFld.gtLclOffs;
-        store->gtLclFld.gtFieldSeq = var->gtLclFld.gtFieldSeq;
+        store->AsLclFld()->gtLclOffs  = var->AsLclFld()->gtLclOffs;
+        store->AsLclFld()->gtFieldSeq = var->AsLclFld()->gtFieldSeq;
     }
 
     copyFlags(store, var, GTF_LIVENESS_MASK);
@@ -745,7 +745,7 @@ Compiler::fgWalkResult Rationalizer::RewriteNode(GenTree** useEdge, Compiler::Ge
 
         case GT_INTRINSIC:
             // Non-target intrinsics should have already been rewritten back into user calls.
-            assert(comp->IsTargetIntrinsic(node->gtIntrinsic.gtIntrinsicId));
+            assert(comp->IsTargetIntrinsic(node->AsIntrinsic()->gtIntrinsicId));
             break;
 
         case GT_BLK:
@@ -896,7 +896,7 @@ void Rationalizer::DoPhase()
         {
             GenTree* const node = *use;
             if (node->OperGet() == GT_INTRINSIC &&
-                m_rationalizer.comp->IsIntrinsicImplementedByUserCall(node->gtIntrinsic.gtIntrinsicId))
+                m_rationalizer.comp->IsIntrinsicImplementedByUserCall(node->AsIntrinsic()->gtIntrinsicId))
             {
                 m_rationalizer.RewriteIntrinsicAsUserCall(use, this->m_ancestors);
             }

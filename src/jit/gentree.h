@@ -244,7 +244,7 @@ struct FieldSeqNode
                static_cast<int>(reinterpret_cast<intptr_t>(fsn.m_next));
     }
 
-    static bool Equals(FieldSeqNode fsn1, FieldSeqNode fsn2)
+    static bool Equals(const FieldSeqNode& fsn1, const FieldSeqNode& fsn2)
     {
         return fsn1.m_fieldHnd == fsn2.m_fieldHnd && fsn1.m_next == fsn2.m_next;
     }
@@ -4057,7 +4057,7 @@ struct GenTreeCall final : public GenTree
     {
         return (gtCallMoreFlags & GTF_CALL_M_R2R_REL_INDIRECT) != 0;
     }
-    void setEntryPoint(CORINFO_CONST_LOOKUP entryPoint)
+    void setEntryPoint(const CORINFO_CONST_LOOKUP& entryPoint)
     {
         gtEntryPoint = entryPoint;
         if (gtEntryPoint.accessType == IAT_PVALUE)
@@ -5060,8 +5060,12 @@ public:
     enum
     {
         BlkOpKindInvalid,
+#ifndef _TARGET_X86_
         BlkOpKindHelper,
+#endif
+#ifdef _TARGET_XARCH_
         BlkOpKindRepInstr,
+#endif
         BlkOpKindUnroll,
     } gtBlkOpKind;
 
@@ -5500,7 +5504,7 @@ public:
     pointers) must be flagged as 'large' in GenTree::InitNodeSize().
  */
 
-/* gtClsVar -- 'static data member' (GT_CLS_VAR) */
+/* AsClsVar() -- 'static data member' (GT_CLS_VAR) */
 
 struct GenTreeClsVar : public GenTree
 {
@@ -6985,7 +6989,7 @@ inline bool GenTree::IsCnsNonZeroFltOrDbl()
 
 inline bool GenTree::IsHelperCall()
 {
-    return OperGet() == GT_CALL && gtCall.gtCallType == CT_HELPER;
+    return OperGet() == GT_CALL && AsCall()->gtCallType == CT_HELPER;
 }
 
 inline var_types GenTree::CastFromType()

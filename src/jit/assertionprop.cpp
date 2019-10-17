@@ -867,12 +867,12 @@ AssertionIndex Compiler::optCreateAssertion(GenTree*         op1,
         {
             if (op1->gtGetOp2()->IsCnsIntOrI())
             {
-                offset += op1->gtGetOp2()->gtIntCon.gtIconVal;
+                offset += op1->gtGetOp2()->AsIntCon()->gtIconVal;
                 op1 = op1->gtGetOp1();
             }
             else if (op1->gtGetOp1()->IsCnsIntOrI())
             {
-                offset += op1->gtGetOp1()->gtIntCon.gtIconVal;
+                offset += op1->gtGetOp1()->AsIntCon()->gtIconVal;
                 op1 = op1->gtGetOp2();
             }
             else
@@ -1010,7 +1010,7 @@ AssertionIndex Compiler::optCreateAssertion(GenTree*         op1,
             assertion.op1.lcl.lclNum   = lclNum;
             assertion.op1.vn           = vnStore->VNConservativeNormalValue(op1->gtVNPair);
             assertion.op1.lcl.ssaNum   = op1->AsLclVarCommon()->GetSsaNum();
-            assertion.op2.u1.iconVal   = op2->gtIntCon.gtIconVal;
+            assertion.op2.u1.iconVal   = op2->AsIntCon()->gtIconVal;
             assertion.op2.vn           = vnStore->VNConservativeNormalValue(op2->gtVNPair);
             assertion.op2.u1.iconFlags = op2->GetIconHandleFlag();
 
@@ -1082,19 +1082,19 @@ AssertionIndex Compiler::optCreateAssertion(GenTree*         op1,
                     {
 #ifdef _TARGET_ARM_
                         // Do not Constant-Prop immediate values that require relocation
-                        if (op2->gtIntCon.ImmedValNeedsReloc(this))
+                        if (op2->AsIntCon()->ImmedValNeedsReloc(this))
                         {
                             goto DONE_ASSERTION;
                         }
                         // Do not Constant-Prop large constants for ARM
                         // TODO-CrossBitness: we wouldn't need the cast below if GenTreeIntCon::gtIconVal had
                         // target_ssize_t type.
-                        if (!codeGen->validImmForMov((target_ssize_t)op2->gtIntCon.gtIconVal))
+                        if (!codeGen->validImmForMov((target_ssize_t)op2->AsIntCon()->gtIconVal))
                         {
                             goto DONE_ASSERTION; // Don't make an assertion
                         }
 #endif // _TARGET_ARM_
-                        assertion.op2.u1.iconVal   = op2->gtIntCon.gtIconVal;
+                        assertion.op2.u1.iconVal   = op2->AsIntCon()->gtIconVal;
                         assertion.op2.u1.iconFlags = op2->GetIconHandleFlag();
 #ifdef _TARGET_64BIT_
                         if (op2->TypeGet() == TYP_LONG || op2->TypeGet() == TYP_BYREF)
@@ -1105,7 +1105,7 @@ AssertionIndex Compiler::optCreateAssertion(GenTree*         op1,
                     }
                     else if (op2->gtOper == GT_CNS_LNG)
                     {
-                        assertion.op2.lconVal = op2->gtLngCon.gtLconVal;
+                        assertion.op2.lconVal = op2->AsLngCon()->gtLconVal;
                     }
                     else
                     {
@@ -1396,7 +1396,7 @@ bool Compiler::optIsTreeKnownIntValue(bool vnBased, GenTree* tree, ssize_t* pCon
     {
         if (tree->OperGet() == GT_CNS_INT)
         {
-            *pConstant = tree->gtIntCon.IconValue();
+            *pConstant = tree->AsIntCon()->IconValue();
             *pFlags    = tree->GetIconHandleFlag();
             return true;
         }
@@ -1405,7 +1405,7 @@ bool Compiler::optIsTreeKnownIntValue(bool vnBased, GenTree* tree, ssize_t* pCon
         // overlapping gtIconVal.
         else if (tree->OperGet() == GT_CNS_LNG)
         {
-            *pConstant = tree->gtLngCon.gtLconVal;
+            *pConstant = tree->AsLngCon()->gtLconVal;
             *pFlags    = tree->GetIconHandleFlag();
             return true;
         }
@@ -1965,8 +1965,8 @@ AssertionInfo Compiler::optAssertionGenJtrue(GenTree* tree)
         jitstd::swap(op1, op2);
     }
     // Validate op1 and op2
-    if ((op1->gtOper != GT_CALL) || (op1->gtCall.gtCallType != CT_HELPER) || (op1->TypeGet() != TYP_REF) || // op1
-        (op2->gtOper != GT_CNS_INT) || (op2->gtIntCon.gtIconVal != 0))                                      // op2
+    if ((op1->gtOper != GT_CALL) || (op1->AsCall()->gtCallType != CT_HELPER) || (op1->TypeGet() != TYP_REF) || // op1
+        (op2->gtOper != GT_CNS_INT) || (op2->AsIntCon()->gtIconVal != 0))                                      // op2
     {
         return NO_ASSERTION_INDEX;
     }
@@ -2098,7 +2098,7 @@ void Compiler::optAssertionGen(GenTree* tree)
 
         case GT_ARR_ELEM:
             // An array element reference can create a non-null assertion
-            assertionInfo = optCreateAssertion(tree->gtArrElem.gtArrObj, nullptr, OAK_NOT_EQUAL);
+            assertionInfo = optCreateAssertion(tree->AsArrElem()->gtArrObj, nullptr, OAK_NOT_EQUAL);
             break;
 
         case GT_CALL:
@@ -2113,7 +2113,7 @@ void Compiler::optAssertionGen(GenTree* tree)
                 {
                     // For tail calls we lose the this pointer in the argument list but that's OK because a null check
                     // was made explicit, so we get the assertion when we walk the GT_IND in the argument list.
-                    noway_assert(tree->gtCall.IsTailCall());
+                    noway_assert(tree->AsCall()->IsTailCall());
                     break;
                 }
 #endif // _TARGET_X86_ || _TARGET_AMD64_ || _TARGET_ARM_
@@ -2625,8 +2625,8 @@ GenTree* Compiler::optConstantAssertionProp(AssertionDsc* curAssertion,
             else
             {
                 newTree->ChangeOperConst(GT_CNS_INT);
-                newTree->gtIntCon.gtIconVal = (int)curAssertion->op2.lconVal;
-                newTree->gtType             = TYP_INT;
+                newTree->AsIntCon()->gtIconVal = (int)curAssertion->op2.lconVal;
+                newTree->gtType                = TYP_INT;
             }
             break;
 
@@ -2663,13 +2663,13 @@ GenTree* Compiler::optConstantAssertionProp(AssertionDsc* curAssertion,
 #endif // FEATURE_SIMD
                 {
                     newTree->ChangeOperConst(GT_CNS_INT);
-                    newTree->gtIntCon.gtIconVal = curAssertion->op2.u1.iconVal;
+                    newTree->AsIntCon()->gtIconVal = curAssertion->op2.u1.iconVal;
                     newTree->ClearIconHandleMask();
                 }
                 // If we're doing an array index address, assume any constant propagated contributes to the index.
                 if (isArrIndex)
                 {
-                    newTree->gtIntCon.gtFieldSeq =
+                    newTree->AsIntCon()->gtFieldSeq =
                         GetFieldSeqStore()->CreateSingleton(FieldSeqStore::ConstantIndexPseudoField);
                 }
                 newTree->gtFlags &= ~GTF_VAR_ARR_INDEX;
@@ -3109,12 +3109,12 @@ GenTree* Compiler::optAssertionPropGlobal_RelOp(ASSERT_VALARG_TP assertions, Gen
         if (curAssertion->assertionKind == OAK_EQUAL)
         {
             tree->ChangeOperConst(GT_CNS_INT);
-            tree->gtIntCon.gtIconVal = 0;
+            tree->AsIntCon()->gtIconVal = 0;
         }
         else
         {
             tree->ChangeOperConst(GT_CNS_INT);
-            tree->gtIntCon.gtIconVal = 1;
+            tree->AsIntCon()->gtIconVal = 1;
         }
 
         newTree = fgMorphTree(tree);
@@ -3190,7 +3190,7 @@ GenTree* Compiler::optAssertionPropGlobal_RelOp(ASSERT_VALARG_TP assertions, Gen
         if (genActualType(op1->TypeGet()) == TYP_INT)
         {
             op1->ChangeOperConst(GT_CNS_INT);
-            op1->gtIntCon.gtIconVal = vnStore->ConstantValue<int>(vnCns);
+            op1->AsIntCon()->gtIconVal = vnStore->ConstantValue<int>(vnCns);
         }
         else if (op1->TypeGet() == TYP_LONG)
         {
@@ -3222,7 +3222,7 @@ GenTree* Compiler::optAssertionPropGlobal_RelOp(ASSERT_VALARG_TP assertions, Gen
             op1->ChangeOperConst(GT_CNS_INT);
             // The only constant of TYP_REF that ValueNumbering supports is 'null'
             noway_assert(vnStore->ConstantValue<size_t>(vnCns) == 0);
-            op1->gtIntCon.gtIconVal = 0;
+            op1->AsIntCon()->gtIconVal = 0;
         }
         else
         {
@@ -3238,9 +3238,9 @@ GenTree* Compiler::optAssertionPropGlobal_RelOp(ASSERT_VALARG_TP assertions, Gen
         if (verbose)
         {
             printf("\nVN relop based copy assertion prop in " FMT_BB ":\n", compCurBB->bbNum);
-            printf("Assertion index=#%02u: V%02d.%02d %s V%02d.%02d\n", index, op1->gtLclVar.GetLclNum(),
-                   op1->gtLclVar.GetSsaNum(), (curAssertion->assertionKind == OAK_EQUAL) ? "==" : "!=",
-                   op2->gtLclVar.GetLclNum(), op2->gtLclVar.GetSsaNum());
+            printf("Assertion index=#%02u: V%02d.%02d %s V%02d.%02d\n", index, op1->AsLclVar()->GetLclNum(),
+                   op1->AsLclVar()->GetSsaNum(), (curAssertion->assertionKind == OAK_EQUAL) ? "==" : "!=",
+                   op2->AsLclVar()->GetLclNum(), op2->AsLclVar()->GetSsaNum());
             gtDispTree(tree, nullptr, nullptr, true);
         }
 #endif
@@ -3316,7 +3316,7 @@ GenTree* Compiler::optAssertionPropLocal_RelOp(ASSERT_VALARG_TP assertions, GenT
 
     optOp1Kind op1Kind = O1K_LCLVAR;
     optOp2Kind op2Kind = O2K_CONST_INT;
-    ssize_t    cnsVal  = op2->gtIntCon.gtIconVal;
+    ssize_t    cnsVal  = op2->AsIntCon()->gtIconVal;
     var_types  cmpType = op1->TypeGet();
 
     // Don't try to fold/optimize Floating Compares; there are multiple zero values.
@@ -3374,8 +3374,8 @@ GenTree* Compiler::optAssertionPropLocal_RelOp(ASSERT_VALARG_TP assertions, GenT
         foldResult = !foldResult;
     }
 
-    op2->gtIntCon.gtIconVal = foldResult;
-    op2->gtType             = TYP_INT;
+    op2->AsIntCon()->gtIconVal = foldResult;
+    op2->gtType                = TYP_INT;
 
     return optAssertionProp_Update(op2, tree, stmt);
 }
