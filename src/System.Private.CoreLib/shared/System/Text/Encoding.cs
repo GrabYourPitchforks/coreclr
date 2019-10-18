@@ -157,6 +157,14 @@ namespace System.Text
             this.decoderFallback = decoderFallback ?? new InternalDecoderBestFitFallback(this);
         }
 
+        /// <summary>
+        /// Returns a value stating whether this instance is known to be UTF-8. That is: whether the implementation
+        /// is known to utilize our built-in UTF-8 logic. This returns false for derived types because those types
+        /// may have overridden the conversion logic in an unexpected fashion. This property doesn't specify anything
+        /// about any configured fallback behavior.
+        /// </summary>
+        internal bool IsUtf8 => this.GetType() == typeof(UTF8Encoding) || this.GetType() == typeof(UTF8Encoding.UTF8EncodingSealed);
+
         // Default fallback that we'll use.
         internal virtual void SetDefaultFallbacks()
         {
