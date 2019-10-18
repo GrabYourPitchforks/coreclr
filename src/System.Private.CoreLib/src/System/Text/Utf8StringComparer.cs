@@ -8,7 +8,7 @@ using System.Globalization;
 
 namespace System.Text
 {
-    internal abstract class Utf8StringComparer : IComparer<Utf8Segment>, IComparer<Utf8String?>, IEqualityComparer<Utf8Segment>, IEqualityComparer<Utf8String?>
+    public abstract class Utf8StringComparer : IComparer<Utf8Segment>, IComparer<Utf8String?>, IEqualityComparer<Utf8Segment>, IEqualityComparer<Utf8String?>
     {
         // Nobody except for nested classes can create instances of this type.
         private Utf8StringComparer() { }
