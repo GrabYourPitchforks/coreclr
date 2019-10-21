@@ -2156,7 +2156,7 @@ void Compiler::compSetProcessor()
 #if defined(_TARGET_ARM_)
     info.genCPU = CPU_ARM;
 #elif defined(_TARGET_ARM64_)
-    info.genCPU       = CPU_ARM64;
+    info.genCPU      = CPU_ARM64;
 #elif defined(_TARGET_AMD64_)
     info.genCPU                   = CPU_X64;
 #elif defined(_TARGET_X86_)
@@ -2172,15 +2172,10 @@ void Compiler::compSetProcessor()
     CLANG_FORMAT_COMMENT_ANCHOR;
 
 #ifdef _TARGET_AMD64_
-    opts.compUseFCOMI = false;
-    opts.compUseCMOV  = true;
+    opts.compUseCMOV = true;
 #elif defined(_TARGET_X86_)
-    opts.compUseFCOMI = jitFlags.IsSet(JitFlags::JIT_FLAG_USE_FCOMI);
-    opts.compUseCMOV  = jitFlags.IsSet(JitFlags::JIT_FLAG_USE_CMOV);
-
+    opts.compUseCMOV = jitFlags.IsSet(JitFlags::JIT_FLAG_USE_CMOV);
 #ifdef DEBUG
-    if (opts.compUseFCOMI)
-        opts.compUseFCOMI = !compStressCompile(STRESS_USE_FCOMI, 50);
     if (opts.compUseCMOV)
         opts.compUseCMOV = !compStressCompile(STRESS_USE_CMOV, 50);
 #endif // DEBUG
@@ -3579,6 +3574,14 @@ void Compiler::compInitOptions(JitFlags* jitFlags)
         {
             printf("OPTIONS: Tier-1 compilation\n");
         }
+        if (compSwitchedToOptimized)
+        {
+            printf("OPTIONS: Tier-0 compilation, switched to FullOpts");
+        }
+        if (compSwitchedToMinOpts)
+        {
+            printf("OPTIONS: Tier-1/FullOpts compilation, switched to MinOpts");
+        }
 
         printf("OPTIONS: compCodeOpt = %s\n",
                (opts.compCodeOpt == BLENDED_CODE)
@@ -4107,6 +4110,7 @@ _SetMinOpts:
         !opts.jitFlags->IsSet(JitFlags::JIT_FLAG_MIN_OPT) && !opts.compDbgCode)
     {
         info.compCompHnd->setMethodAttribs(info.compMethodHnd, CORINFO_FLG_SWITCHED_TO_MIN_OPT);
+        compSwitchedToMinOpts = true;
     }
 
 #ifdef DEBUG
@@ -4348,9 +4352,42 @@ const char* Compiler::compGetTieringName() const
     {
         return "Tier-1";
     }
+    else if (opts.OptimizationEnabled())
+    {
+        if (compSwitchedToOptimized)
+        {
+            return "Tier-0 switched to FullOpts";
+        }
+        else
+        {
+            return "FullOpts";
+        }
+    }
+    else if (opts.MinOpts())
+    {
+        if (compSwitchedToMinOpts)
+        {
+            if (compSwitchedToOptimized)
+            {
+                return "Tier-0 switched to FullOpts, then to MinOpts";
+            }
+            else
+            {
+                return "Tier-1/FullOpts switched to MinOpts";
+            }
+        }
+        else
+        {
+            return "MinOpts";
+        }
+    }
+    else if (opts.compDbgCode)
+    {
+        return "Debug";
+    }
     else
     {
-        return "No-Tier";
+        return "Unknown optimization level";
     }
 }
 
@@ -5881,7 +5918,9 @@ int Compiler::compCompileHelper(CORINFO_MODULE_HANDLE            classPtr,
     info.compTotalHotCodeSize  = 0;
     info.compTotalColdCodeSize = 0;
 
-    compHasBackwardJump = false;
+    compHasBackwardJump     = false;
+    compSwitchedToOptimized = false;
+    compSwitchedToMinOpts   = false;
 
 #ifdef DEBUG
     compCurBB = nullptr;
@@ -9573,16 +9612,16 @@ int cSsaNumIR(Compiler* comp, GenTree* tree)
 {
     int chars = 0;
 
-    if (tree->gtLclVarCommon.HasSsaName())
+    if (tree->AsLclVarCommon()->HasSsaName())
     {
         if (tree->gtFlags & GTF_VAR_USEASG)
         {
             assert(tree->gtFlags & GTF_VAR_DEF);
-            chars += printf("<u:%d><d:%d>", tree->gtLclVarCommon.GetSsaNum(), comp->GetSsaNumForLocalVarDef(tree));
+            chars += printf("<u:%d><d:%d>", tree->AsLclVarCommon()->GetSsaNum(), comp->GetSsaNumForLocalVarDef(tree));
         }
         else
         {
-            chars += printf("<%s:%d>", (tree->gtFlags & GTF_VAR_DEF) ? "d" : "u", tree->gtLclVarCommon.GetSsaNum());
+            chars += printf("<%s:%d>", (tree->gtFlags & GTF_VAR_DEF) ? "d" : "u", tree->AsLclVarCommon()->GetSsaNum());
         }
     }
 
@@ -9683,7 +9722,7 @@ int cLeafIR(Compiler* comp, GenTree* tree)
         case GT_LCL_VAR:
         case GT_LCL_VAR_ADDR:
         case GT_STORE_LCL_VAR:
-            lclNum = tree->gtLclVarCommon.GetLclNum();
+            lclNum = tree->AsLclVarCommon()->GetLclNum();
             comp->gtGetLclVarNameInfo(lclNum, &ilKind, &ilName, &ilNum);
             if (ilName != nullptr)
             {
@@ -9747,7 +9786,7 @@ int cLeafIR(Compiler* comp, GenTree* tree)
         case GT_LCL_FLD_ADDR:
         case GT_STORE_LCL_FLD:
 
-            lclNum = tree->gtLclVarCommon.GetLclNum();
+            lclNum = tree->AsLclVarCommon()->GetLclNum();
             comp->gtGetLclVarNameInfo(lclNum, &ilKind, &ilName, &ilNum);
             if (ilName != nullptr)
             {
@@ -9969,7 +10008,7 @@ int cLeafIR(Compiler* comp, GenTree* tree)
             const char* methodName;
             const char* className;
 
-            methodName = comp->eeGetMethodName((CORINFO_METHOD_HANDLE)tree->gtVal.gtVal1, &className);
+            methodName = comp->eeGetMethodName((CORINFO_METHOD_HANDLE)tree->AsVal()->gtVal1, &className);
             chars += printf(" %s.%s", className, methodName);
         }
         break;
@@ -9993,7 +10032,7 @@ int cLeafIR(Compiler* comp, GenTree* tree)
 
         case GT_PHYSREG:
 
-            chars += printf("%s", getRegName(tree->gtPhysReg.gtSrcReg, varTypeIsFloating(tree)));
+            chars += printf("%s", getRegName(tree->AsPhysReg()->gtSrcReg, varTypeIsFloating(tree)));
             break;
 
         case GT_LABEL:
@@ -10001,13 +10040,13 @@ int cLeafIR(Compiler* comp, GenTree* tree)
 
         case GT_IL_OFFSET:
 
-            if (tree->gtILOffset.gtStmtILoffsx == BAD_IL_OFFSET)
+            if (tree->AsILOffset()->gtStmtILoffsx == BAD_IL_OFFSET)
             {
                 chars += printf("?");
             }
             else
             {
-                chars += printf("0x%x", jitGetILoffs(tree->gtILOffset.gtStmtILoffsx));
+                chars += printf("0x%x", jitGetILoffs(tree->AsILOffset()->gtStmtILoffsx));
             }
             break;
 
@@ -10580,7 +10619,7 @@ void cNodeIR(Compiler* comp, GenTree* tree)
 
         {
             const char* className = nullptr;
-            const char* fieldName = comp->eeGetFieldName(tree->gtField.gtFldHnd, &className);
+            const char* fieldName = comp->eeGetFieldName(tree->AsField()->gtFldHnd, &className);
 
             chars += printf(" %s.%s", className, fieldName);
         }

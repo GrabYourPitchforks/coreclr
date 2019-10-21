@@ -1360,13 +1360,13 @@ void CodeGen::genFloatReturn(GenTree* treeNode)
     GenTree* op1 = treeNode->gtGetOp1();
     // Spill the return value register from an XMM register to the stack, then load it on the x87 stack.
     // If it already has a home location, use that. Otherwise, we need a temp.
-    if (genIsRegCandidateLocal(op1) && compiler->lvaTable[op1->gtLclVarCommon.GetLclNum()].lvOnFrame)
+    if (genIsRegCandidateLocal(op1) && compiler->lvaTable[op1->AsLclVarCommon()->GetLclNum()].lvOnFrame)
     {
-        if (compiler->lvaTable[op1->gtLclVarCommon.GetLclNum()].GetRegNum() != REG_STK)
+        if (compiler->lvaTable[op1->AsLclVarCommon()->GetLclNum()].GetRegNum() != REG_STK)
         {
             op1->gtFlags |= GTF_SPILL;
-            inst_TT_RV(ins_Store(op1->gtType, compiler->isSIMDTypeLocalAligned(op1->gtLclVarCommon.GetLclNum())), op1,
-                       op1->GetRegNum());
+            inst_TT_RV(ins_Store(op1->gtType, compiler->isSIMDTypeLocalAligned(op1->AsLclVarCommon()->GetLclNum())),
+                       op1, op1->GetRegNum());
         }
         // Now, load it to the fp stack.
         GetEmitter()->emitIns_S(INS_fld, emitTypeSize(op1), op1->AsLclVarCommon()->GetLclNum(), 0);
@@ -1955,8 +1955,8 @@ void CodeGen::genCodeForTreeNode(GenTree* treeNode)
             //     mov dword ptr [ebp-0xC], 0  // for some slot of the ShadowSP local var
 
             unsigned finallyNesting;
-            finallyNesting = treeNode->gtVal.gtVal1;
-            noway_assert(treeNode->gtVal.gtVal1 < compiler->compHndBBtabCount);
+            finallyNesting = treeNode->AsVal()->gtVal1;
+            noway_assert(treeNode->AsVal()->gtVal1 < compiler->compHndBBtabCount);
             noway_assert(finallyNesting < compiler->compHndBBtabCount);
 
             // The last slot is reserved for ICodeManager::FixContext(ppEndRegion)
@@ -2825,21 +2825,14 @@ void CodeGen::genCodeForStoreBlk(GenTreeBlk* storeBlkNode)
 
     if (storeBlkNode->OperIs(GT_STORE_OBJ))
     {
+#ifndef JIT32_GCENCODER
         assert(!storeBlkNode->gtBlkOpGcUnsafe);
+#endif
         assert(storeBlkNode->OperIsCopyBlkOp());
         assert(storeBlkNode->AsObj()->GetLayout()->HasGCPtr());
         genCodeForCpObj(storeBlkNode->AsObj());
         return;
     }
-
-#ifdef JIT32_GCENCODER
-    assert(!storeBlkNode->gtBlkOpGcUnsafe);
-#else
-    if (storeBlkNode->gtBlkOpGcUnsafe)
-    {
-        GetEmitter()->emitDisableGC();
-    }
-#endif // JIT32_GCENCODER
 
     bool isCopyBlk = storeBlkNode->OperIsCopyBlkOp();
 
@@ -2847,6 +2840,7 @@ void CodeGen::genCodeForStoreBlk(GenTreeBlk* storeBlkNode)
     {
 #ifdef _TARGET_AMD64_
         case GenTreeBlk::BlkOpKindHelper:
+            assert(!storeBlkNode->gtBlkOpGcUnsafe);
             if (isCopyBlk)
             {
                 genCodeForCpBlkHelper(storeBlkNode);
@@ -2858,6 +2852,9 @@ void CodeGen::genCodeForStoreBlk(GenTreeBlk* storeBlkNode)
             break;
 #endif // _TARGET_AMD64_
         case GenTreeBlk::BlkOpKindRepInstr:
+#ifndef JIT32_GCENCODER
+            assert(!storeBlkNode->gtBlkOpGcUnsafe);
+#endif
             if (isCopyBlk)
             {
                 genCodeForCpBlkRepMovs(storeBlkNode);
@@ -2870,23 +2867,31 @@ void CodeGen::genCodeForStoreBlk(GenTreeBlk* storeBlkNode)
         case GenTreeBlk::BlkOpKindUnroll:
             if (isCopyBlk)
             {
+#ifndef JIT32_GCENCODER
+                if (storeBlkNode->gtBlkOpGcUnsafe)
+                {
+                    GetEmitter()->emitDisableGC();
+                }
+#endif
                 genCodeForCpBlkUnroll(storeBlkNode);
+#ifndef JIT32_GCENCODER
+                if (storeBlkNode->gtBlkOpGcUnsafe)
+                {
+                    GetEmitter()->emitEnableGC();
+                }
+#endif
             }
             else
             {
+#ifndef JIT32_GCENCODER
+                assert(!storeBlkNode->gtBlkOpGcUnsafe);
+#endif
                 genCodeForInitBlkUnroll(storeBlkNode);
             }
             break;
         default:
             unreached();
     }
-
-#ifndef JIT32_GCENCODER
-    if (storeBlkNode->gtBlkOpGcUnsafe)
-    {
-        GetEmitter()->emitEnableGC();
-    }
-#endif // !defined(JIT32_GCENCODER)
 }
 
 //
@@ -3017,7 +3022,7 @@ void CodeGen::genCodeForLoadOffset(instruction ins, emitAttr size, regNumber dst
         {
             offset += baseNode->AsLclFld()->gtLclOffs;
         }
-        emit->emitIns_R_S(ins, size, dst, baseNode->gtLclVarCommon.GetLclNum(), offset);
+        emit->emitIns_R_S(ins, size, dst, baseNode->AsLclVarCommon()->GetLclNum(), offset);
     }
     else
     {
@@ -4681,7 +4686,7 @@ void CodeGen::genCodeForIndexAddr(GenTreeIndexAddr* node)
             // The VM doesn't allow such large array elements but let's be sure.
             noway_assert(scale <= INT32_MAX);
 #else  // !_TARGET_64BIT_
-            tmpReg = node->GetSingleTempReg();
+            tmpReg              = node->GetSingleTempReg();
 #endif // !_TARGET_64BIT_
 
             GetEmitter()->emitIns_R_I(emitter::inst3opImulForReg(tmpReg), EA_PTRSIZE, indexReg,
@@ -6123,6 +6128,16 @@ void CodeGen::genCompareFloat(GenTree* treeNode)
     // Are we evaluating this into a register?
     if (targetReg != REG_NA)
     {
+        if ((condition.GetCode() == GenCondition::FNEU) && (op1->GetRegNum() == op2->GetRegNum()))
+        {
+            // For floating point, `x != x` is a common way of
+            // checking for NaN. So, in the case where both
+            // operands are the same, we can optimize codegen
+            // to only do a single check.
+
+            condition = GenCondition(GenCondition::P);
+        }
+
         inst_SETCC(condition, treeNode->TypeGet(), targetReg);
         genProduceReg(tree);
     }

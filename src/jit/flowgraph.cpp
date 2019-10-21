@@ -4327,6 +4327,9 @@ void Compiler::fgSwitchToOptimized()
 
     // Notify the VM of the change
     info.compCompHnd->setMethodAttribs(info.compMethodHnd, CORINFO_FLG_SWITCHED_TO_OPTIMIZED);
+
+    // And leave a note for jit diagnostics too
+    compSwitchedToOptimized = true;
 }
 
 //------------------------------------------------------------------------
@@ -7398,7 +7401,7 @@ GenTree* Compiler::fgOptimizeDelegateConstructor(GenTreeCall*            call,
     GenTree*              qmarkNode       = nullptr;
     if (oper == GT_FTN_ADDR)
     {
-        targetMethodHnd = targetMethod->gtFptrVal.gtFptrMethod;
+        targetMethodHnd = targetMethod->AsFptrVal()->gtFptrMethod;
     }
     else if (oper == GT_CALL && targetMethod->AsCall()->gtCallMethHnd == eeFindHelper(CORINFO_HELP_VIRTUAL_FUNC_PTR))
     {
@@ -7651,7 +7654,7 @@ GenTree* Compiler::fgDoNormalizeOnStore(GenTree* tree)
             // Small-typed arguments and aliased locals are normalized on load.
             // Other small-typed locals are normalized on store.
             // If it is an assignment to one of the latter, insert the cast on RHS
-            unsigned   varNum = op1->gtLclVarCommon.GetLclNum();
+            unsigned   varNum = op1->AsLclVarCommon()->GetLclNum();
             LclVarDsc* varDsc = &lvaTable[varNum];
 
             if (varDsc->lvNormalizeOnStore())
@@ -9857,7 +9860,7 @@ VARSET_VALRET_TP Compiler::fgGetVarBits(GenTree* tree)
 
     assert(tree->gtOper == GT_LCL_VAR || tree->gtOper == GT_LCL_FLD);
 
-    unsigned int lclNum = tree->gtLclVarCommon.GetLclNum();
+    unsigned int lclNum = tree->AsLclVarCommon()->GetLclNum();
     LclVarDsc*   varDsc = lvaTable + lclNum;
     if (varDsc->lvTracked)
     {
@@ -18785,7 +18788,7 @@ void Compiler::fgSetTreeSeqHelper(GenTree* tree, bool isLIR)
     switch (oper)
     {
         case GT_FIELD:
-            noway_assert(tree->gtField.gtFldObj == nullptr);
+            noway_assert(tree->AsField()->gtFldObj == nullptr);
             break;
 
         case GT_CALL:
@@ -18836,9 +18839,9 @@ void Compiler::fgSetTreeSeqHelper(GenTree* tree, bool isLIR)
             break;
 
         case GT_ARR_OFFSET:
-            fgSetTreeSeqHelper(tree->gtArrOffs.gtOffset, isLIR);
-            fgSetTreeSeqHelper(tree->gtArrOffs.gtIndex, isLIR);
-            fgSetTreeSeqHelper(tree->gtArrOffs.gtArrObj, isLIR);
+            fgSetTreeSeqHelper(tree->AsArrOffs()->gtOffset, isLIR);
+            fgSetTreeSeqHelper(tree->AsArrOffs()->gtIndex, isLIR);
+            fgSetTreeSeqHelper(tree->AsArrOffs()->gtArrObj, isLIR);
             break;
 
         case GT_PHI:
@@ -18857,9 +18860,9 @@ void Compiler::fgSetTreeSeqHelper(GenTree* tree, bool isLIR)
 
         case GT_CMPXCHG:
             // Evaluate the trees left to right
-            fgSetTreeSeqHelper(tree->gtCmpXchg.gtOpLocation, isLIR);
-            fgSetTreeSeqHelper(tree->gtCmpXchg.gtOpValue, isLIR);
-            fgSetTreeSeqHelper(tree->gtCmpXchg.gtOpComparand, isLIR);
+            fgSetTreeSeqHelper(tree->AsCmpXchg()->gtOpLocation, isLIR);
+            fgSetTreeSeqHelper(tree->AsCmpXchg()->gtOpValue, isLIR);
+            fgSetTreeSeqHelper(tree->AsCmpXchg()->gtOpComparand, isLIR);
             break;
 
         case GT_ARR_BOUNDS_CHECK:
@@ -18870,8 +18873,8 @@ void Compiler::fgSetTreeSeqHelper(GenTree* tree, bool isLIR)
         case GT_HW_INTRINSIC_CHK:
 #endif // FEATURE_HW_INTRINSICS
             // Evaluate the trees left to right
-            fgSetTreeSeqHelper(tree->gtBoundsChk.gtIndex, isLIR);
-            fgSetTreeSeqHelper(tree->gtBoundsChk.gtArrLen, isLIR);
+            fgSetTreeSeqHelper(tree->AsBoundsChk()->gtIndex, isLIR);
+            fgSetTreeSeqHelper(tree->AsBoundsChk()->gtArrLen, isLIR);
             break;
 
         case GT_STORE_DYN_BLK:
@@ -21415,12 +21418,12 @@ void Compiler::fgDebugCheckFlags(GenTree* tree)
 
             case GT_ARR_OFFSET:
 
-                fgDebugCheckFlags(tree->gtArrOffs.gtOffset);
-                chkFlags |= (tree->gtArrOffs.gtOffset->gtFlags & GTF_ALL_EFFECT);
-                fgDebugCheckFlags(tree->gtArrOffs.gtIndex);
-                chkFlags |= (tree->gtArrOffs.gtIndex->gtFlags & GTF_ALL_EFFECT);
-                fgDebugCheckFlags(tree->gtArrOffs.gtArrObj);
-                chkFlags |= (tree->gtArrOffs.gtArrObj->gtFlags & GTF_ALL_EFFECT);
+                fgDebugCheckFlags(tree->AsArrOffs()->gtOffset);
+                chkFlags |= (tree->AsArrOffs()->gtOffset->gtFlags & GTF_ALL_EFFECT);
+                fgDebugCheckFlags(tree->AsArrOffs()->gtIndex);
+                chkFlags |= (tree->AsArrOffs()->gtIndex->gtFlags & GTF_ALL_EFFECT);
+                fgDebugCheckFlags(tree->AsArrOffs()->gtArrObj);
+                chkFlags |= (tree->AsArrOffs()->gtArrObj->gtFlags & GTF_ALL_EFFECT);
                 break;
 
             case GT_ARR_BOUNDS_CHECK:
@@ -22293,7 +22296,7 @@ void Compiler::fgAttachStructInlineeToAsg(GenTree* tree, GenTree* child, CORINFO
         // If it is a multireg return on x64/ux, the local variable should be marked as lvIsMultiRegRet
         if (child->AsCall()->HasMultiRegRetVal())
         {
-            unsigned lclNum                  = tree->AsOp()->gtOp1->gtLclVarCommon.GetLclNum();
+            unsigned lclNum                  = tree->AsOp()->gtOp1->AsLclVarCommon()->GetLclNum();
             lvaTable[lclNum].lvIsMultiRegRet = true;
         }
         return;
@@ -22626,7 +22629,7 @@ Compiler::fgWalkResult Compiler::fgLateDevirtualization(GenTree** pTree, fgWalkD
 
         if ((lhs->OperGet() == GT_LCL_VAR) && (lhs->TypeGet() == TYP_REF))
         {
-            const unsigned lclNum = lhs->gtLclVarCommon.GetLclNum();
+            const unsigned lclNum = lhs->AsLclVarCommon()->GetLclNum();
             LclVarDsc*     lcl    = comp->lvaGetDesc(lclNum);
 
             if (lcl->lvSingleDef)
@@ -24398,9 +24401,9 @@ void Compiler::fgRemoveEmptyTry()
                 GenTree* expr = stmt->GetRootNode();
                 if (expr->gtOper == GT_END_LFIN)
                 {
-                    const unsigned nestLevel = expr->gtVal.gtVal1;
+                    const unsigned nestLevel = expr->AsVal()->gtVal1;
                     assert(nestLevel > 0);
-                    expr->gtVal.gtVal1 = nestLevel - 1;
+                    expr->AsVal()->gtVal1 = nestLevel - 1;
                 }
             }
 #endif // !FEATURE_EH_FUNCLETS
