@@ -9,8 +9,6 @@ using System.Runtime.Serialization;
 using System.Text;
 using Internal.Runtime.CompilerServices;
 
-using Internal.Runtime.CompilerServices;
-
 namespace System.Collections.Generic
 {
     /// <summary>
