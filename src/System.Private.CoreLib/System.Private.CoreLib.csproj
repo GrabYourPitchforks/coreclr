@@ -316,6 +316,7 @@
     <Compile Include="$(BclSourcesRoot)\System\Text\Utf8Span.Manipulation.cs" />
     <Compile Include="$(BclSourcesRoot)\System\Text\Utf8Span.Searching.cs" />
     <Compile Include="$(BclSourcesRoot)\System\Text\Utf8StringComparer.cs" />
+    <Compile Include="$(BclSourcesRoot)\System\Text\Unicode\Ascii.cs" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="$(BclSourcesRoot)\System\Diagnostics\Eventing\XplatEventLogger.cs" Condition="'$(FeatureXplatEventSource)' == 'true'" />
