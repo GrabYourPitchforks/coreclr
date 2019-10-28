@@ -2,7 +2,17 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+using Internal.Runtime.CompilerServices;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
+
+#pragma warning disable SA1121 // explicitly using type aliases instead of built-in types
+#if BIT64
+using nuint = System.UInt64;
+#else
+using nuint = System.UInt32;
+#endif // BIT64
 
 namespace System
 {
@@ -650,27 +660,39 @@ namespace System
         /// Removes all leading and trailing white-space characters from the span.
         /// </summary>
         /// <param name="span">The source span from which the characters are removed.</param>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static ReadOnlySpan<char> Trim(this ReadOnlySpan<char> span)
         {
-            int start = 0;
-            for (; start < span.Length; start++)
+            ref char start = ref MemoryMarshal.GetReference(span);
+            ref char end = ref Unsafe.Add(ref start, (IntPtr)(uint)span.Length);
+            return TrimCore(ref start, ref end);
+        }
+
+        private static ReadOnlySpan<char> TrimCore(ref char start, ref char end)
+        {
+            // Trim whitespace chars at beginning
+            while (Unsafe.IsAddressLessThan(ref start, ref end))
             {
-                if (!char.IsWhiteSpace(span[start]))
+                if (!char.IsWhiteSpace(start))
                 {
                     break;
                 }
+
+                start = ref Unsafe.Add(ref start, 1);
             }
 
-            int end = span.Length - 1;
-            for (; end > start; end--)
+            // Trim whitespace chars at end (which points just after the end of the span)
+            while (Unsafe.IsAddressLessThan(ref start, ref end))
             {
-                if (!char.IsWhiteSpace(span[end]))
+                if (!char.IsWhiteSpace(Unsafe.Add(ref end, -1)))
                 {
                     break;
                 }
+
+                end = ref Unsafe.Add(ref end, -1);
             }
 
-            return span.Slice(start, end - start + 1);
+            return new ReadOnlySpan<char>(ref start, (int)((nuint)Unsafe.ByteOffset(ref end, ref start) / sizeof(char)));
         }
 
         /// <summary>
