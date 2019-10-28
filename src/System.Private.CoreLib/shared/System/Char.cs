@@ -14,6 +14,7 @@
 
 using System.Diagnostics;
 using System.Globalization;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 
@@ -257,8 +258,21 @@ namespace System
         {
             if (IsLatin1(c))
             {
-                return IsWhiteSpaceLatin1(c);
+                // This is a fast-path which is inlined into the caller.
+                // Ternary operator works around https://github.com/dotnet/coreclr/issues/914.
+                return IsWhiteSpaceLatin1(c) ? true : false;
             }
+            else
+            {
+                // This is a slower non-inlined path which consults the Unicode tables.
+                return IsWhiteSpaceNonLatin1(c);
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static bool IsWhiteSpaceNonLatin1(char c)
+        {
+            Debug.Assert(!IsLatin1(c));
             return CheckSeparator(CharUnicodeInfo.GetUnicodeCategory(c));
         }
 
