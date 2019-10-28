@@ -836,6 +836,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)System\Text\UTF7Encoding.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)System\Text\UTF8Encoding.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)System\Text\ValueStringBuilder.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)System\Text\ValueStringBuilder.AppendFormat.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)System\Text\Unicode\TR29Utility.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)System\Text\Unicode\TR29Utility.Data.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)System\Text\Unicode\Utf16Utility.cs" />

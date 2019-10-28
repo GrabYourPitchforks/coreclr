@@ -29,9 +29,8 @@
 #include "typeparse.h"
 
 #include "appdomainnative.hpp"
+#include "../binder/inc/bindertracing.h"
 #include "../binder/inc/clrprivbindercoreclr.h"
-
-
 
 FCIMPL6(Object*, AssemblyNative::Load, AssemblyNameBaseObject* assemblyNameUNSAFE,
         StringObject* codeBaseUNSAFE, 
@@ -190,6 +189,8 @@ Assembly* AssemblyNative::LoadFromPEImage(ICLRPrivBinder* pBinderContext, PEImag
     spec.InitializeSpec(TokenFromRid(1, mdtAssembly), pImage->GetMDImport(), pCallersAssembly);
     spec.SetBindingContext(pBinderContext);
     
+    BinderTracing::AssemblyBindOperation bindOperation(&spec);
+
     HRESULT hr = S_OK;
     PTR_AppDomain pCurDomain = GetAppDomain();
     CLRPrivBinderCoreCLR *pTPABinder = pCurDomain->GetTPABinderContext();
@@ -222,6 +223,7 @@ Assembly* AssemblyNative::LoadFromPEImage(ICLRPrivBinder* pBinderContext, PEImag
     assem = BINDER_SPACE::GetAssemblyFromPrivAssemblyFast(pAssembly);
     
     PEAssemblyHolder pPEAssembly(PEAssembly::Open(pParentAssembly, assem->GetPEImage(), assem->GetNativePEImage(), pAssembly));
+    bindOperation.SetResult(pPEAssembly.GetValue());
 
     DomainAssembly *pDomainAssembly = pCurDomain->LoadDomainAssembly(&spec, pPEAssembly, FILE_LOADED);
     RETURN pDomainAssembly->GetAssembly();
@@ -250,13 +252,13 @@ void QCALLTYPE AssemblyNative::LoadFromPath(INT_PTR ptrNativeAssemblyLoadContext
         
         // Need to verify that this is a valid CLR assembly. 
         if (!pILImage->CheckILFormat())
-            ThrowHR(COR_E_BADIMAGEFORMAT, BFA_BAD_IL);
+            THROW_BAD_FORMAT(BFA_BAD_IL, pILImage.GetValue());
 
         LoaderAllocator* pLoaderAllocator = NULL;
         if (SUCCEEDED(pBinderContext->GetLoaderAllocator((LPVOID*)&pLoaderAllocator)) && pLoaderAllocator->IsCollectible() && !pILImage->IsILOnly())
         {
             // Loading IJW assemblies into a collectible AssemblyLoadContext is not allowed
-            ThrowHR(COR_E_BADIMAGEFORMAT, BFA_IJW_IN_COLLECTIBLE_ALC);
+            THROW_BAD_FORMAT(BFA_IJW_IN_COLLECTIBLE_ALC, pILImage.GetValue());
         }
     }
     
@@ -270,7 +272,7 @@ void QCALLTYPE AssemblyNative::LoadFromPath(INT_PTR ptrNativeAssemblyLoadContext
         {
             // ReadyToRun images are treated as IL images by the rest of the system
             if (!pNIImage->CheckILFormat())
-                ThrowHR(COR_E_BADIMAGEFORMAT);
+                THROW_BAD_FORMAT(COR_E_BADIMAGEFORMAT, pNIImage.GetValue());
 
             pILImage = pNIImage.Extract();
             pNIImage = NULL;
@@ -278,7 +280,7 @@ void QCALLTYPE AssemblyNative::LoadFromPath(INT_PTR ptrNativeAssemblyLoadContext
         else
         {
             if (!pNIImage->CheckNativeFormat())
-                ThrowHR(COR_E_BADIMAGEFORMAT);
+                THROW_BAD_FORMAT(COR_E_BADIMAGEFORMAT, pNIImage.GetValue());
         }
     }
 #endif // FEATURE_PREJIT
@@ -1416,3 +1418,12 @@ BOOL QCALLTYPE AssemblyNative::InternalTryGetRawMetadata(
 
     return metadata != nullptr;
 }
+
+// static
+FCIMPL0(FC_BOOL_RET, AssemblyNative::IsTracingEnabled)
+{
+    FCALL_CONTRACT;
+
+    FC_RETURN_BOOL(BinderTracing::IsEnabled());
+}
+FCIMPLEND

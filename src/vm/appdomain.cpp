@@ -66,8 +66,8 @@
 
 #include "stringarraylist.h"
 
+#include "../binder/inc/bindertracing.h"
 #include "../binder/inc/clrprivbindercoreclr.h"
-
 
 #include "clrprivtypecachewinrt.h"
 
@@ -3801,7 +3801,7 @@ DomainAssembly* AppDomain::LoadDomainAssembly(AssemblySpec* pSpec,
             {
                 StackSString name;
                 pSpec->GetFileOrDisplayName(0, name);
-                pEx=new EEFileLoadException(name, pEx->GetHR(), NULL, pEx);
+                pEx=new EEFileLoadException(name, pEx->GetHR(), pEx);
                 AddExceptionToCache(pSpec, pEx);
                 PAL_CPP_THROW(Exception *, pEx);
             }
@@ -4793,132 +4793,6 @@ BOOL AppDomain::PostBindResolveAssembly(AssemblySpec  *pPrePolicySpec,
     return fFailure;
 }
 
-//----------------------------------------------------------------------------------------
-// Helper class for hosted binder
-
-class PEAssemblyAsPrivAssemblyInfo : public IUnknownCommon<ICLRPrivAssemblyInfo>
-{
-public:
-    //------------------------------------------------------------------------------------
-    // Ctor
-
-    PEAssemblyAsPrivAssemblyInfo(PEAssembly *pPEAssembly)
-    {
-        LIMITED_METHOD_CONTRACT;
-        STATIC_CONTRACT_THROWS;
-
-        if (pPEAssembly == nullptr)
-            ThrowHR(E_UNEXPECTED);
-
-        pPEAssembly->AddRef();
-        m_pPEAssembly = pPEAssembly;
-    }
-
-    //------------------------------------------------------------------------------------
-    // ICLRPrivAssemblyInfo methods
-
-    //------------------------------------------------------------------------------------
-    STDMETHOD(GetAssemblyName)(
-        __in  DWORD cchBuffer,
-        __out_opt LPDWORD pcchBuffer,
-        __out_ecount_part_opt(cchBuffer, *pcchBuffer) LPWSTR wzBuffer)
-    {
-        CONTRACTL
-        {
-            NOTHROW;
-            GC_TRIGGERS;
-            MODE_ANY;
-        }
-        CONTRACTL_END;
-
-        HRESULT hr = S_OK;
-
-        if ((cchBuffer == 0) != (wzBuffer == nullptr))
-        {
-            return E_INVALIDARG;
-        }
-
-        LPCUTF8 szName = m_pPEAssembly->GetSimpleName();
-
-        bool bIsAscii;
-        DWORD cchName;
-        IfFailRet(FString::Utf8_Unicode_Length(szName, &bIsAscii, &cchName));
-
-        if (cchBuffer < cchName + 1)
-        {
-            if (pcchBuffer != nullptr)
-            {
-                *pcchBuffer = cchName + 1;
-            }
-            return HRESULT_FROM_WIN32(ERROR_INSUFFICIENT_BUFFER);
-        }
-        else
-        {
-            IfFailRet(FString::Utf8_Unicode(szName, bIsAscii, wzBuffer, cchName));
-            if (pcchBuffer != nullptr)
-            {
-                *pcchBuffer = cchName;
-            }
-            return S_OK;
-        }
-    }
-
-    //------------------------------------------------------------------------------------
-    STDMETHOD(GetAssemblyVersion)(
-        USHORT *pMajor,
-        USHORT *pMinor,
-        USHORT *pBuild,
-        USHORT *pRevision)
-    {
-        WRAPPER_NO_CONTRACT;
-        return m_pPEAssembly->GetVersion(pMajor, pMinor, pBuild, pRevision);
-    }
-
-    //------------------------------------------------------------------------------------
-    STDMETHOD(GetAssemblyPublicKey)(
-        DWORD cbBuffer,
-        LPDWORD pcbBuffer,
-        BYTE *pbBuffer)
-    {
-        STATIC_CONTRACT_LIMITED_METHOD;
-        STATIC_CONTRACT_CAN_TAKE_LOCK;
-
-        VALIDATE_PTR_RET(pcbBuffer);
-        VALIDATE_CONDITION((pbBuffer == nullptr) == (cbBuffer == 0), return E_INVALIDARG);
-
-        HRESULT hr = S_OK;
-
-        EX_TRY
-        {
-            // Note: PEAssembly::GetPublicKey will return bogus data pointer when *pcbBuffer == 0
-            LPCVOID pbKey = m_pPEAssembly->GetPublicKey(pcbBuffer);
-
-            if (*pcbBuffer != 0)
-            {
-                if (pbBuffer != nullptr && cbBuffer >= *pcbBuffer)
-                {
-                    memcpy(pbBuffer, pbKey, *pcbBuffer);
-                    hr = S_OK;
-                }
-                else
-                {
-                    hr = HRESULT_FROM_WIN32(ERROR_INSUFFICIENT_BUFFER);
-                }
-            }
-            else
-            {
-                hr = S_FALSE; // ==> No public key
-            }
-        }
-        EX_CATCH_HRESULT(hr);
-
-        return hr;
-    }
-
-private:
-    ReleaseHolder<PEAssembly> m_pPEAssembly;
-};
-
 //-----------------------------------------------------------------------------------------------------------------
 HRESULT AppDomain::BindAssemblySpecForHostedBinder(
     AssemblySpec *   pSpec, 
@@ -5041,6 +4915,8 @@ PEAssembly * AppDomain::BindAssemblySpec(
 
     BOOL fForceReThrow = FALSE;
 
+    BinderTracing::AssemblyBindOperation bindOperation(pSpec);
+
 #if defined(FEATURE_COMINTEROP)
     // Handle WinRT assemblies in the classic/hybrid scenario. If this is an AppX process,
     // then this case will be handled by the previous block as part of the full set of
@@ -5111,6 +4987,7 @@ EndTry2:;
         }
         _ASSERTE((FAILED(hr) && !fThrowOnFileNotFound) || pAssembly != nullptr);
 
+        bindOperation.SetResult(pAssembly.GetValue());
         return pAssembly.Extract();
     }
     else
@@ -5283,6 +5160,7 @@ EndTry2:;
                 result->AddRef();
         }
 
+        bindOperation.SetResult(result.GetValue());
         return result.Extract();
     }
     else
@@ -6620,8 +6498,6 @@ HRESULT RuntimeInvokeHostAssemblyResolver(INT_PTR pManagedAssemblyLoadContextToB
                 COMPlusThrowHR(COR_E_INVALIDOPERATION, IDS_HOST_ASSEMBLY_RESOLVER_DYNAMICALLY_EMITTED_ASSEMBLIES_UNSUPPORTED, name);
             }
                 
-            // Is the assembly already bound using a binding context that will be incompatible?
-            // An example is attempting to consume an assembly bound to WinRT binder.
             pResolvedAssembly = pLoadedPEAssembly->GetHostAssembly();
         }
             
@@ -6630,6 +6506,8 @@ HRESULT RuntimeInvokeHostAssemblyResolver(INT_PTR pManagedAssemblyLoadContextToB
             _ASSERTE(pResolvedAssembly != NULL);
 
 #ifdef FEATURE_COMINTEROP
+            // Is the assembly already bound using a binding context that will be incompatible?
+            // An example is attempting to consume an assembly bound to WinRT binder.
             if (AreSameBinderInstance(pResolvedAssembly, GetAppDomain()->GetWinRtBinder()))
             {
                 // It is invalid to return an assembly bound to an incompatible binder

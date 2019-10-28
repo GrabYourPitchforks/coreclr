@@ -55,8 +55,6 @@ namespace BINDER_SPACE
 {
     namespace
     {
-        BOOL fAssemblyBinderInitialized = FALSE;
-
         //
         // This defines the assembly equivalence relation
         //
@@ -362,19 +360,17 @@ namespace BINDER_SPACE
     /* static */
     HRESULT AssemblyBinder::Startup()
     {
+        STATIC_CONTRACT_NOTHROW;
+
         HRESULT hr = S_OK;
  
-       if (!BINDER_SPACE::fAssemblyBinderInitialized)
-        {
-            g_BinderVariables = new Variables();
-            IF_FAIL_GO(g_BinderVariables->Init());
+        // This should only be called once
+        _ASSERTE(g_BinderVariables == NULL);
+        g_BinderVariables = new Variables();
+        IF_FAIL_GO(g_BinderVariables->Init());
 
-            // Setup Debug log
-            BINDER_LOG_STARTUP();
-
-            // We're done
-            BINDER_SPACE::fAssemblyBinderInitialized = TRUE;
-        }
+        // Setup Debug log
+        BINDER_LOG_STARTUP();
 
     Exit:
         return hr;
@@ -490,7 +486,8 @@ namespace BINDER_SPACE
 
                 IF_FAIL_GO(BindByName(pApplicationContext,
                                       pAssemblyName,
-                                      BIND_CACHE_FAILURES,
+                                      false, // skipFailureCaching
+                                      false, // skipVersionCompatibilityCheck
                                       excludeAppPaths,
                                       &bindResult));
             }
@@ -576,7 +573,8 @@ namespace BINDER_SPACE
                                          Assembly **ppSystemAssembly,
                                          bool       fBindToNativeImage)
     {
-        _ASSERTE(BINDER_SPACE::fAssemblyBinderInitialized == TRUE);
+        // Indirect check that binder was initialized.
+        _ASSERTE(g_BinderVariables != NULL);
 
         HRESULT hr = S_OK;
         BINDER_LOG_ENTER(W("AssemblyBinder:BindToSystem"));
@@ -596,10 +594,9 @@ namespace BINDER_SPACE
         // At run-time, System.Private.CoreLib.dll is expected to be the NI image.
         sCoreLib = sCoreLibDir;
         sCoreLib.Append(CoreLibName_IL_W);
-        BOOL fExplicitBindToNativeImage = (fBindToNativeImage == true)? TRUE:FALSE;
         IF_FAIL_GO(AssemblyBinder::GetAssembly(sCoreLib,
                                                TRUE /* fIsInGAC */,
-                                               fExplicitBindToNativeImage,
+                                               fBindToNativeImage,
                                                &pSystemAssembly));
         
         *ppSystemAssembly = pSystemAssembly.Extract();
@@ -616,7 +613,8 @@ namespace BINDER_SPACE
                                                   SString   &cultureName,
                                                   Assembly **ppSystemAssembly)
     {
-        _ASSERTE(BINDER_SPACE::fAssemblyBinderInitialized == TRUE);
+        // Indirect check that binder was initialized.
+        _ASSERTE(g_BinderVariables != NULL);
 
         HRESULT hr = S_OK;
         BINDER_LOG_ENTER(W("AssemblyBinder:BindToSystemSatellite"));
@@ -653,7 +651,8 @@ namespace BINDER_SPACE
     /* static */
     HRESULT AssemblyBinder::BindByName(ApplicationContext *pApplicationContext,
                                        AssemblyName       *pAssemblyName,
-                                       DWORD               dwBindFlags,
+                                       bool                skipFailureCaching,
+                                       bool                skipVersionCompatibilityCheck,
                                        bool                excludeAppPaths,
                                        BindResult         *pBindResult)
     {
@@ -668,7 +667,7 @@ namespace BINDER_SPACE
         hr = pApplicationContext->GetFailureCache()->Lookup(assemblyDisplayName);
         if (FAILED(hr))
         {
-            if ((hr == HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND)) && RerunBind(dwBindFlags))
+            if ((hr == HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND)) && skipFailureCaching)
             {
                 // Ignore pre-existing transient bind error (re-bind will succeed)
                 pApplicationContext->GetFailureCache()->Remove(assemblyDisplayName);
@@ -691,7 +690,7 @@ namespace BINDER_SPACE
 
         IF_FAIL_GO(BindLocked(pApplicationContext,
                               pAssemblyName,
-                              dwBindFlags,
+                              skipVersionCompatibilityCheck,
                               excludeAppPaths,
                               pBindResult));
 
@@ -702,9 +701,9 @@ namespace BINDER_SPACE
         }
 
     Exit:
-        if (FAILED(hr) && CacheBindFailures(dwBindFlags))
+        if (FAILED(hr))
         {
-            if (RerunBind(dwBindFlags))
+            if (skipFailureCaching)
             {
                 if (hr != HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND))
                 {
@@ -773,7 +772,7 @@ namespace BINDER_SPACE
         {
             IF_FAIL_GO(BindLocked(pApplicationContext,
                                   pAssemblyName,
-                                  0 /*  Do not IgnoreDynamicBinds */,
+                                  false, // skipVersionCompatibilityCheck
                                   excludeAppPaths,
                                   &lockedBindResult));
             if (lockedBindResult.HaveResult())
@@ -784,7 +783,6 @@ namespace BINDER_SPACE
         }
 
         hr = S_OK;
-        pAssembly->SetIsDynamicBind(TRUE);
         pBindResult->SetResult(pAssembly);
 
     Exit:
@@ -804,27 +802,20 @@ namespace BINDER_SPACE
     /* static */
     HRESULT AssemblyBinder::BindLocked(ApplicationContext *pApplicationContext,
                                        AssemblyName       *pAssemblyName,
-                                       DWORD               dwBindFlags,
+                                       bool                skipVersionCompatibilityCheck,
                                        bool                excludeAppPaths,
                                        BindResult         *pBindResult)
     {
         HRESULT hr = S_OK;
         BINDER_LOG_ENTER(W("AssemblyBinder::BindLocked"));
         
-        BOOL fIgnoreDynamicBinds = IgnoreDynamicBinds(dwBindFlags);
-        
 #ifndef CROSSGEN_COMPILE
         ContextEntry *pContextEntry = NULL;
         IF_FAIL_GO(FindInExecutionContext(pApplicationContext, pAssemblyName, &pContextEntry));
         if (pContextEntry != NULL)
         {
-            if (fIgnoreDynamicBinds && pContextEntry->GetIsDynamicBind())
-            {
-                // Dynamic binds need to be always considered a failure for binding closures
-                IF_FAIL_GO(FUSION_E_APP_DOMAIN_LOCKED);
-            }
 #if !defined(DACCESS_COMPILE) && !defined(CROSSGEN_COMPILE)
-            else if (IgnoreRefDefMatch(dwBindFlags))
+            if (skipVersionCompatibilityCheck)
             {
                 // Skip RefDef matching if we have been asked to.
             }
@@ -1372,31 +1363,25 @@ namespace BINDER_SPACE
         HRESULT hr = S_OK;
         BINDER_LOG_ENTER(W("AssemblyBinder::Register"));
 
-        if (!pBindResult->GetIsContextBound())
+        _ASSERTE(!pBindResult->GetIsContextBound());
+
+        pApplicationContext->IncrementVersion();
+
+        // Register the bindResult in the ExecutionContext only if we dont have it already.
+        // This method is invoked under a lock (by its caller), so we are thread safe.
+        ContextEntry *pContextEntry = NULL;
+        hr = FindInExecutionContext(pApplicationContext, pBindResult->GetAssemblyName(), &pContextEntry);
+        if (hr == S_OK)
         {
-            pApplicationContext->IncrementVersion();
-
-            // Register the bindResult in the ExecutionContext only if we dont have it already.
-            // This method is invoked under a lock (by its caller), so we are thread safe.
-            ContextEntry *pContextEntry = NULL;
-            hr = FindInExecutionContext(pApplicationContext, pBindResult->GetAssemblyName(), &pContextEntry);
-            if (hr == S_OK)
+            if (pContextEntry == NULL)
             {
-                if (pContextEntry == NULL)
-                {
-                    ExecutionContext *pExecutionContext = pApplicationContext->GetExecutionContext();
-                    IF_FAIL_GO(pExecutionContext->Register(pBindResult));
-                }
-                else
-                {
-                    // The dynamic binds are compiled in CoreCLR, but they are not supported. They are only reachable by internal API Assembly.Load(byte[]) that nobody should be calling.
-                    // This code path does not handle dynamic binds correctly (and is not expected to). We do not expect to come here for dynamic binds.
-
-                    _ASSERTE(!pContextEntry->GetIsDynamicBind());
-                        
-                    // Update the BindResult with the contents of the ContextEntry we found
-                    pBindResult->SetResult(pContextEntry);
-                }
+                ExecutionContext *pExecutionContext = pApplicationContext->GetExecutionContext();
+                IF_FAIL_GO(pExecutionContext->Register(pBindResult));
+            }
+            else
+            {
+                // Update the BindResult with the contents of the ContextEntry we found
+                pBindResult->SetResult(pContextEntry);
             }
         }
 
@@ -1530,7 +1515,8 @@ HRESULT AssemblyBinder::BindUsingPEImage(/* in */  ApplicationContext *pApplicat
     HRESULT hr = E_FAIL;
     BINDER_LOG_ENTER(W("AssemblyBinder::BindUsingPEImage"));
     
-    _ASSERTE(BINDER_SPACE::fAssemblyBinderInitialized == TRUE);
+    // Indirect check that binder was initialized.
+    _ASSERTE(g_BinderVariables != NULL);
 
     LONG kContextVersion = 0;
     BindResult bindResult;
@@ -1545,11 +1531,14 @@ Retry:
         CRITSEC_Holder contextLock(pApplicationContext->GetCriticalSectionCookie());
         
         // Attempt uncached bind and register stream if possible
+        // We skip version compatibility check - so assemblies with same simple name will be reported
+        // as a successfull bind. Below we compare MVIDs in that case instead (which is a more precise equality check).
         hr = BindByName(pApplicationContext,
-                               pAssemblyName,
-                               BIND_CACHE_FAILURES|BIND_CACHE_RERUN_BIND|BIND_IGNORE_REFDEF_MATCH,
-                               false, // excludeAppPaths
-                               &bindResult);
+                        pAssemblyName,
+                        true,  // skipFailureCaching
+                        true,  // skipVersionCompatibilityCheck
+                        false, // excludeAppPaths
+                        &bindResult);
         
         if (hr == HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND))
         {
@@ -1558,7 +1547,6 @@ Retry:
                                            pPEImage,
                                            NULL,
                                            &bindResult));
-
         }
         else if (hr == S_OK)
         {
