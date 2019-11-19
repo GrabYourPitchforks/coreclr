@@ -13,7 +13,7 @@ namespace GenUnicodeProp
     {
         public uint CodePoint = 0;
         public UnicodeCategory UnicodeCategory = UnicodeCategory.OtherNotAssigned;
-        public StrongBidiCategory StrongBidiCategory = StrongBidiCategory.Other;
+        public StrongBidiCategory StrongBidiCategory = StrongBidiCategory.StrongLeftToRight; // per DerivedBidiClass.txt, all code points default as "L" unless otherwise specified
         public int OffsetToSimpleUppercase = 0;
         public int OffsetToSimpleLowercase = 0;
         public int OffsetToSimpleTitlecase = 0;

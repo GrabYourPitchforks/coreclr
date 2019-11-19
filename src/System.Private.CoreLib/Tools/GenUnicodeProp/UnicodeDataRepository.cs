@@ -141,8 +141,10 @@ namespace GenUnicodeProp
 
             // Finally, double-check our data files to make sure that each entry in the ancillary
             // data files had a corresponding entry in the UnicodeData.txt main data file. There
-            // are some code points (like U+2065) which have categories of interest to us but which
-            // aren't yet assigned.
+            // are some code points which have properties of interest to us but which aren't yet
+            // assigned. For example, as of this writing, the code point U+1EEEF isn't assigned
+            // per UnicodeData.txt (so its Unicode category is "Cn"), but per DerivedBidiClass.txt
+            // its bidi category should be "AL".
 
             HashSet<uint> assignedCodePoints = new HashSet<uint>(_data.Select(entry => entry.CodePoint));
 
