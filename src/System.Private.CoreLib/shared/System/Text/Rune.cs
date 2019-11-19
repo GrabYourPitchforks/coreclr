@@ -1237,16 +1237,10 @@ namespace System.Text
                 return (AsciiCharInfo[value.Value] & IsWhiteSpaceFlag) != 0;
             }
 
-            // U+0085 is special since it's a whitespace character but is in the Control category
-            // instead of a normal separator category. No other code point outside the ASCII range
-            // has this mismatch.
+            // Only BMP code points can be white space, so only call into CharUnicodeInfo
+            // if the incoming value is within the BMP.
 
-            if (value._value == 0x0085u)
-            {
-                return true;
-            }
-
-            return IsCategorySeparator(GetUnicodeCategoryNonAscii(value));
+            return value.IsBmp && CharUnicodeInfo.GetIsWhiteSpace((char)value._value);
         }
 
         public static Rune ToLower(Rune value, CultureInfo culture)

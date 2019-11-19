@@ -176,6 +176,24 @@ namespace System.Globalization
         }
 
         /*
+         * GetIsWhiteSpace
+         * ===========================
+         * Data derived from https://unicode.org/reports/tr44/#White_Space. Represents whether a code point
+         * is listed as White_Space per PropList.txt.
+         */
+
+        internal static bool GetIsWhiteSpace(char ch)
+        {
+            // We don't need a (string, int) overload because all current white space chars are in the BMP.
+
+            nuint offset = GetCategoryCasingTableOffsetNoBoundsChecks(ch);
+
+            // High bit of each value in the 'CategoriesValues' array denotes whether this code point is white space.
+
+            return (sbyte)Unsafe.AddByteOffset(ref MemoryMarshal.GetReference(CategoriesValues), offset) < 0;
+        }
+
+        /*
          * GetNumericValue
          * ===============
          * Data derived from https://www.unicode.org/reports/tr44/#UnicodeData.txt. If Numeric_Type=Decimal
