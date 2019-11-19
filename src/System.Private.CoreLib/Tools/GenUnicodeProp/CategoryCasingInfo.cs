@@ -15,7 +15,7 @@ namespace GenUnicodeProp
     internal sealed class CategoryCasingInfo : IEquatable<CategoryCasingInfo>
     {
         public readonly UnicodeCategory unicodeCategory;
-        public readonly RestrictedBidiClass restrictedBidiClass;
+        public readonly StrongBidiCategory strongBidiCategory;
         public readonly int offsetToSimpleUppercase;
         public readonly int offsetToSimpleLowercase;
         public readonly int offsetToSimpleTitlecase;
@@ -25,7 +25,7 @@ namespace GenUnicodeProp
         public CategoryCasingInfo(CodePointInfo codePointInfo)
         {
             unicodeCategory = codePointInfo.UnicodeCategory;
-            restrictedBidiClass = codePointInfo.RestrictedBidiClass;
+            strongBidiCategory = codePointInfo.StrongBidiCategory;
             isWhitespace = codePointInfo.IsWhitespace;
 
             if (Program.IncludeCasingData)
@@ -48,7 +48,7 @@ namespace GenUnicodeProp
         {
             return !(other is null)
                 && this.unicodeCategory == other.unicodeCategory
-                && this.restrictedBidiClass == other.restrictedBidiClass
+                && this.strongBidiCategory == other.strongBidiCategory
                 && this.offsetToSimpleUppercase == other.offsetToSimpleUppercase
                 && this.offsetToSimpleLowercase == other.offsetToSimpleLowercase
                 && this.offsetToSimpleTitlecase == other.offsetToSimpleTitlecase
@@ -59,7 +59,7 @@ namespace GenUnicodeProp
         public override int GetHashCode()
         {
             return (unicodeCategory,
-                restrictedBidiClass,
+                strongBidiCategory,
                 offsetToSimpleUppercase,
                 offsetToSimpleLowercase,
                 offsetToSimpleTitlecase,
@@ -75,7 +75,7 @@ namespace GenUnicodeProp
             // bits 4..0 = Unicode category
 
             int combinedValue = Convert.ToInt32(input.isWhitespace) << 7;
-            combinedValue += (int)input.restrictedBidiClass << 5;
+            combinedValue += (int)input.strongBidiCategory << 5;
             combinedValue += (int)input.unicodeCategory;
 
             return new byte[] { checked((byte)combinedValue) };

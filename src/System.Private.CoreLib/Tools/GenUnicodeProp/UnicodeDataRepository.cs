@@ -57,7 +57,7 @@ namespace GenUnicodeProp
             HashSet<uint> whitespaceCodePoints = GetWhiteSpaceCodePoints();
             Dictionary<uint, uint> caseFoldMap = GetSimpleCaseFoldMap();
             Dictionary<uint, GraphemeBoundaryCategory> graphemeBreakMap = GetGraphemeBreakPropertyMap();
-            Dictionary<uint, RestrictedBidiClass> bidiClassMap = GetBidiClassMap();
+            Dictionary<uint, StrongBidiCategory> bidiClassMap = GetBidiCategoryMap();
 
             // Next, process the main data file, folding in the ancillary data.
 
@@ -132,7 +132,7 @@ namespace GenUnicodeProp
                 // and the bidi class data.
 
                 graphemeBreakMap.TryGetValue(entry.codePoint, out newData.GraphemeBoundaryCategory);
-                bidiClassMap.TryGetValue(entry.codePoint, out newData.RestrictedBidiClass);
+                bidiClassMap.TryGetValue(entry.codePoint, out newData.StrongBidiCategory);
 
                 // We're done! Add all the info to the list.
 
@@ -167,7 +167,7 @@ namespace GenUnicodeProp
 
                         graphemeBreakMap.TryGetValue(i, out newCodePointInfo.GraphemeBoundaryCategory);
 
-                        bidiClassMap.TryGetValue(i, out newCodePointInfo.RestrictedBidiClass);
+                        bidiClassMap.TryGetValue(i, out newCodePointInfo.StrongBidiCategory);
 
                         _data.Add(newCodePointInfo);
                     }
@@ -178,37 +178,37 @@ namespace GenUnicodeProp
         public IReadOnlyList<CodePointInfo> Data => _data;
 
         /// <summary>
-        /// Reads DerivedBidiClass.txt and returns the map of code points to bidi classes.
+        /// Reads DerivedBidiClass.txt and returns the map of code points to bidi categories.
         /// </summary>
-        private static Dictionary<uint, RestrictedBidiClass> GetBidiClassMap()
+        private static Dictionary<uint, StrongBidiCategory> GetBidiCategoryMap()
         {
-            Dictionary<uint, RestrictedBidiClass> map = new Dictionary<uint, RestrictedBidiClass>();
+            Dictionary<uint, StrongBidiCategory> map = new Dictionary<uint, StrongBidiCategory>();
 
             foreach (string line in File.ReadAllLines("DerivedBidiClass.txt"))
             {
                 if (PropsFileEntry.TryParseLine(line, out PropsFileEntry parsedEntry))
                 {
-                    RestrictedBidiClass bidiClass;
+                    StrongBidiCategory bidiCategory;
 
                     switch (parsedEntry.PropName)
                     {
                         case "L":
-                            bidiClass = RestrictedBidiClass.StrongLeftToRight;
+                            bidiCategory = StrongBidiCategory.StrongLeftToRight;
                             break;
 
                         case "R":
                         case "AL":
-                            bidiClass = RestrictedBidiClass.StrongRightToLeft;
+                            bidiCategory = StrongBidiCategory.StrongRightToLeft;
                             break;
 
                         default:
-                            bidiClass = RestrictedBidiClass.Other;
+                            bidiCategory = StrongBidiCategory.Other;
                             break;
                     }
 
                     for (uint i = parsedEntry.FirstCodePoint; i <= parsedEntry.LastCodePoint; i++)
                     {
-                        map[i] = bidiClass;
+                        map[i] = bidiCategory;
                     }
                 }
             }
