@@ -834,6 +834,8 @@
     <Compile Include="$(MSBuildThisFileDirectory)System\Text\UTF8Encoding.Sealed.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)System\Text\ValueStringBuilder.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)System\Text\ValueStringBuilder.AppendFormat.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)System\Text\Unicode\GraphemeClusterBreakType.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)System\Text\Unicode\TextSegmentationUtility.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)System\Text\Unicode\Utf16Utility.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)System\Text\Unicode\Utf16Utility.Validation.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)System\Text\Unicode\Utf8.cs" />

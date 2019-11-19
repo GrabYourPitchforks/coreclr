@@ -306,7 +306,7 @@ namespace System.Text
         /// number of <see langword="byte"/>s used in the input buffer to encode the <see cref="Rune"/>.
         /// </para>
         /// <para>
-        /// If the source buffer is empty or contains only a standalone UTF-8 high surrogate character, returns <see cref="OperationStatus.NeedMoreData"/>,
+        /// If the source buffer is empty or contains only a partial UTF-8 subsequence, returns <see cref="OperationStatus.NeedMoreData"/>,
         /// and outs via <paramref name="result"/> <see cref="ReplacementChar"/> and via <paramref name="bytesConsumed"/> the length of the input buffer.
         /// </para>
         /// <para>
