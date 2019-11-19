@@ -154,10 +154,7 @@ namespace GenUnicodeProp
                 file.Write($"\n        // {numericGraphemeTableLevelBits} index table of the Unicode numeric & text segmentation data.");
                 PrintSourceIndexArray("NumericGraphemeLevel1Index", numericGraphemeTable, file);
 
-                file.Write("\n        // Contains decimal digit values");
-                PrintValueArray("DecimalDigitValues", numericGraphemeMap, NumericGraphemeInfo.ToDecimalDigitBytes, file);
-
-                file.Write("\n        // Contains digit values");
+                file.Write("\n        // Contains decimal digit values in high nibble; digit values in low nibble");
                 PrintValueArray("DigitValues", numericGraphemeMap, NumericGraphemeInfo.ToDigitBytes, file);
 
                 file.Write("\n        // Contains numeric values");

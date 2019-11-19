@@ -50,14 +50,16 @@ namespace GenUnicodeProp
                 graphemeCategory).GetHashCode();
         }
 
-        public static byte[] ToDecimalDigitBytes(NumericGraphemeInfo input)
-        {
-            return new byte[] { (byte)input.decimalDigitValue };
-        }
-
         public static byte[] ToDigitBytes(NumericGraphemeInfo input)
         {
-            return new byte[] { (byte)input.digitValue };
+            // Bits 4 .. 7 contain (decimalDigitValue + 1).
+            // Bits 0 .. 3 contain (digitValue + 1).
+            // This means that each nibble will have a value 0x0 .. 0xa, inclusive.
+
+            int adjustedDecimalDigitValue = input.decimalDigitValue + 1;
+            int adjustedDigitValue = input.digitValue + 1;
+
+            return new byte[] { (byte)((adjustedDecimalDigitValue << 4) | adjustedDigitValue) };
         }
 
         public static byte[] ToNumericBytes(NumericGraphemeInfo input)
