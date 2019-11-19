@@ -15,13 +15,6 @@ using nuint = System.UInt64;
 #else
 using nuint = System.UInt32;
 #endif
-#if !CORECLR
-#if BIT64
-using nint = System.Int64;
-#else
-using nint = System.Int32;
-#endif
-#endif
 
 namespace System.Globalization
 {
@@ -36,13 +29,70 @@ namespace System.Globalization
         internal const char HIGH_SURROGATE_END = '\udbff';
         internal const char LOW_SURROGATE_START = '\udc00';
         internal const char LOW_SURROGATE_END = '\udfff';
-        internal const int  HIGH_SURROGATE_RANGE = 0x3FF;
+        internal const int HIGH_SURROGATE_RANGE = 0x3FF;
 
         internal const int UNICODE_CATEGORY_OFFSET = 0;
         internal const int BIDI_CATEGORY_OFFSET = 1;
 
         // The starting codepoint for Unicode plane 1.  Plane 1 contains 0x010000 ~ 0x01ffff.
         internal const int UNICODE_PLANE01_START = 0x10000;
+
+        /*
+         * GetBidiCategory
+         * ===============
+         * Data derived from https://www.unicode.org/reports/tr9/#Bidirectional_Character_Types. This data
+         * is encoded in DerivedBidiClass.txt. We map "L" to "strong left-to-right"; and we map "R" and "AL"
+         * to "strong right-to-left". All other (non-strong) code points are "other" for our purposes.
+         */
+
+        internal static StrongBidiCategory GetBidiCategory(string s, int index)
+        {
+            if (s is null)
+            {
+                ThrowHelper.ThrowArgumentNullException(ExceptionArgument.s);
+            }
+            if ((uint)index >= (uint)s.Length)
+            {
+                ThrowHelper.ThrowArgumentOutOfRangeException(ExceptionArgument.index);
+            }
+
+            return GetBidiCategoryNoBoundsChecks((uint)GetCodePointFromString(s, index));
+        }
+
+        internal static StrongBidiCategory GetBidiCategory(StringBuilder s, int index)
+        {
+            Debug.Assert(s != null, "s != null");
+            Debug.Assert(index >= 0 && index < s.Length, "index < s.Length");
+
+            int c = (int)s[index];
+            if (index < s.Length - 1)
+            {
+                int temp1 = c - HIGH_SURROGATE_START;
+                if ((uint)temp1 <= HIGH_SURROGATE_RANGE)
+                {
+                    int temp2 = (int)s[index + 1] - LOW_SURROGATE_START;
+                    if ((uint)temp2 <= HIGH_SURROGATE_RANGE)
+                    {
+                        // Convert the surrogate to UTF32 and get the result.
+                        c = (temp1 << 18) + temp2 + UNICODE_PLANE01_START;
+                    }
+                }
+            }
+
+            return GetBidiCategoryNoBoundsChecks((uint)c);
+        }
+
+        private static StrongBidiCategory GetBidiCategoryNoBoundsChecks(uint codePoint)
+        {
+            nuint offset = GetCategoryCasingTableOffsetNoBoundsChecks(codePoint);
+
+            // Each entry of the 'CategoryValues' table uses bits 5 - 6 to store the strong bidi information.
+
+            StrongBidiCategory bidiCategory = (StrongBidiCategory)(Unsafe.AddByteOffset(ref MemoryMarshal.GetReference(CategoriesValues), offset) & 0b_0110_0000);
+            Debug.Assert(bidiCategory == StrongBidiCategory.Other || bidiCategory == StrongBidiCategory.StrongLeftToRight || bidiCategory == StrongBidiCategory.StrongRightToLeft, "Unknown StrongBidiCategory value.");
+
+            return bidiCategory;
+        }
 
         /*
          * GetDecimalDigitValue
@@ -68,7 +118,7 @@ namespace System.Globalization
                 ThrowHelper.ThrowArgumentOutOfRangeException(ExceptionArgument.index);
             }
 
-            return GetDecimalDigitValueInternalNoBoundsCheck((uint)InternalGetCodePointFromString(s, index));
+            return GetDecimalDigitValueInternalNoBoundsCheck((uint)GetCodePointFromString(s, index));
         }
 
         private static int GetDecimalDigitValueInternalNoBoundsCheck(uint codePoint)
@@ -102,7 +152,7 @@ namespace System.Globalization
                 ThrowHelper.ThrowArgumentOutOfRangeException(ExceptionArgument.index);
             }
 
-            return GetDigitValueInternalNoBoundsCheck((uint)InternalGetCodePointFromString(s, index));
+            return GetDigitValueInternalNoBoundsCheck((uint)GetCodePointFromString(s, index));
         }
 
         private static int GetDigitValueInternalNoBoundsCheck(uint codePoint)
@@ -110,6 +160,19 @@ namespace System.Globalization
             nuint offset = GetNumericGraphemeTableOffsetNoBoundsChecks(codePoint);
             int rawValue = Unsafe.AddByteOffset(ref MemoryMarshal.GetReference(DigitValues), offset);
             return (rawValue & 0xF) - 1; // return the low nibble of the result, minus 1 so that "not a digit value" gets normalized to -1
+        }
+
+        /*
+         * GetGraphemeBreakClusterType
+         * ===========================
+         * Data derived from https://unicode.org/reports/tr29/#Default_Grapheme_Cluster_Table. Represents
+         * grapheme cluster boundary information for the given code point.
+         */
+
+        internal static GraphemeClusterBreakType GetGraphemeClusterBreakType(Rune rune)
+        {
+            nuint offset = GetNumericGraphemeTableOffsetNoBoundsChecks((uint)rune.Value);
+            return (GraphemeClusterBreakType)Unsafe.AddByteOffset(ref MemoryMarshal.GetReference(GraphemeSegmentationValues), offset);
         }
 
         /*
@@ -125,6 +188,16 @@ namespace System.Globalization
             return GetNumericValueNoBoundsCheck(ch);
         }
 
+        internal static double GetNumericValue(int codePoint)
+        {
+            if (!UnicodeUtility.IsValidCodePoint((uint)codePoint))
+            {
+                ThrowHelper.ThrowArgumentOutOfRangeException(ExceptionArgument.codePoint);
+            }
+
+            return GetNumericValueNoBoundsCheck((uint)codePoint);
+        }
+
         public static double GetNumericValue(string s, int index)
         {
             if (s is null)
@@ -136,7 +209,7 @@ namespace System.Globalization
                 ThrowHelper.ThrowArgumentOutOfRangeException(ExceptionArgument.index);
             }
 
-            return GetNumericValueNoBoundsCheck((uint)InternalGetCodePointFromString(s, index));
+            return GetNumericValueNoBoundsCheck((uint)GetCodePointFromString(s, index));
         }
 
         private static double GetNumericValueNoBoundsCheck(uint codePoint)
@@ -204,7 +277,24 @@ namespace System.Globalization
             Debug.Assert(value != null, "value can not be null");
             Debug.Assert(index < value.Length, "index < value.Length");
 
-            return GetUnicodeCategoryNoBoundsChecks((uint)InternalGetCodePointFromString(value, index));
+            return GetUnicodeCategoryNoBoundsChecks((uint)GetCodePointFromString(value, index));
+        }
+
+        /// <summary>
+        /// Get the Unicode category of the character starting at index.  If the character is in BMP, charLength will return 1.
+        /// If the character is a valid surrogate pair, charLength will return 2.
+        /// </summary>
+        internal static UnicodeCategory GetUnicodeCategoryInternal(string str, int index, out int charLength)
+        {
+            Debug.Assert(str != null, "str can not be null");
+            Debug.Assert(str.Length > 0, "str.Length > 0");
+            Debug.Assert(index >= 0 && index < str.Length, "index >= 0 && index < str.Length");
+
+            uint codePoint = (uint)GetCodePointFromString(str, index);
+            UnicodeDebug.AssertIsValidCodePoint(codePoint);
+
+            charLength = (codePoint >= UNICODE_PLANE01_START) ? 2 /* surrogate pair */ : 1 /* BMP char */;
+            return GetUnicodeCategoryNoBoundsChecks(codePoint);
         }
 
         private static UnicodeCategory GetUnicodeCategoryNoBoundsChecks(uint codePoint)
@@ -216,6 +306,10 @@ namespace System.Globalization
             return (UnicodeCategory)(Unsafe.AddByteOffset(ref MemoryMarshal.GetReference(CategoriesValues), offset) & 0x1F);
         }
 
+        /*
+         * HELPER AND TABLE LOOKUP ROUTINES
+         */
+
         /// <summary>
         /// Returns the code point pointed to by index, decoding any surrogate sequence if possible.
         /// This is similar to char.ConvertToUTF32, but the difference is that
@@ -224,7 +318,7 @@ namespace System.Globalization
         /// WARNING: since it doesn't throw an exception it CAN return a value
         /// in the surrogate range D800-DFFF, which is not a legal scalar value.
         /// </summary>
-        private static int InternalGetCodePointFromString(string s, int index)
+        private static int GetCodePointFromString(string s, int index)
         {
             Debug.Assert(s != null, "s != null");
             Debug.Assert((uint)index < (uint)s.Length, "index < s.Length");
@@ -257,35 +351,6 @@ namespace System.Globalization
         }
 
         /// <summary>
-        /// Convert a character or a surrogate pair starting at index of string s
-        /// to UTF32 value.
-        /// WARNING: since it doesn't throw an exception it CAN return a value
-        /// in the surrogate range D800-DFFF, which are not legal unicode values.
-        /// </summary>
-        internal static int InternalConvertToUtf32(string s, int index, out int charLength)
-        {
-            Debug.Assert(s != null, "s != null");
-            Debug.Assert(s.Length > 0, "s.Length > 0");
-            Debug.Assert(index >= 0 && index < s.Length, "index >= 0 && index < s.Length");
-            charLength = 1;
-            if (index < s.Length - 1)
-            {
-                int temp1 = (int)s[index] - HIGH_SURROGATE_START;
-                if ((uint)temp1 <= HIGH_SURROGATE_RANGE)
-                {
-                    int temp2 = (int)s[index + 1] - LOW_SURROGATE_START;
-                    if ((uint)temp2 <= HIGH_SURROGATE_RANGE)
-                    {
-                        // Convert the surrogate to UTF32 and get the result.
-                        charLength++;
-                        return (temp1 * 0x400) + temp2 + UNICODE_PLANE01_START;
-                    }
-                }
-            }
-            return (int)s[index];
-        }
-
-        /// <summary>
         /// Retrieves the offset into the "CategoryCasing" arrays where this code point's
         /// information is stored. Used for getting the Unicode category, bidi information,
         /// and whitespace information.
@@ -305,7 +370,7 @@ namespace System.Globalization
             // This provides the base offset of the level 3 table.
             // Note that & has lower precedence than +, so remember the parens.
 
-            ref byte level2Ref = ref Unsafe.AddByteOffset(ref MemoryMarshal.GetReference(CategoryCasingLevel2Index), (index << 6) + ((codePoint >> 3) & 0b00111110));
+            ref byte level2Ref = ref Unsafe.AddByteOffset(ref MemoryMarshal.GetReference(CategoryCasingLevel2Index), (index << 6) + ((codePoint >> 3) & 0b_0011_1110));
 
             if (BitConverter.IsLittleEndian)
             {
@@ -342,7 +407,7 @@ namespace System.Globalization
             // This provides the base offset of the level 3 table.
             // Note that & has lower precedence than +, so remember the parens.
 
-            ref byte level2Ref = ref Unsafe.AddByteOffset(ref MemoryMarshal.GetReference(NumericGraphemeLevel2Index), (index << 6) + ((codePoint >> 3) & 0b00111110));
+            ref byte level2Ref = ref Unsafe.AddByteOffset(ref MemoryMarshal.GetReference(NumericGraphemeLevel2Index), (index << 6) + ((codePoint >> 3) & 0b_0011_1110));
 
             if (BitConverter.IsLittleEndian)
             {
@@ -357,79 +422,6 @@ namespace System.Globalization
             // This is the offset into the values table where the data is stored.
 
             return Unsafe.AddByteOffset(ref MemoryMarshal.GetReference(NumericGraphemeLevel3Index), (index << 4) + (codePoint & 0x0F));
-        }
-
-        private static StrongBidiCategory GetStrongBidiCategoryNoBoundsChecks(uint codePoint)
-        {
-            nuint offset = GetCategoryCasingTableOffsetNoBoundsChecks(codePoint);
-
-            // Each entry of the 'CategoryValues' table uses bits 5 - 6 to store the strong bidi information.
-
-            StrongBidiCategory bidiCategory = (StrongBidiCategory)(Unsafe.AddByteOffset(ref MemoryMarshal.GetReference(CategoriesValues), offset) & 0b_0110_0000);
-            Debug.Assert(bidiCategory == StrongBidiCategory.Other || bidiCategory == StrongBidiCategory.StrongLeftToRight || bidiCategory == StrongBidiCategory.StrongRightToLeft, "Unknown StrongBidiCategory value.");
-
-            return bidiCategory;
-        }
-
-        /// <summary>
-        /// Returns the Unicode Category property for the character c.
-        /// </summary>
-
-
-        internal static StrongBidiCategory GetBidiCategory(string s, int index)
-        {
-            if (s is null)
-            {
-                ThrowHelper.ThrowArgumentNullException(ExceptionArgument.s);
-            }
-            if ((uint)index >= (uint)s.Length)
-            {
-                ThrowHelper.ThrowArgumentOutOfRangeException(ExceptionArgument.index);
-            }
-
-            return GetStrongBidiCategoryNoBoundsChecks((uint)InternalGetCodePointFromString(s, index));
-        }
-
-        internal static StrongBidiCategory GetBidiCategory(StringBuilder s, int index)
-        {
-            Debug.Assert(s != null, "s != null");
-            Debug.Assert(index >= 0 && index < s.Length, "index < s.Length");
-
-            int c = (int)s[index];
-            if (index < s.Length - 1)
-            {
-                int temp1 = c - HIGH_SURROGATE_START;
-                if ((uint)temp1 <= HIGH_SURROGATE_RANGE)
-                {
-                    int temp2 = (int)s[index + 1] - LOW_SURROGATE_START;
-                    if ((uint)temp2 <= HIGH_SURROGATE_RANGE)
-                    {
-                        // Convert the surrogate to UTF32 and get the result.
-                        c = (temp1 << 18) + temp2 + UNICODE_PLANE01_START;
-                    }
-                }
-            }
-
-            return GetStrongBidiCategoryNoBoundsChecks((uint)c);
-        }
-
-        internal static GraphemeClusterBreakType GetGraphemeClusterBreakType(Rune rune)
-        {
-            nuint offset = GetNumericGraphemeTableOffsetNoBoundsChecks((uint)rune.Value);
-            return (GraphemeClusterBreakType)Unsafe.AddByteOffset(ref MemoryMarshal.GetReference(GraphemeSegmentationValues), offset);
-        }
-
-        /// <summary>
-        /// Get the Unicode category of the character starting at index.  If the character is in BMP, charLength will return 1.
-        /// If the character is a valid surrogate pair, charLength will return 2.
-        /// </summary>
-        internal static UnicodeCategory InternalGetUnicodeCategory(string str, int index, out int charLength)
-        {
-            Debug.Assert(str != null, "str can not be null");
-            Debug.Assert(str.Length > 0, "str.Length > 0");
-            Debug.Assert(index >= 0 && index < str.Length, "index >= 0 && index < str.Length");
-
-            return GetUnicodeCategory(InternalConvertToUtf32(str, index, out charLength));
         }
     }
 }

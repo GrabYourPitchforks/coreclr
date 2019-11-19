@@ -1070,7 +1070,7 @@ namespace System.Text
             else
             {
                 // not an ASCII char; fall back to globalization table
-                return CharUnicodeInfo.InternalGetNumericValue(value.Value);
+                return CharUnicodeInfo.GetNumericValue(value.Value);
             }
         }
 
