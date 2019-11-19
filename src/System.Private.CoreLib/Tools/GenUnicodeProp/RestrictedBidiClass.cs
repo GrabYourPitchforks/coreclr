@@ -6,8 +6,8 @@ namespace GenUnicodeProp
 {
     internal enum RestrictedBidiClass
     {
-        StrongLeftToRight = 0, // Strong left-to-right character (class "L")
-        StrongRightToLeft = 1, // Strong right-to-left character (classes "R", "AL")
-        Other = 2, // Not a bidi class which requires special handling by us
+        StrongLeftToRight = 1, // Strong left-to-right character (class "L")
+        StrongRightToLeft = 2, // Strong right-to-left character (classes "R", "AL")
+        Other = 0, // Not a bidi class which requires special handling by us
     }
 }

@@ -684,6 +684,8 @@ namespace System
                     return "arrayIndex";
                 case ExceptionArgument.year:
                     return "year";
+                case ExceptionArgument.codePoint:
+                    return "codePoint";
                 default:
                     Debug.Fail("The enum value is not defined, please check the ExceptionArgument Enum.");
                     return "";
@@ -933,6 +935,7 @@ namespace System
         elementType,
         arrayIndex,
         year,
+        codePoint,
     }
 
     //
