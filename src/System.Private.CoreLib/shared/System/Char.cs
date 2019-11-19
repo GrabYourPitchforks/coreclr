@@ -776,7 +776,7 @@ namespace System
             {
                 return GetLatin1UnicodeCategory(s[index]);
             }
-            return CharUnicodeInfo.InternalGetUnicodeCategory(s, index);
+            return CharUnicodeInfo.GetUnicodeCategoryInternal(s, index);
         }
 
         public static double GetNumericValue(char c)
