@@ -74,7 +74,7 @@ namespace System.Globalization
                     if ((uint)temp2 <= HIGH_SURROGATE_RANGE)
                     {
                         // Convert the surrogate to UTF32 and get the result.
-                        c = (temp1 << 18) + temp2 + UNICODE_PLANE01_START;
+                        c = (temp1 << 10) + temp2 + UNICODE_PLANE01_START;
                     }
                 }
             }
@@ -356,10 +356,10 @@ namespace System.Globalization
                     if ((uint)index < (uint)s.Length)
                     {
                         int temp2 = s[index] - LOW_SURROGATE_START;
-                        if (temp2 <= HIGH_SURROGATE_RANGE)
+                        if ((uint)temp2 <= HIGH_SURROGATE_RANGE)
                         {
                             // Combine these surrogate code points into a supplementary code point
-                            codePoint = (temp1 << 18) + temp2 + UNICODE_PLANE01_START;
+                            codePoint = (temp1 << 10) + temp2 + UNICODE_PLANE01_START;
                         }
                     }
                 }
