@@ -10,7 +10,7 @@ namespace System.Text.Unicode
 {
     /// <summary>
     /// Provides helper utilities for computing text segmentation boundaries
-    /// as specified in https://www.unicode.org/reports/tr29/.
+    /// as specified in UAX#29 (https://www.unicode.org/reports/tr29/).
     /// </summary>
     /// <remarks>
     /// The current implementation is compliant per Rev. 35, https://www.unicode.org/reports/tr29/tr29-35.html.
@@ -213,6 +213,19 @@ namespace System.Text.Unicode
 
             public void MoveNext()
             {
+                // For ill-formed subsequences (like unpaired UTF-16 surrogate code points), we rely on
+                // the decoder's default behavior of interpreting these ill-formed subsequences as
+                // equivalent to U+FFFD REPLACEMENT CHARACTER. This code point has a boundary property
+                // of Other (XX), which matches the modifications made to UAX#29, Rev. 35.
+                // See: https://www.unicode.org/reports/tr29/tr29-35.html#Modifications
+                // This change is also reflected in the UCD files. For example, Unicode 11.0's UCD file
+                // https://www.unicode.org/Public/11.0.0/ucd/auxiliary/GraphemeBreakProperty.txt
+                // has the line "D800..DFFF    ; Control # Cs [2048] <surrogate-D800>..<surrogate-DFFF>",
+                // but starting with Unicode 12.0 that line has been removed.
+                //
+                // If a later version of the Unicode Standard further modifies this guidance we should reflect
+                // that here.
+
                 CurrentCodeUnitOffset += _codeUnitLengthOfCurrentScalar;
                 _decoder(_buffer.Slice(CurrentCodeUnitOffset), out Rune thisRune, out _codeUnitLengthOfCurrentScalar);
                 CurrentType = CharUnicodeInfo.GetGraphemeClusterBreakType(thisRune);
