@@ -5,6 +5,8 @@
 using System;
 using System.Buffers.Binary;
 using System.Globalization;
+using System.Text;
+using System.Text.Unicode;
 
 namespace GenUnicodeProp
 {
@@ -14,57 +16,62 @@ namespace GenUnicodeProp
     /// </summary>
     internal sealed class CategoryCasingInfo : IEquatable<CategoryCasingInfo>
     {
-        public readonly UnicodeCategory unicodeCategory;
-        public readonly StrongBidiCategory strongBidiCategory;
-        public readonly int offsetToSimpleUppercase;
-        public readonly int offsetToSimpleLowercase;
-        public readonly int offsetToSimpleTitlecase;
-        public readonly int offsetToSimpleCaseFold;
-        public readonly bool isWhitespace;
+        private readonly (UnicodeCategory generalCategory,
+            StrongBidiCategory strongBidiCategory,
+            ushort offsetToSimpleUppercase,
+            ushort offsetToSimpleLowercase,
+            ushort offsetToSimpleTitlecase,
+            ushort offsetToSimpleCasefold,
+            bool isWhitespace) _data;
 
-        public CategoryCasingInfo(CodePointInfo codePointInfo)
+        public CategoryCasingInfo(CodePoint codePoint)
         {
-            unicodeCategory = codePointInfo.UnicodeCategory;
-            strongBidiCategory = codePointInfo.StrongBidiCategory;
-            isWhitespace = codePointInfo.IsWhitespace;
+            _data.generalCategory = codePoint.GeneralCategory;
+
+            switch (codePoint.BidiClass)
+            {
+                case BidiClass.Left_To_Right:
+                    _data.strongBidiCategory = StrongBidiCategory.StrongLeftToRight;
+                    break;
+
+                case BidiClass.Right_To_Left:
+                case BidiClass.Arabic_Letter:
+                    _data.strongBidiCategory = StrongBidiCategory.StrongRightToLeft;
+                    break;
+
+                default:
+                    _data.strongBidiCategory = StrongBidiCategory.Other;
+                    break;
+            }
 
             if (Program.IncludeCasingData)
             {
-                // Only persist the casing data if we have been asked to do so.
-
-                offsetToSimpleUppercase = codePointInfo.OffsetToSimpleUppercase;
-                offsetToSimpleLowercase = codePointInfo.OffsetToSimpleLowercase;
-                offsetToSimpleTitlecase = codePointInfo.OffsetToSimpleTitlecase;
-                offsetToSimpleCaseFold = codePointInfo.OffsetToSimpleCaseFold;
+                _data.offsetToSimpleUppercase = (ushort)(codePoint.SimpleUppercaseMapping - codePoint.Value);
+                _data.offsetToSimpleLowercase = (ushort)(codePoint.SimpleLowercaseMapping - codePoint.Value);
+                _data.offsetToSimpleTitlecase = (ushort)(codePoint.SimpleTitlecaseMapping - codePoint.Value);
+                _data.offsetToSimpleCasefold = (ushort)(codePoint.SimpleCaseFoldMapping - codePoint.Value);
             }
+            else
+            {
+                _data.offsetToSimpleUppercase = default;
+                _data.offsetToSimpleLowercase = default;
+                _data.offsetToSimpleTitlecase = default;
+                _data.offsetToSimpleCasefold = default;
+            }
+
+            _data.isWhitespace = codePoint.Flags.HasFlag(CodePointFlags.White_Space);
         }
 
-        public override bool Equals(object obj)
-        {
-            return (obj is CategoryCasingInfo other) && this.Equals(other);
-        }
+        public override bool Equals(object obj) => Equals(obj as CategoryCasingInfo);
 
         public bool Equals(CategoryCasingInfo other)
         {
-            return !(other is null)
-                && this.unicodeCategory == other.unicodeCategory
-                && this.strongBidiCategory == other.strongBidiCategory
-                && this.offsetToSimpleUppercase == other.offsetToSimpleUppercase
-                && this.offsetToSimpleLowercase == other.offsetToSimpleLowercase
-                && this.offsetToSimpleTitlecase == other.offsetToSimpleTitlecase
-                && this.offsetToSimpleCaseFold == other.offsetToSimpleCaseFold
-                && this.isWhitespace == other.isWhitespace;
+            return !(other is null) && this._data.Equals(other._data);
         }
 
         public override int GetHashCode()
         {
-            return (unicodeCategory,
-                strongBidiCategory,
-                offsetToSimpleUppercase,
-                offsetToSimpleLowercase,
-                offsetToSimpleTitlecase,
-                offsetToSimpleCaseFold,
-                isWhitespace).GetHashCode();
+            return _data.GetHashCode();
         }
 
         public static byte[] ToCategoryBytes(CategoryCasingInfo input)
@@ -74,38 +81,38 @@ namespace GenUnicodeProp
             // bits 6..5 = restricted bidi class
             // bits 4..0 = Unicode category
 
-            int combinedValue = Convert.ToInt32(input.isWhitespace) << 7;
-            combinedValue += (int)input.strongBidiCategory << 5;
-            combinedValue += (int)input.unicodeCategory;
+            int combinedValue = Convert.ToInt32(input._data.isWhitespace) << 7;
+            combinedValue += (int)input._data.strongBidiCategory << 5;
+            combinedValue += (int)input._data.generalCategory;
 
             return new byte[] { checked((byte)combinedValue) };
         }
 
         public static byte[] ToUpperBytes(CategoryCasingInfo input)
         {
-            byte[] bytes = new byte[sizeof(int)];
-            BinaryPrimitives.WriteInt32LittleEndian(bytes, input.offsetToSimpleUppercase);
+            byte[] bytes = new byte[sizeof(ushort)];
+            BinaryPrimitives.WriteUInt16LittleEndian(bytes, input._data.offsetToSimpleUppercase);
             return bytes;
         }
 
         public static byte[] ToLowerBytes(CategoryCasingInfo input)
         {
-            byte[] bytes = new byte[sizeof(int)];
-            BinaryPrimitives.WriteInt32LittleEndian(bytes, input.offsetToSimpleLowercase);
+            byte[] bytes = new byte[sizeof(ushort)];
+            BinaryPrimitives.WriteUInt16LittleEndian(bytes, input._data.offsetToSimpleLowercase);
             return bytes;
         }
 
         public static byte[] ToTitleBytes(CategoryCasingInfo input)
         {
-            byte[] bytes = new byte[sizeof(int)];
-            BinaryPrimitives.WriteInt32LittleEndian(bytes, input.offsetToSimpleTitlecase);
+            byte[] bytes = new byte[sizeof(ushort)];
+            BinaryPrimitives.WriteUInt16LittleEndian(bytes, input._data.offsetToSimpleTitlecase);
             return bytes;
         }
 
         public static byte[] ToCaseFoldBytes(CategoryCasingInfo input)
         {
-            byte[] bytes = new byte[sizeof(int)];
-            BinaryPrimitives.WriteInt32LittleEndian(bytes, input.offsetToSimpleCaseFold);
+            byte[] bytes = new byte[sizeof(ushort)];
+            BinaryPrimitives.WriteUInt16LittleEndian(bytes, input._data.offsetToSimpleCasefold);
             return bytes;
         }
     }

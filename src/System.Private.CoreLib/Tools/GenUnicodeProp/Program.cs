@@ -6,6 +6,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.Unicode;
 
 namespace GenUnicodeProp
 {
@@ -26,43 +27,42 @@ namespace GenUnicodeProp
 
             Console.WriteLine("Reading Unicode data files...");
 
-            UnicodeDataRepository repository = UnicodeDataRepository.ParseFiles();
-            IReadOnlyList<CodePointInfo> assignedCodePoints = repository.Data;
+            _ = UnicodeData.GetData(0); // processes files
 
-            Console.WriteLine($"Information about {assignedCodePoints.Count} code points ingested.");
+            Console.WriteLine("Finished.");
             Console.WriteLine();
 
-            // Next, define the "zero" (unassigned) value and initialize the
-            // category casing & numeric grapheme maps.
-
-            CodePointInfo defaultCodePointInfo = new CodePointInfo();
-
-            Dictionary<CategoryCasingInfo, byte> categoryCasingMap = new Dictionary<CategoryCasingInfo, byte>()
-            {
-                { new CategoryCasingInfo(defaultCodePointInfo), 0 }
-            };
-
-            Dictionary<NumericGraphemeInfo, byte> numericGraphemeMap = new Dictionary<NumericGraphemeInfo, byte>()
-            {
-                { new NumericGraphemeInfo(defaultCodePointInfo), 0 }
-            };
+            Console.WriteLine("Initializing maps...");
+            Dictionary<CategoryCasingInfo, byte> categoryCasingMap = new Dictionary<CategoryCasingInfo, byte>();
+            Dictionary<NumericGraphemeInfo, byte> numericGraphemeMap = new Dictionary<NumericGraphemeInfo, byte>();
 
             // Next, iterate though all assigned code points, populating
-            // the category casing & numeric grapheme maps.
+            // the category casing & numeric grapheme maps. Also put the
+            // data into the the DataTable structure, which will compute
+            // the tiered offset tables.
 
-            foreach (CodePointInfo codePointInfo in assignedCodePoints)
+            DataTable categoryCasingTable = new DataTable();
+            DataTable numericGraphemeTable = new DataTable();
+
+            for (int i = 0; i <= 0x10_FFFF; i++)
             {
-                CategoryCasingInfo categoryCasingInfo = new CategoryCasingInfo(codePointInfo);
-                if (!categoryCasingMap.ContainsKey(categoryCasingInfo))
-                {
-                    categoryCasingMap[categoryCasingInfo] = (byte)categoryCasingMap.Count;
-                }
+                CodePoint thisCodePoint = UnicodeData.GetData(i);
 
-                NumericGraphemeInfo numericGraphemeInfo = new NumericGraphemeInfo(codePointInfo);
-                if (!numericGraphemeMap.ContainsKey(numericGraphemeInfo))
+                CategoryCasingInfo categoryCasingInfo = new CategoryCasingInfo(thisCodePoint);
+                if (!categoryCasingMap.TryGetValue(categoryCasingInfo, out byte cciValue))
                 {
-                    numericGraphemeMap[numericGraphemeInfo] = (byte)numericGraphemeMap.Count;
+                    cciValue = (byte)categoryCasingMap.Count;
+                    categoryCasingMap[categoryCasingInfo] = cciValue;
                 }
+                categoryCasingTable.AddData((uint)i, cciValue);
+
+                NumericGraphemeInfo numericGraphemeInfo = new NumericGraphemeInfo(thisCodePoint);
+                if (!numericGraphemeMap.TryGetValue(numericGraphemeInfo, out byte ngiValue))
+                {
+                    ngiValue = (byte)numericGraphemeMap.Count;
+                    numericGraphemeMap[numericGraphemeInfo] = ngiValue;
+                }
+                numericGraphemeTable.AddData((uint)i, ngiValue);
             }
 
             // Did anything overflow?
@@ -81,25 +81,14 @@ namespace GenUnicodeProp
 
             Console.WriteLine();
 
-            // Now put the data into the the DataTable structure, which will
-            // compute the tiered offset tables.
-
-            DataTable categoryCasingTable = new DataTable();
-            foreach (CodePointInfo codePointInfo in assignedCodePoints)
-            {
-                categoryCasingTable.AddData(codePointInfo.CodePoint, categoryCasingMap[new CategoryCasingInfo(codePointInfo)]);
-            }
+            // Choose default ratios for the data tables we'll be generating.
 
             TableLevels categoryCasingTableLevelBits = new TableLevels(5, 4);
-            categoryCasingTable.GenerateTable("CategoryCasingTable", categoryCasingTableLevelBits.Level2Bits, categoryCasingTableLevelBits.Level3Bits);
-
-            DataTable numericGraphemeTable = new DataTable();
-            foreach (CodePointInfo codePointInfo in assignedCodePoints)
-            {
-                numericGraphemeTable.AddData(codePointInfo.CodePoint, numericGraphemeMap[new NumericGraphemeInfo(codePointInfo)]);
-            }
-
             TableLevels numericGraphemeTableLevelBits = new TableLevels(5, 4);
+
+            // Now generate the tables.
+
+            categoryCasingTable.GenerateTable("CategoryCasingTable", categoryCasingTableLevelBits.Level2Bits, categoryCasingTableLevelBits.Level3Bits);
             numericGraphemeTable.GenerateTable("NumericGraphemeTable", numericGraphemeTableLevelBits.Level2Bits, numericGraphemeTableLevelBits.Level3Bits);
 
             // If you want to see if a different ratio would have better compression
@@ -199,7 +188,7 @@ namespace GenUnicodeProp
             }
 
             List<byte> binaryOutput = new List<byte>();
-            for (int i = 0; i < highestByteSeen; i++)
+            for (int i = 0; i <= highestByteSeen; i++)
             {
                 binaryOutput.AddRange(getBytesCallback(reverseMap[(byte)i]));
             }

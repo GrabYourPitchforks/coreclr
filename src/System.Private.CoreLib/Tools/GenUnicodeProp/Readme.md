@@ -6,12 +6,13 @@ To run this tool, fetch the files listed below from https://www.unicode.org/Publ
  - `UnicodeData.txt`
  - `auxiliary/GraphemeBreakProperty.txt`
  - `extracted/DerivedBidiClass.txt`
+ - `extracted/DerivedName.txt`
 
 And the files listed below from https://www.unicode.org/Public/emoji/:
 
  - `emoji-data.txt`
 
-Drop all six of these files into the same directory as this application, then execute:
+Drop all seven of these files into the same directory as this application, then execute:
 
 > `dotnet run`
 
