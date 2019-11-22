@@ -33,12 +33,14 @@ namespace System.Globalization
             _currentTextElementSubstr = null; // clear any cached substr
 
             int newOffset = _currentTextElementOffset + _currentTextElementLength;
+            _currentTextElementOffset = newOffset; // advance
+            _currentTextElementLength = 0; // prevent future calls to MoveNext() or get_Current from succeeding if we've hit end of data
+
             if (newOffset >= _str.Length)
             {
                 return false; // reached the end of the data
             }
 
-            _currentTextElementOffset = newOffset;
             _currentTextElementLength = TextSegmentationUtility.GetLengthOfFirstUtf16ExtendedGraphemeCluster(_str.AsSpan(newOffset));
             return true;
         }
