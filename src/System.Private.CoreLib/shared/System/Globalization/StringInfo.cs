@@ -114,7 +114,7 @@ namespace System.Globalization
                 ThrowHelper.ThrowArgumentOutOfRange_IndexException();
             }
 
-            return str.Substring(0, TextSegmentationUtility.GetLengthOfFirstUtf16ExtendedGraphemeCluster(str.AsSpan(index)));
+            return str.Substring(index, TextSegmentationUtility.GetLengthOfFirstUtf16ExtendedGraphemeCluster(str.AsSpan(index)));
         }
 
         public static TextElementEnumerator GetTextElementEnumerator(string str) => GetTextElementEnumerator(str, 0);
