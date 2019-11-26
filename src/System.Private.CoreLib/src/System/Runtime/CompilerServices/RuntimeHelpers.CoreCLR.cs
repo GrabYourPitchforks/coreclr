@@ -260,28 +260,13 @@ namespace System.Runtime.CompilerServices
         // GC.KeepAlive(o);
         //
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [Intrinsic]
         internal static unsafe MethodTable* GetMethodTable(object obj)
         {
-            Debug.Assert(obj != null);
+            // The body of this function will be replaced by the EE with unsafe code
+            // See getILIntrinsicImplementationForRuntimeHelpers for how this happens.
 
-            // We know that the first data field in any managed object is immediately after the
-            // method table pointer, so just back up one pointer and immediately deref.
-            //
-            // The JIT currently implements this as:
-            // mov rbx, qword ptr [rax] ; rax = obj ref, rbx = MethodTable* pointer
-
-            return (MethodTable *)Unsafe.As<RawMethodTableHelper>(obj).Container.Data[-1];
-        }
-
-        // Helper class to assist with RuntimeHelpers.GetMethodTable.
-        private sealed class RawMethodTableHelper
-        {
-            public FixedStruct Container;
-
-            internal struct FixedStruct
-            {
-                public unsafe fixed nuint Data[1];
-            }
+            return (MethodTable *)Unsafe.Add(ref Unsafe.As<byte, IntPtr>(ref obj.GetRawData()), -1);
         }
     }
 
